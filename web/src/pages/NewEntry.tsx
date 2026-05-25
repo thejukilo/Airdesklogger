@@ -417,10 +417,11 @@ export function NewEntry() {
           <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />
         </Section>
 
-        {/* Sticky action bar on mobile so Save is always within reach. */}
-        <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t bg-white/95 px-4 py-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none">
-          <Button type="submit" disabled={busy} className="flex-1 md:flex-none">{busy ? "Saving..." : "Save entry"}</Button>
-          <Button type="button" variant="ghost" onClick={() => navigate("/")}>Cancel</Button>
+        {/* Sticky action bar on mobile so Save is always within reach. The extra
+            bottom padding clears the iOS home indicator / browser bar. */}
+        <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none">
+          <Button type="submit" disabled={busy} className="flex-1 py-2.5 md:flex-none md:py-2">{busy ? "Saving..." : "Save entry"}</Button>
+          <Button type="button" variant="ghost" onClick={() => navigate("/")} className="py-2.5 md:py-2">Cancel</Button>
         </div>
       </form>
     </div>
