@@ -82,6 +82,10 @@ export function register(input: {
   return request("/auth/register", { method: "POST", body: JSON.stringify(input) });
 }
 
+export function verifyEmail(token: string): Promise<{ emailVerified: boolean }> {
+  return request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+}
+
 export interface EntryColumns {
   kind: string;
   date: string;

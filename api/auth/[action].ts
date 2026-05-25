@@ -144,6 +144,14 @@ async function login(req: VercelRequest, res: VercelResponse): Promise<void> {
     return;
   }
 
+  // FOCA 2.1.3: a user's identity is confirmed through a verified email address
+  // before the account can be used.
+  if (!user.emailVerified) {
+    await logAccountEvent({ userId: user.id, email: user.email ?? "", eventType: "LOGIN_FAILED", ...ipField });
+    res.status(403).json({ error: "Please verify your email address before signing in." });
+    return;
+  }
+
   const token = await signSession(
     { sub: user.id, roles: user.roles, email: user.email ?? "" },
     getJwtSecret(),

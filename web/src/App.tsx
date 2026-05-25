@@ -8,6 +8,7 @@ import { NewEntry } from "./pages/NewEntry";
 import { EntryDetail } from "./pages/EntryDetail";
 import { Account } from "./pages/Account";
 import { Sign } from "./pages/Sign";
+import { Verify } from "./pages/Verify";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -59,6 +60,7 @@ function AppShell() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify" element={<Verify />} />
         <Route
           path="/"
           element={

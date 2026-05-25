@@ -1,15 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth";
+import { Link } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field } from "../components/ui";
 
 export function Register() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", password: "", licenseNumber: "" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [verifyToken, setVerifyToken] = useState<string | null>(null);
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -19,19 +17,38 @@ export function Register() {
     setError(null);
     setBusy(true);
     try {
-      await api.register({
+      const res = await api.register({
         name: form.name,
         email: form.email,
         password: form.password,
         ...(form.licenseNumber ? { licenseNumber: form.licenseNumber } : {}),
       });
-      await login(form.email, form.password);
-      navigate("/");
+      // The account must confirm its email before it can sign in (FOCA 2.1.3).
+      setVerifyToken(res.emailVerificationToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the account.");
     } finally {
       setBusy(false);
     }
+  }
+
+  if (verifyToken) {
+    return (
+      <div className="mx-auto max-w-sm pt-10">
+        <h1 className="mb-4 text-xl font-semibold">Confirm your email</h1>
+        <Card>
+          <div className="space-y-3 text-sm text-slate-600">
+            <p>
+              Your account was created. Before you can sign in, confirm your email address. A
+              verification link was sent to {form.email}.
+            </p>
+            <Link to={`/verify?token=${encodeURIComponent(verifyToken)}`}>
+              <Button className="w-full">Verify now</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   return (
