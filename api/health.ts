@@ -1,12 +1,42 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../src/db/pool.js";
+import { hashPassword } from "../src/auth/passwords.js";
 
 /**
  * Liveness and configuration check. Reports whether the runtime has the
- * environment it needs (as booleans, never the values), and with ?db=1 it
- * attempts a single query so a misconfigured database connection can be
- * diagnosed without reading the platform logs.
+ * environment it needs (as booleans, never the values). With ?db=1 it also
+ * checks the database the way sign-up does: that the connection works, that the
+ * required tables and the pilots columns exist (so a partial schema load is
+ * visible), and that the password hasher runs. This is a setup aid and can be
+ * tightened or removed once the deployment is settled.
  */
+const REQUIRED_TABLES = [
+  "pilots",
+  "flight_entries",
+  "flight_entry_versions",
+  "signatures",
+  "audit_ledger",
+  "account_events",
+  "airports",
+  "aircraft",
+  "fstd_devices",
+];
+
+const REQUIRED_PILOT_COLUMNS = [
+  "email",
+  "password_hash",
+  "roles",
+  "first_name",
+  "last_name",
+  "date_of_birth",
+  "address",
+  "email_verification_token",
+  "mfa_secret_wrapped",
+  "mfa_enabled",
+  "signing_public_key",
+  "signing_key_wrapped",
+];
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const out: Record<string, unknown> = {
     status: "ok",
@@ -20,14 +50,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   };
 
   if (req.query.db === "1") {
+    const pool = getPool();
+
     try {
-      await getPool().query("SELECT 1");
+      await pool.query("SELECT 1");
       out.db = "ok";
     } catch (err) {
       out.db = "error";
-      // The pg error message names the failure (bad password, host not found,
-      // wrong pooler user) but never contains the password.
       out.dbError = err instanceof Error ? err.message : String(err);
+    }
+
+    if (out.db === "ok") {
+      try {
+        const { rows } = await pool.query(
+          "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)",
+          [REQUIRED_TABLES],
+        );
+        const present = new Set(rows.map((r) => r.table_name as string));
+        out.missingTables = REQUIRED_TABLES.filter((t) => !present.has(t));
+
+        const { rows: cols } = await pool.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_name = 'pilots'",
+        );
+        const have = new Set(cols.map((r) => r.column_name as string));
+        out.pilotsMissingColumns = REQUIRED_PILOT_COLUMNS.filter((c) => !have.has(c));
+      } catch (err) {
+        out.schemaError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    try {
+      await hashPassword("diagnostic-password-123");
+      out.passwordHasher = "ok";
+    } catch (err) {
+      out.passwordHasher = "error";
+      out.passwordHasherError = err instanceof Error ? err.message : String(err);
     }
   }
 
