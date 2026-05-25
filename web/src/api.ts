@@ -137,6 +137,16 @@ export function lookupAircraft(
   });
 }
 
+export interface AirportRef {
+  icao: string;
+  name: string;
+  country: string | null;
+}
+
+export function searchAirports(q: string): Promise<{ airports: AirportRef[] }> {
+  return request(`/reference/airports?q=${encodeURIComponent(q)}`, { method: "GET" });
+}
+
 export interface Profile {
   id: string;
   email: string | null;

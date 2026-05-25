@@ -9,7 +9,7 @@
  *   - landing counts are non-negative integers.
  */
 
-import type { DerivedColumns, FlightEntryInput, FstdSessionInput } from "./types.js";
+import type { DerivedColumns, FlightEntryInput, FstdSessionInput, PilotFunction } from "./types.js";
 import { minutesBetween, utcDateKey } from "./time.js";
 import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
@@ -121,7 +121,19 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   // Apply the crew share to every category of time (FOCA 2.3.4). Landings are
   // counts, not time, and are never scaled.
   const safeCrew = crewSize as 2 | 3 | 4;
-  const total = loggedMinutes(blockTime, safeCrew);
+
+  // A safety pilot logs flight time only if they took control (FOCA 2.3.5), and
+  // that time is logged in command. Otherwise the flight is recorded with no
+  // creditable time at all.
+  const isSafety = input.function.primary === "SAFETY_PILOT";
+  const safetyNoControl = isSafety && !input.function.tookControl;
+  const effectivePrimary: PilotFunction = isSafety
+    ? input.function.tookControl
+      ? "PIC"
+      : "SAFETY_PILOT"
+    : input.function.primary;
+
+  const total = safetyNoControl ? 0 : loggedMinutes(blockTime, safeCrew);
 
   // Columns 5 & 6: single-pilot SE/ME vs multi-pilot, exhaustively from the
   // logged total.
@@ -131,12 +143,12 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const multiEngine =
     !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
 
-  const night = loggedMinutes(input.conditions.night, safeCrew);
-  const ifr = loggedMinutes(input.conditions.ifr, safeCrew);
+  const night = safetyNoControl ? 0 : loggedMinutes(input.conditions.night, safeCrew);
+  const ifr = safetyNoControl ? 0 : loggedMinutes(input.conditions.ifr, safeCrew);
 
   // Column 11.
-  const fm = functionMinutes(input.function, total);
-  const instructor = loggedMinutes(input.function.instructor, safeCrew);
+  const fm = functionMinutes({ primary: effectivePrimary, instructor: input.function.instructor }, total);
+  const instructor = safetyNoControl ? 0 : loggedMinutes(input.function.instructor, safeCrew);
 
   const derived: DerivedColumns = {
     kind: "FLIGHT",
@@ -147,6 +159,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     category,
     ...(input.launchMethod !== undefined ? { launchMethod: input.launchMethod } : {}),
     ...(input.function.instructorPosition !== undefined ? { instructorPosition: input.function.instructorPosition } : {}),
+    ...(input.operatingRole !== undefined ? { operatingRole: input.operatingRole } : {}),
     date: utcDateKey(first.departureTime),
     departurePlace: first.departurePlace,
     departureTime: first.departureTime,

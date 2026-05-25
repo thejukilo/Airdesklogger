@@ -11,7 +11,10 @@ import type { EntryAttribute } from "./attributes.js";
 export type EntryKind = "FLIGHT" | "FSTD";
 
 /** EASA primary pilot capacity. Mutually exclusive, and it covers the whole flight. */
-export type PilotFunction = "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL";
+export type PilotFunction = "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL" | "SAFETY_PILOT";
+
+/** Operating role within the flight, independent of the logged function time. */
+export type OperatingRole = "PILOT_FLYING" | "PILOT_MONITORING";
 
 /** Who must countersign, if anyone. */
 export type CountersignRole = "SUPERVISING_PIC" | "INSTRUCTOR" | "EXAMINER";
@@ -68,6 +71,8 @@ export interface FunctionTime {
   instructor: number;
   /** Where the instructor/examiner sat, when applicable (FOCA 2.2.4). */
   instructorPosition?: InstructorPosition | undefined;
+  /** For a safety pilot, whether they took control (FOCA 2.3.5). */
+  tookControl?: boolean | undefined;
 }
 
 /**
@@ -83,6 +88,8 @@ export interface FlightEntryInput {
   conditions: OperationalConditionTime; // column 10
   function: FunctionTime; // column 11
   remarks: string; // column 12
+  /** Operating role (pilot flying / monitoring), independent of function time. */
+  operatingRole?: OperatingRole;
   /** Sailplane launch method, when the aircraft is a sailplane (FOCA 2.2.5). */
   launchMethod?: LaunchMethod;
   /** Operating crew size: 2 (normal), or 3/4 for augmented operation (FOCA 2.3.4). */
@@ -152,6 +159,8 @@ export interface DerivedColumns {
   launchMethod?: LaunchMethod;
   /** Instructor/examiner seat position, if recorded. */
   instructorPosition?: InstructorPosition;
+  /** Operating role, if recorded. */
+  operatingRole?: OperatingRole;
   /** Present only when kind is FSTD (column 11 of the layout). */
   fstd?: FstdColumns;
   /** Structured FOCA attributes applied to the entry. */

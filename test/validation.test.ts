@@ -104,6 +104,28 @@ describe("entry validation & column derivation", () => {
     expect(r.issues.some((i) => i.field === "function.primary")).toBe(true);
   });
 
+  it("logs a safety pilot's time only when they took control (FOCA 2.3.5)", () => {
+    const tookControl = validateEntry(
+      baseEntry({ function: { primary: "SAFETY_PILOT", instructor: 0, tookControl: true } }),
+    );
+    expect(tookControl.valid).toBe(true);
+    expect(tookControl.derived!.total).toBe(90); // block time, logged as PIC
+    expect(tookControl.derived!.pic).toBe(90);
+
+    const noControl = validateEntry(
+      baseEntry({ function: { primary: "SAFETY_PILOT", instructor: 0, tookControl: false } }),
+    );
+    expect(noControl.valid).toBe(true);
+    expect(noControl.derived!.total).toBe(0); // no creditable time
+    expect(noControl.derived!.pic).toBe(0);
+  });
+
+  it("records the operating role", () => {
+    const r = validateEntry(baseEntry({ operatingRole: "PILOT_MONITORING" }));
+    expect(r.valid).toBe(true);
+    expect(r.derived!.operatingRole).toBe("PILOT_MONITORING");
+  });
+
   it("allows a launch method only for a sailplane", () => {
     const onAeroplane = validateEntry(baseEntry({ launchMethod: "WINCH" }));
     expect(onAeroplane.valid).toBe(false);
