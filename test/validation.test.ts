@@ -24,6 +24,15 @@ function baseEntry(over: Partial<FlightEntryInput> = {}): FlightEntryInput {
 }
 
 describe("entry validation & column derivation", () => {
+  it("rejects a dual flight whose PIC is SELF (the instructor must be named)", () => {
+    const self = validateEntry(baseEntry({ function: { primary: "DUAL", instructor: 0 }, picName: "SELF" }));
+    expect(self.valid).toBe(false);
+    expect(self.issues.some((i) => i.field === "picName")).toBe(true);
+
+    const named = validateEntry(baseEntry({ function: { primary: "DUAL", instructor: 0 }, picName: "Jane Doe" }));
+    expect(named.valid).toBe(true);
+  });
+
   it("derives the 12 columns for a single-engine PIC flight", () => {
     const r = validateEntry(baseEntry());
     expect(r.valid).toBe(true);

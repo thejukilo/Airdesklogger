@@ -139,6 +139,18 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     issues.push({ field: "picName", message: "Name of PIC is required (use SELF if applicable)." });
   }
 
+  // On a dual flight the trainee is not the pilot in command, so the PIC is the
+  // instructor: SELF (or a blank) is not acceptable, a real name is required.
+  if (input.function.primary === "DUAL") {
+    const pic = (input.picName ?? "").trim();
+    if (pic === "" || pic.toUpperCase() === "SELF") {
+      issues.push({
+        field: "picName",
+        message: "On a dual flight the pilot in command is the instructor; enter the instructor's name, not SELF.",
+      });
+    }
+  }
+
   // FOCA 2.3.3: when the place is the ZZZZ no-location indicator, the name of the
   // aerodrome or place has to be given in free text.
   input.legs.forEach((leg, i) => {

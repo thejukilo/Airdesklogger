@@ -25,6 +25,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (req.method === "POST") {
       const raw = typeof req.body === "string" ? safeJson(req.body) : req.body;
       const input = parseEntryRequest({ ...(raw as object), pilotId: claims.sub });
+      // A flight cannot be logged before it has happened. Guards against a date
+      // or block time accidentally set in the future.
+      const latestArrival = Math.max(...input.legs.map((l) => l.arrivalTime.getTime()));
+      if (latestArrival > Date.now() + 60_000) {
+        res.status(422).json({
+          valid: false,
+          issues: [{ field: "legs", message: "A flight cannot be logged with a date or time in the future." }],
+        });
+        return;
+      }
       // Night time is computed, not taken from the client (FOCA 2.3.4). It is the
       // part of each leg that falls in night at the departure aerodrome.
       input.conditions.night = await computeNight(input);

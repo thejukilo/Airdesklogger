@@ -183,6 +183,17 @@ export function NewEntry() {
   useEffect(() => resolveAirport(dep, setDepName), [dep]);
   useEffect(() => resolveAirport(arr, setArrName), [arr]);
 
+  // The date cannot be in the future, so cap the picker at today (device date).
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  // On a dual flight the PIC is the instructor, so SELF is not valid: clear it
+  // when the function switches to dual so the pilot must type the instructor.
+  const isDual = f.primary === "DUAL";
+  useEffect(() => {
+    if (isDual && f.picName.trim().toUpperCase() === "SELF") set("picName", "");
+  }, [isDual]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -246,7 +257,7 @@ export function NewEntry() {
         <form onSubmit={onSubmit} className="space-y-5">
           {error && <Alert>{error}</Alert>}
 
-          <Field label="Date of flight" type="date" value={f.date} onChange={(e) => set("date", e.target.value)} required />
+          <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} required />
 
           <div>
             <Field
@@ -339,7 +350,13 @@ export function NewEntry() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Name of PIC" value={f.picName} onChange={(e) => set("picName", e.target.value)} required />
+            <Field
+              label={isDual ? "Name of PIC (flight instructor)" : "Name of PIC"}
+              value={f.picName}
+              onChange={(e) => set("picName", e.target.value)}
+              hint={isDual ? "On a dual flight enter the instructor's name, not SELF." : undefined}
+              required
+            />
             <Select label="Pilot function" value={f.primary} onChange={(e) => set("primary", e.target.value)}>
               <option value="PIC">Pilot in command</option>
               <option value="CO_PILOT">Second in command (co-pilot)</option>
