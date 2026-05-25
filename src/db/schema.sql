@@ -174,8 +174,14 @@ CREATE TABLE IF NOT EXISTS airports (
   icao       char(4) PRIMARY KEY,
   name       text NOT NULL,
   country    text,
+  latitude   double precision,
+  longitude  double precision,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Coordinates are used to compute night time automatically (FOCA 2.3.4). Added
+-- with IF NOT EXISTS so the migration stays idempotent on an existing database.
+ALTER TABLE airports ADD COLUMN IF NOT EXISTS latitude  double precision;
+ALTER TABLE airports ADD COLUMN IF NOT EXISTS longitude double precision;
 
 -- Aircraft, with the properties FOCA asks for. A registration may appear more
 -- than once over its life (variant change, re-registration), distinguished by

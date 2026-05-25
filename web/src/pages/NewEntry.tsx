@@ -74,7 +74,6 @@ const empty = {
   instructor: 0,
   dayLandings: 1,
   nightLandings: 0,
-  night: 0,
   picName: "SELF",
   remarks: "",
   attributes: [] as string[],
@@ -164,7 +163,7 @@ export function NewEntry() {
         ],
         picName: f.picName,
         landings: { day: Number(f.dayLandings), night: Number(f.nightLandings) },
-        conditions: { night: Number(f.night), ifr },
+        conditions: { night: 0, ifr },
         function: {
           primary: f.primary,
           instructor: Number(f.instructor),
@@ -274,12 +273,14 @@ export function NewEntry() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <Field label="Day landings" type="number" min={0} value={f.dayLandings} onChange={(e) => set("dayLandings", Number(e.target.value))} />
             <Field label="Night landings" type="number" min={0} value={f.nightLandings} onChange={(e) => set("nightLandings", Number(e.target.value))} />
-            <Field label="Night time (min)" type="number" min={0} value={f.night} onChange={(e) => set("night", Number(e.target.value))} />
             <Field label="Instructor time (min)" type="number" min={0} value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} />
           </div>
+          <p className="-mt-2 text-xs text-slate-500">
+            Night time is calculated automatically from the departure aerodrome and the block times.
+          </p>
 
           <div>
             <span className="mb-2 block text-sm font-medium text-slate-700">

@@ -3,6 +3,8 @@ import { parseEntryRequest, RequestError } from "../../src/http/parseEntry.js";
 import { validateEntry } from "../../src/domain/validation.js";
 import { createEntry, listEntriesForPilot } from "../../src/db/repository.js";
 import { validateFlightReferences } from "../../src/http/validateReferences.js";
+import { getAirportCoords } from "../../src/db/referenceRepository.js";
+import { nightMinutes } from "../../src/domain/night.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
 /**
@@ -23,6 +25,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (req.method === "POST") {
       const raw = typeof req.body === "string" ? safeJson(req.body) : req.body;
       const input = parseEntryRequest({ ...(raw as object), pilotId: claims.sub });
+      // Night time is computed, not taken from the client (FOCA 2.3.4). It is the
+      // part of each leg that falls in night at the departure aerodrome.
+      input.conditions.night = await computeNight(input);
       const result = validateEntry(input);
       if (!result.valid || !result.derived) {
         res.status(422).json({ valid: false, issues: result.issues });
@@ -58,4 +63,14 @@ function safeJson(s: string): unknown {
   } catch {
     return {};
   }
+}
+
+/** Sum of night minutes across the legs, using each departure aerodrome. */
+async function computeNight(input: Parameters<typeof validateEntry>[0]): Promise<number> {
+  let total = 0;
+  for (const leg of input.legs) {
+    const coords = await getAirportCoords(leg.departurePlace);
+    total += nightMinutes(leg.departureTime, leg.arrivalTime, coords);
+  }
+  return total;
 }

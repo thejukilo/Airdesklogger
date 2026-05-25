@@ -15,19 +15,35 @@ export interface Airport {
   icao: string;
   name: string;
   country?: string | null | undefined;
+  latitude?: number | null | undefined;
+  longitude?: number | null | undefined;
 }
 
 export async function upsertAirport(a: Airport): Promise<void> {
   await getPool().query(
-    `INSERT INTO airports (icao, name, country) VALUES ($1,$2,$3)
-       ON CONFLICT (icao) DO UPDATE SET name = EXCLUDED.name, country = EXCLUDED.country`,
-    [normalizeIcao(a.icao), a.name, a.country ?? null],
+    `INSERT INTO airports (icao, name, country, latitude, longitude) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (icao) DO UPDATE SET name = EXCLUDED.name, country = EXCLUDED.country,
+         latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude`,
+    [normalizeIcao(a.icao), a.name, a.country ?? null, a.latitude ?? null, a.longitude ?? null],
   );
 }
 
 export async function airportExists(icao: string): Promise<boolean> {
   const { rows } = await getPool().query("SELECT 1 FROM airports WHERE icao = $1", [normalizeIcao(icao)]);
   return rows.length > 0;
+}
+
+/** Coordinates for an airport, used to compute night time. Null when unknown. */
+export async function getAirportCoords(
+  icao: string,
+): Promise<{ latitude: number; longitude: number } | null> {
+  const { rows } = await getPool().query(
+    "SELECT latitude, longitude FROM airports WHERE icao = $1",
+    [normalizeIcao(icao)],
+  );
+  const r = rows[0];
+  if (!r || r.latitude === null || r.longitude === null) return null;
+  return { latitude: Number(r.latitude), longitude: Number(r.longitude) };
 }
 
 export async function searchAirports(query: string, limit = 20): Promise<Airport[]> {
