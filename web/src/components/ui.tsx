@@ -6,7 +6,7 @@ import type {
 } from "react";
 
 export function Card({ children }: { children: ReactNode }) {
-  return <div className="rounded-lg border bg-white p-5 shadow-sm">{children}</div>;
+  return <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-card ring-1 ring-slate-900/[0.03]">{children}</div>;
 }
 
 export function Button({
@@ -14,11 +14,11 @@ export function Button({
   variant = "primary",
   ...props
 }: { children: ReactNode; variant?: "primary" | "ghost" } & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const base = "inline-flex items-center justify-center rounded-md px-3.5 py-2 text-sm font-medium disabled:opacity-50";
+  const base = "inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50";
   const styles =
     variant === "primary"
-      ? "bg-ink text-white hover:bg-black"
-      : "border text-slate-700 hover:bg-slate-50";
+      ? "bg-brand-600 text-white shadow-sm hover:bg-brand-700"
+      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50";
   return (
     <button {...props} className={`${base} ${styles} ${props.className ?? ""}`}>
       {children}
@@ -36,7 +36,7 @@ export function Field({
       <span className="mb-1 block font-medium text-slate-700">{label}</span>
       <input
         {...props}
-        className="w-full rounded-md border px-3 py-2 outline-none focus:border-ink"
+        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
       />
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
@@ -51,7 +51,7 @@ export function Select({
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-slate-700">{label}</span>
-      <select {...props} className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:border-ink">
+      <select {...props} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30">
         {children}
       </select>
     </label>

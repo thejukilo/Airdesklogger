@@ -51,9 +51,9 @@ function Tile({ icon, label, onClick, disabled }: { icon: ReactNode; label: stri
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center justify-center gap-2 rounded-xl border bg-white p-4 text-slate-700 active:bg-slate-50 disabled:opacity-50"
+      className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white p-4 text-slate-700 shadow-card ring-1 ring-slate-900/[0.03] transition active:bg-brand-50 disabled:opacity-50"
     >
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-ink">{icon}</span>
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-100 text-brand-700">{icon}</span>
       <span className="text-sm font-medium">{label}</span>
     </button>
   );
@@ -121,18 +121,16 @@ export function Logbook() {
 
       {/* Mobile home screen: a status widget and app-style quick actions. */}
       <div className="space-y-4 md:hidden">
-        <Card>
-          <div className="grid grid-cols-2 divide-x">
-            <div className="px-2 text-center">
-              <div className="text-2xl font-semibold tabular-nums">{hhmm(totalMinutes) || "00:00"}</div>
-              <div className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Total time</div>
-            </div>
-            <div className="px-2 text-center">
-              <div className="text-2xl font-semibold tabular-nums">{totalLandings}</div>
-              <div className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Landings</div>
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white p-4 text-center shadow-card">
+            <div className="text-2xl font-semibold tabular-nums text-brand-700">{hhmm(totalMinutes) || "00:00"}</div>
+            <div className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Total time</div>
           </div>
-        </Card>
+          <div className="rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white p-4 text-center shadow-card">
+            <div className="text-2xl font-semibold tabular-nums text-brand-700">{totalLandings}</div>
+            <div className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Landings</div>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Tile icon={<PlusIcon />} label="New flight" onClick={() => navigate("/new")} />
           <Tile icon={<DownloadIcon />} label="Download report" onClick={exportPdf} disabled={exporting || entries.length === 0} />
