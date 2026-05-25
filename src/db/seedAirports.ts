@@ -82,7 +82,7 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
-function fromOurAirportsCsv(text: string): SeedAirport[] {
+export function fromOurAirportsCsv(text: string): SeedAirport[] {
   const rows = parseCsv(text);
   const header = rows.shift();
   if (!header) return [];
@@ -108,7 +108,7 @@ function fromOurAirportsCsv(text: string): SeedAirport[] {
 async function upsertBatch(airports: SeedAirport[]): Promise<number> {
   const pool = getPool();
   let written = 0;
-  const CHUNK = 500;
+  const CHUNK = 4000; // 3 params per row, well under the parameter limit
   for (let i = 0; i < airports.length; i += CHUNK) {
     const chunk = airports.slice(i, i + CHUNK);
     const values: string[] = [];
@@ -126,6 +126,11 @@ async function upsertBatch(airports: SeedAirport[]): Promise<number> {
     written += chunk.length;
   }
   return written;
+}
+
+/** Bulk-upsert a list of airports. Exposed for the on-demand import endpoint. */
+export async function upsertAirports(airports: SeedAirport[]): Promise<number> {
+  return upsertBatch(airports);
 }
 
 export async function seedAirports(csvPath?: string): Promise<number> {
