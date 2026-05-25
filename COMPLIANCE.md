@@ -27,9 +27,11 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 - [x] Multi-flight single-entry rule, same day, return to base, gaps under 30 min (`src/domain/multiFlight.ts`)
 - [x] Operational conditions night and IFR columns exist (column 9)
 - [x] Electronic format and full 12-column layout, column notes honoured
-- [ ] PARTIAL: FSTD session. Backend complete (`validateFstdSession`, column 11), no entry screen in the web app.
-- [ ] PARTIAL: night and IFR are entered by the user, not auto-derived from position and time.
-- [ ] PARTIAL: flight-time basis is block time for all categories. Helicopter (rotor start to stop) and airship timing are not differentiated.
+- [x] FSTD session, with an entry screen (`web/src/pages/NewFstd.tsx`); a device not yet known is recorded provisionally from the session.
+- [x] Night is calculated automatically from civil twilight (`src/domain/night.ts`); IFR is derived from the flight rules. Neither is hand-typed.
+- [x] Same-day series of flights can be logged as one entry from the form.
+- [x] Helicopter time is labelled rotor start to rotor stop on the form (AMC1 g).
+- [ ] PARTIAL: airship flight-time basis (mast release to secured) is not specially handled; airship is not a selectable category.
 - [ ] PARTIAL: cruise-relief co-pilot covered via co-pilot plus augmented-crew fractions, no dedicated flag.
 
 ## B. FOCA Accepted Logbook Formats, Chapter 2
@@ -37,8 +39,8 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 ### 2.1 Basic requirements
 - [x] 2.1.1 / 2.1.2 Data stored off-device and recoverable (server-side Postgres / Supabase)
 - [x] 2.1.4 Aircraft categories aeroplane, helicopter, sailplane, balloon (`AircraftCategory`)
-- [ ] PARTIAL: 2.1.3 Identity verified by confirmed email. Verification token and endpoint exist, but login is not gated on a verified address.
-- [ ] PARTIAL: 2.1.5 Flight and FSTD entries with their properties. Backend complete, FSTD has no UI.
+- [x] 2.1.3 Identity verified by confirmed email. Login is now refused until the address is verified, with a registration-to-verify flow and a /verify page.
+- [x] 2.1.5 Flight and FSTD entries with their properties, both with entry screens.
 
 ### 2.2 Format of the record and supported values
 - [x] 2.2.1 Data tracked in a digitally processable way (structured JSONB columns)
@@ -47,15 +49,15 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 - [x] 2.2.5 Sailplane launch method (`LaunchMethod`)
 - [x] 2.2.6 TMG and powered gliders loggable as aeroplane or sailplane (category is selectable)
 - [x] 2.2.7 Local-time entry possible, default UTC, and the export indicates entries made in local time. Time face is UTC with a Z suffix; a "(entered in local time)" note is added in the Remarks column.
-- [ ] PARTIAL: 2.2.3 Additional attributes. 25 attributes present (`src/domain/attributes.ts`). Missing granularity: low-visibility landing type, mountain landings ski or wheels, HESLO 1 to 4 and HEC 1 to 2 levels, and number of cycles.
+- [x] 2.2.3 Additional attributes. The 25 attributes (`src/domain/attributes.ts`) plus the refinements: HESLO 1 to 4 and HEC 1 to 2 levels with a cycle count, mountain landing ski or wheels, and low-visibility landing type (`AttributeDetails`).
 
 ### 2.3 Integrity of the record
 - [x] 2.3.1 Type and range validation, structured storage not free text
 - [x] 2.3.7 Tamper-proof change log, integral to the export. Append-only versions plus hash-chained ledger; change-log appendix in the PDF. We always version, which is stricter than the optional 48-hour exception.
 - [ ] PARTIAL: 2.3.2 Aircraft from a common database. All fields present incl. `balloonGroup` and `validFrom`; depends on the full reference dataset being loaded operationally.
-- [ ] PARTIAL: 2.3.3 Airports from a common database, valid ICAO or no-location indicator. ICAO table and ZZZZ supported; free-text aerodrome name for the no-location case is not captured on the form.
-- [ ] PARTIAL: 2.3.4 All time values calculated automatically. SE/ME, single/multi-pilot, function split and augmented-crew fractions are auto-derived; night and IFR are user-entered.
-- [ ] PARTIAL: 2.3.5 Auto-calculated values not user-editable except Part-FCL exceptions, attribute-gated, reduce-only. Computed columns are not editable and the augmented-crew and series exceptions are auto-applied; no general reduce-only override.
+- [x] 2.3.3 Airports from a common database, valid ICAO or no-location indicator. ICAO table and ZZZZ supported; a free-text aerodrome name is captured and required for the ZZZZ case.
+- [x] 2.3.4 All time values calculated automatically. SE/ME, single/multi-pilot, function split, augmented-crew fractions and night are auto-derived; IFR follows the flight rules. Night is computed from civil twilight.
+- [ ] PARTIAL: 2.3.5 Auto-calculated values not user-editable except Part-FCL exceptions, attribute-gated, reduce-only. Computed columns are not editable and the augmented-crew and series exceptions are auto-applied; there is no general reduce-only manual override.
 - [ ] PARTIAL: 2.3.6 Rigorous validation on entry, import and save, including at the data store. Strong app-layer validation; DB-level enforcement is limited to immutability triggers and a few CHECK constraints.
 
 ### 2.4 Entry signatures
@@ -75,11 +77,11 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 - [ ] OPEN: 1.3 / 3.x FOCA accepted digital logbook with dLIS dataset submission. FOCA supplies the data format; the PDF is the accepted interim. The formal steps (declaration of conformity, test account, dLIS testing, acceptance letter) are administrative.
 
 ## Remaining work, shortlist
-1. FSTD session entry screen in the web app (backend already exists).
-2. Multi-leg / series-of-flights entry in the form (rule is enforced server-side).
-3. Night and IFR auto-calculation (2.3.4).
-4. Attribute granularity: HESLO 1 to 4 and HEC 1 to 2 with cycle counts, mountain ski or wheels, low-visibility landing type (2.2.3).
-5. Enforce email verification (2.1.3) without locking out existing accounts.
-6. Free-text aerodrome name for the ZZZZ no-location case (2.3.3).
-7. Helicopter and airship flight-time basis (AMC1 g).
-8. dLIS dataset export when FOCA publishes the format (1.3).
+1. dLIS dataset export and the FOCA acceptance process (1.3 / 3.x). The dataset format is published by FOCA and the acceptance is administrative (declaration of conformity, test account, acceptance letter); the PDF is the accepted interim. This cannot be completed in code alone.
+2. A general reduce-only manual override for a calculated value when a Part-FCL exception applies (2.3.5). The automatic exceptions (augmented crew, series of flights) are handled; an explicit manual reduction path is not.
+3. Airship flight-time basis (AMC1 g); airship is not a selectable category.
+4. A dedicated cruise-relief co-pilot flag (covered today by co-pilot plus augmented-crew fractions).
+
+## Operational notes
+- Night time needs airport coordinates. The built-in starter set carries them; for full coverage, re-run the airport import so every aerodrome has a position. A leg from an aerodrome with no coordinates contributes no night time.
+- Enforcing email verification means an account must confirm its address before signing in. Existing unverified accounts (from before this change) will need to verify or be recreated.
