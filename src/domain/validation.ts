@@ -9,7 +9,7 @@
  *   - landing counts are non-negative integers.
  */
 
-import type { DerivedColumns, FlightEntryInput, FstdSessionInput, PilotFunction } from "./types.js";
+import type { AttributeDetails, DerivedColumns, FlightEntryInput, FstdSessionInput, PilotFunction } from "./types.js";
 import { minutesBetween, utcDateKey } from "./time.js";
 import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
@@ -40,6 +40,29 @@ export interface ValidationResult {
 
 function isNonNegInt(n: number): boolean {
   return Number.isInteger(n) && n >= 0;
+}
+
+/** Keep only the attribute refinements that are actually set and well-formed. */
+function cleanAttributeDetails(
+  d: AttributeDetails | undefined,
+  issues: ValidationIssue[],
+): AttributeDetails | undefined {
+  if (!d) return undefined;
+  const out: AttributeDetails = {};
+  if (d.hesloLevel !== undefined) out.hesloLevel = d.hesloLevel;
+  if (d.hecLevel !== undefined) out.hecLevel = d.hecLevel;
+  if (d.mountainLandingGear !== undefined) out.mountainLandingGear = d.mountainLandingGear;
+  if (d.lowVisibilityLandingType !== undefined && d.lowVisibilityLandingType.trim() !== "") {
+    out.lowVisibilityLandingType = d.lowVisibilityLandingType.trim();
+  }
+  if (d.hoistCycles !== undefined) {
+    if (!isNonNegInt(d.hoistCycles)) {
+      issues.push({ field: "attributeDetails.hoistCycles", message: "Number of cycles must be a non-negative integer." });
+    } else if (d.hoistCycles > 0) {
+      out.hoistCycles = d.hoistCycles;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 export function validateEntry(input: FlightEntryInput): ValidationResult {
@@ -128,6 +151,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   });
 
   const attributes = validateAttributes(input.attributes, issues);
+  const attributeDetails = cleanAttributeDetails(input.attributeDetails, issues);
   if (issues.length > 0) return { valid: false, issues };
 
   // Apply the crew share to every category of time (FOCA 2.3.4). Landings are
@@ -165,6 +189,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const derived: DerivedColumns = {
     kind: "FLIGHT",
     attributes,
+    ...(attributeDetails !== undefined ? { attributeDetails } : {}),
     enteredInLocalTime: input.enteredInLocalTime ?? false,
     signatureRequired: requiresSignature(attributes),
     crewSize,

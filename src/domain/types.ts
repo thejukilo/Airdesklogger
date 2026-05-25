@@ -79,6 +79,20 @@ export interface FunctionTime {
 }
 
 /**
+ * Refinements for some of the structured attributes (FOCA 2.2.3): the level of a
+ * helicopter sling-load (HESLO) or human external cargo (HEC) operation and the
+ * number of cycles, the gear used for a mountain landing, and the category of a
+ * low-visibility landing.
+ */
+export interface AttributeDetails {
+  hesloLevel?: 1 | 2 | 3 | 4 | undefined;
+  hecLevel?: 1 | 2 | undefined;
+  hoistCycles?: number | undefined;
+  mountainLandingGear?: "SKI" | "WHEELS" | undefined;
+  lowVisibilityLandingType?: string | undefined;
+}
+
+/**
  * A logbook entry as authored by a pilot. This is the input shape; computed
  * column values (totals, PIC minutes, etc.) are derived in validation/totals.
  */
@@ -99,6 +113,8 @@ export interface FlightEntryInput {
   crewSize?: number;
   /** Structured FOCA attributes (skill test, cross country, etc.). */
   attributes?: EntryAttribute[];
+  /** Refinements for some attributes (HESLO/HEC level and cycles, etc.). */
+  attributeDetails?: AttributeDetails | undefined;
   /** True when any time in the entry was supplied as local time (FOCA 2.2.7). */
   enteredInLocalTime?: boolean;
 }
@@ -171,6 +187,8 @@ export interface DerivedColumns {
   fstd?: FstdColumns;
   /** Structured FOCA attributes applied to the entry. */
   attributes: EntryAttribute[];
+  /** Refinements for some attributes (HESLO/HEC level and cycles, etc.). */
+  attributeDetails?: AttributeDetails | undefined;
   /** True when any time was entered as local time (flagged on exports). */
   enteredInLocalTime: boolean;
   /** True when an attribute requires a sign-off that is not yet present. */

@@ -79,6 +79,11 @@ const empty = {
   picName: "SELF",
   remarks: "",
   attributes: [] as string[],
+  hesloLevel: "",
+  hecLevel: "",
+  hoistCycles: 0,
+  mountainLandingGear: "",
+  lowVisibilityLandingType: "",
 };
 
 export function NewEntry() {
@@ -102,6 +107,23 @@ export function NewEntry() {
         ? prev.attributes.filter((a) => a !== key)
         : [...prev.attributes, key],
     }));
+  }
+
+  const has = (key: string) => f.attributes.includes(key);
+  const showDetails = has("heslo") || has("hec") || has("mountain_landings") || has("low_visibility_landing");
+
+  function buildAttributeDetails(): api.AttributeDetails | null {
+    const d: api.AttributeDetails = {};
+    if (has("heslo") && f.hesloLevel) d.hesloLevel = Number(f.hesloLevel) as 1 | 2 | 3 | 4;
+    if (has("hec") && f.hecLevel) d.hecLevel = Number(f.hecLevel) as 1 | 2;
+    if ((has("heslo") || has("hec")) && Number(f.hoistCycles) > 0) d.hoistCycles = Number(f.hoistCycles);
+    if (has("mountain_landings") && f.mountainLandingGear) {
+      d.mountainLandingGear = f.mountainLandingGear as "SKI" | "WHEELS";
+    }
+    if (has("low_visibility_landing") && f.lowVisibilityLandingType) {
+      d.lowVisibilityLandingType = f.lowVisibilityLandingType;
+    }
+    return Object.keys(d).length > 0 ? d : null;
   }
 
   // Auto-fill aircraft details a moment after the registration stops changing.
@@ -186,6 +208,7 @@ export function NewEntry() {
         },
         ...(f.operatingRole ? { operatingRole: f.operatingRole } : {}),
         ...(f.attributes.length ? { attributes: f.attributes } : {}),
+        ...(buildAttributeDetails() ? { attributeDetails: buildAttributeDetails() } : {}),
         remarks: f.remarks,
       } as never);
       navigate("/");
@@ -322,6 +345,39 @@ export function NewEntry() {
             <p className="mt-2 text-xs text-slate-500">
               A skill test, proficiency check or line check will require a sign-off.
             </p>
+            {showDetails && (
+              <div className="mt-3 grid grid-cols-2 gap-4 rounded-md bg-slate-50 p-3">
+                {has("heslo") && (
+                  <Select label="HESLO level" value={f.hesloLevel} onChange={(e) => set("hesloLevel", e.target.value)}>
+                    <option value="">Not set</option>
+                    <option value="1">HESLO 1</option>
+                    <option value="2">HESLO 2</option>
+                    <option value="3">HESLO 3</option>
+                    <option value="4">HESLO 4</option>
+                  </Select>
+                )}
+                {has("hec") && (
+                  <Select label="HEC level" value={f.hecLevel} onChange={(e) => set("hecLevel", e.target.value)}>
+                    <option value="">Not set</option>
+                    <option value="1">HEC 1</option>
+                    <option value="2">HEC 2</option>
+                  </Select>
+                )}
+                {(has("heslo") || has("hec")) && (
+                  <Field label="Number of cycles" type="number" min={0} value={f.hoistCycles} onChange={(e) => set("hoistCycles", Number(e.target.value))} />
+                )}
+                {has("mountain_landings") && (
+                  <Select label="Mountain landing gear" value={f.mountainLandingGear} onChange={(e) => set("mountainLandingGear", e.target.value)}>
+                    <option value="">Not set</option>
+                    <option value="SKI">Ski</option>
+                    <option value="WHEELS">Wheels</option>
+                  </Select>
+                )}
+                {has("low_visibility_landing") && (
+                  <Field label="Low-visibility landing type" value={f.lowVisibilityLandingType} onChange={(e) => set("lowVisibilityLandingType", e.target.value)} hint="For example CAT II, CAT IIIA." />
+                )}
+              </div>
+            )}
           </div>
 
           <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />

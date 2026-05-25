@@ -209,6 +209,11 @@ export function EntryDetail() {
           {c.function?.primary === "SAFETY_PILOT" ? (
             <Detail label="Took control" value={c.function?.tookControl ? "Yes" : "No"} />
           ) : null}
+          {cols?.attributeDetails?.hesloLevel ? <Detail label="HESLO level" value={String(cols.attributeDetails.hesloLevel)} /> : null}
+          {cols?.attributeDetails?.hecLevel ? <Detail label="HEC level" value={String(cols.attributeDetails.hecLevel)} /> : null}
+          {cols?.attributeDetails?.hoistCycles ? <Detail label="Cycles" value={String(cols.attributeDetails.hoistCycles)} /> : null}
+          {cols?.attributeDetails?.mountainLandingGear ? <Detail label="Mountain landing" value={cols.attributeDetails.mountainLandingGear} /> : null}
+          {cols?.attributeDetails?.lowVisibilityLandingType ? <Detail label="Low-visibility landing" value={cols.attributeDetails.lowVisibilityLandingType} /> : null}
         </dl>
         {cols?.attributes && cols.attributes.length > 0 && (
           <div className="mt-4 border-t pt-3">

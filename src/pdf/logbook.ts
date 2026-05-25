@@ -87,6 +87,14 @@ function remarksText(e: LogbookEntryForPdf): string {
   // in local time, which FOCA 2.2.7 requires the export to indicate.
   if (e.enteredInLocalTime) parts.push("(entered in local time)");
   if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
+  const d = e.attributeDetails;
+  if (d) {
+    if (d.hesloLevel) parts.push(`(HESLO ${d.hesloLevel})`);
+    if (d.hecLevel) parts.push(`(HEC ${d.hecLevel})`);
+    if (d.hoistCycles) parts.push(`(${d.hoistCycles} cycles)`);
+    if (d.mountainLandingGear) parts.push(`(mountain: ${d.mountainLandingGear.toLowerCase()})`);
+    if (d.lowVisibilityLandingType) parts.push(`(low-vis: ${d.lowVisibilityLandingType})`);
+  }
   if (e.signatureRequired && !e.signed) parts.push("(signature required)");
   else if (e.signed) parts.push("(signed off)");
   return parts.join(" ");

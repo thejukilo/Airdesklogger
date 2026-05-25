@@ -86,6 +86,14 @@ export function verifyEmail(token: string): Promise<{ emailVerified: boolean }> 
   return request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
 }
 
+export interface AttributeDetails {
+  hesloLevel?: 1 | 2 | 3 | 4;
+  hecLevel?: 1 | 2;
+  hoistCycles?: number;
+  mountainLandingGear?: "SKI" | "WHEELS";
+  lowVisibilityLandingType?: string;
+}
+
 export interface EntryColumns {
   kind: string;
   date: string;
@@ -114,6 +122,7 @@ export interface EntryColumns {
   launchMethod?: string;
   instructorPosition?: string;
   attributes?: string[];
+  attributeDetails?: AttributeDetails;
   signatureRequired?: boolean;
   enteredInLocalTime?: boolean;
   fstd?: { deviceType: string; qualificationNumber: string; totalMinutes: number };
@@ -161,6 +170,7 @@ export interface NewEntryRequest {
   function: { primary: string; instructor: number };
   remarks: string;
   attributes?: string[];
+  attributeDetails?: AttributeDetails;
 }
 
 export function createEntry(input: NewEntryRequest): Promise<{ entryId: string }> {

@@ -59,6 +59,15 @@ const EntryShape = z.object({
   launchMethod: z.enum(["WINCH", "AEROTOW", "SELF_LAUNCH", "BUNGEE", "CAR_TOW"]).optional(),
   crewSize: z.number().int().optional(),
   attributes: z.array(z.string()).optional(),
+  attributeDetails: z
+    .object({
+      hesloLevel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
+      hecLevel: z.union([z.literal(1), z.literal(2)]).optional(),
+      hoistCycles: z.number().int().nonnegative().optional(),
+      mountainLandingGear: z.enum(["SKI", "WHEELS"]).optional(),
+      lowVisibilityLandingType: z.string().optional(),
+    })
+    .optional(),
 });
 
 /** Vercel parses a JSON body into an object, but a raw string can also arrive. */
@@ -110,6 +119,7 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
       ...(data.launchMethod !== undefined ? { launchMethod: data.launchMethod } : {}),
       ...(data.crewSize !== undefined ? { crewSize: data.crewSize } : {}),
       attributes: (data.attributes ?? []) as EntryAttribute[],
+      ...(data.attributeDetails !== undefined ? { attributeDetails: data.attributeDetails } : {}),
       enteredInLocalTime: enteredLocal,
     };
   } catch (err) {
