@@ -119,6 +119,24 @@ export function createEntry(input: NewEntryRequest): Promise<{ entryId: string }
   return request("/entries", { method: "POST", body: JSON.stringify(input) });
 }
 
+export interface AircraftMatch {
+  registration: string;
+  model: string;
+  icaoType?: string;
+  category: string;
+  engineType?: string;
+  engineCount?: number;
+  multiPilot?: boolean;
+}
+
+export function lookupAircraft(
+  registration: string,
+): Promise<{ match: AircraftMatch | null; source: "db" | "external" | "none" }> {
+  return request(`/reference/aircraft?registration=${encodeURIComponent(registration)}`, {
+    method: "GET",
+  });
+}
+
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
   const res = await fetch("/api/export/logbook", {

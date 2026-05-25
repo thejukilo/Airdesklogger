@@ -33,9 +33,41 @@ export function NewEntry() {
   const [f, setF] = useState(empty);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupMsg, setLookupMsg] = useState<string | null>(null);
 
   function set<K extends keyof typeof f>(k: K, v: (typeof f)[K]) {
     setF((prev) => ({ ...prev, [k]: v }));
+  }
+
+  async function onLookup() {
+    const reg = f.registration.trim();
+    if (!reg) return;
+    setLookingUp(true);
+    setLookupMsg(null);
+    try {
+      const { match, source } = await api.lookupAircraft(reg);
+      if (match) {
+        const categories = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"];
+        setF((prev) => ({
+          ...prev,
+          makeModelVariant: match.model || prev.makeModelVariant,
+          category: categories.includes(match.category) ? match.category : prev.category,
+          multiPilot: match.multiPilot ?? prev.multiPilot,
+        }));
+        setLookupMsg(
+          source === "external"
+            ? `Found in the public registry: ${match.model}. Check the category and engine below.`
+            : `Found: ${match.model}.`,
+        );
+      } else {
+        setLookupMsg("Not found in the registry. Enter the aircraft details manually.");
+      }
+    } catch (err) {
+      setLookupMsg(err instanceof Error ? err.message : "Lookup failed.");
+    } finally {
+      setLookingUp(false);
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -81,8 +113,23 @@ export function NewEntry() {
         <form onSubmit={onSubmit} className="space-y-5">
           {error && <Alert>{error}</Alert>}
 
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Field
+                label="Aircraft registration"
+                value={f.registration}
+                onChange={(e) => set("registration", e.target.value)}
+                hint="Enter a registration and look it up to fill in the rest."
+                required
+              />
+            </div>
+            <Button type="button" variant="ghost" onClick={onLookup} disabled={lookingUp || !f.registration.trim()}>
+              {lookingUp ? "Looking up..." : "Look up"}
+            </Button>
+          </div>
+          {lookupMsg && <p className="text-xs text-slate-600">{lookupMsg}</p>}
+
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Aircraft registration" value={f.registration} onChange={(e) => set("registration", e.target.value)} required />
             <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
             <Select label="Category" value={f.category} onChange={(e) => set("category", e.target.value)}>
               <option value="AEROPLANE">Aeroplane</option>

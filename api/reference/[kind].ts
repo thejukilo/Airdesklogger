@@ -5,8 +5,10 @@ import {
   upsertAirport,
   listAircraft,
   upsertAircraft,
+  getAircraftByRegistration,
   upsertFstdDevice,
 } from "../../src/db/referenceRepository.js";
+import { lookupExternalAircraft } from "../../src/http/aircraftLookup.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
 /**
@@ -30,6 +32,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       if (kind === "aircraft") {
+        const registration =
+          typeof req.query.registration === "string" ? req.query.registration.trim() : "";
+        if (registration) {
+          // Exact lookup with a public-source fallback that is cached on a hit,
+          // so the next flight entry for this registration validates against it.
+          let match = await getAircraftByRegistration(registration);
+          let source = match ? "db" : "none";
+          if (!match) {
+            const external = await lookupExternalAircraft(registration);
+            if (external) {
+              await upsertAircraft(external);
+              match = await getAircraftByRegistration(registration);
+              source = "external";
+            }
+          }
+          res.status(200).json({ match, source });
+          return;
+        }
         res.status(200).json({ aircraft: await listAircraft(q) });
         return;
       }

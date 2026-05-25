@@ -89,19 +89,31 @@ export async function getAircraftForFlight(
     [registration.toUpperCase(), onDate],
   );
   if (!rows[0]) return null;
-  const r = rows[0];
+  return mapAircraftRow(rows[0]);
+}
+
+function mapAircraftRow(r: Record<string, unknown>): AircraftRecord {
   return {
-    registration: r.registration,
-    model: r.model,
-    icaoType: r.icao_type ?? undefined,
-    variant: r.variant ?? undefined,
-    category: r.category,
-    engineType: r.engine_type ?? undefined,
-    engineCount: r.engine_count ?? undefined,
-    multiPilot: r.multi_pilot,
-    balloonGroup: r.balloon_group ?? undefined,
+    registration: r.registration as string,
+    model: r.model as string,
+    icaoType: (r.icao_type as string) ?? undefined,
+    variant: (r.variant as string) ?? undefined,
+    category: r.category as AircraftRecord["category"],
+    engineType: (r.engine_type as string) ?? undefined,
+    engineCount: (r.engine_count as number) ?? undefined,
+    multiPilot: r.multi_pilot as boolean,
+    balloonGroup: (r.balloon_group as string) ?? undefined,
     validFrom: String(r.valid_from).slice(0, 10),
   };
+}
+
+/** The most recent aircraft record for a registration, regardless of date. */
+export async function getAircraftByRegistration(registration: string): Promise<AircraftRecord | null> {
+  const { rows } = await getPool().query(
+    "SELECT * FROM aircraft WHERE registration = $1 ORDER BY valid_from DESC LIMIT 1",
+    [registration.toUpperCase()],
+  );
+  return rows[0] ? mapAircraftRow(rows[0]) : null;
 }
 
 export async function listAircraft(query: string, limit = 50): Promise<AircraftRecord[]> {
