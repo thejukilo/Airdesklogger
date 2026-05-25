@@ -69,6 +69,8 @@ function remarksText(e: LogbookEntryForPdf): string {
   const parts: string[] = [];
   if (e.remarks) parts.push(e.remarks);
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
+  if (e.launchMethod) parts.push(`(launch: ${e.launchMethod})`);
+  if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
   if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
   if (e.signatureRequired && !e.signed) parts.push("(signature required)");
   else if (e.signed) parts.push("(signed off)");
@@ -99,6 +101,7 @@ export interface PdfOptions {
   pilotName: string;
   licenseNumber?: string;
   holderAddress?: string;
+  dateOfBirth?: string;
   rowsPerPage?: number;
 }
 
@@ -203,7 +206,8 @@ function drawPage(
   let top = pageH - MARGIN;
   p.drawText("EASA FLIGHT CREW LOGBOOK  -  AMC1 FCL.050", { x: MARGIN, y: top - 10, size: 11, font: bold, color: BLACK });
   p.drawText(
-    `Holder: ${opts.pilotName}${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}` +
+    `Holder: ${opts.pilotName}${opts.dateOfBirth ? `    DOB: ${opts.dateOfBirth}` : ""}` +
+      `${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}` +
       `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    All times UTC unless marked L (local)`,
     { x: MARGIN, y: top - 24, size: 8, font, color: GREY },
   );

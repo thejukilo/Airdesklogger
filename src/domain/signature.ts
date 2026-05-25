@@ -21,7 +21,15 @@ import {
   type KeyObject,
 } from "node:crypto";
 
-export type SignerRole = "INSTRUCTOR" | "EXAMINER" | "SUPERVISING_PIC";
+export type SignerRole =
+  | "INSTRUCTOR"
+  | "EXAMINER"
+  | "SUPERVISING_PIC"
+  | "ATO"
+  | "DTO"
+  | "HOT"
+  | "AIRPORT"
+  | "OTHER";
 
 export interface SigningPayload {
   entryId: string;

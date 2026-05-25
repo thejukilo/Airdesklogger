@@ -135,6 +135,14 @@ Two cases need a countersignature before the time counts:
 
 On a flight flown by more than the minimum crew, FOCA's "Logging of Flight Time" document (2.3.4) says each pilot logs only a share of the time: two thirds with three pilots, one half with four, applied to total time, function time, night and IFR alike (landings are counts and are never scaled). An entry carries a crew size; `src/domain/crew.ts` computes the share, and the validation applies it to the logged columns after checking the entered times against the actual block time. Augmented crew is only valid on a multi-pilot operation, and the export notes it in the remarks.
 
+### Instructor seat, aircraft category and launch method
+
+An entry can record where the instructor or examiner sat (FOCA 2.2.4). Time on the jump seat cannot be logged as PIC or instructor time, so the validation rejects an entry that tries to. It can also record the aircraft category and, for a sailplane, the launch method (FOCA 2.2.5); a touring motor glider is free to be logged as an aeroplane or a sailplane (2.2.6). A launch method is only accepted on a sailplane. These appear in the remarks column of the export.
+
+### Signing parties and batch signing
+
+Beyond instructors and examiners, FOCA 2.4.1 lets a training organisation, a head of training, an airport or another party sign an entry; `roles.ts` carries those capacities and the role each needs. Several entries can be signed in one request (2.4.2) after a single second-factor step-up, through `POST /api/entries/batch/sign`. Each entry is still checked individually (not your own logbook, not already locked) and signed with its own ledger record.
+
 ### The immutable audit trail
 
 There are two layers here, and they do different jobs.
@@ -243,8 +251,8 @@ Logbook endpoints (require a session):
 - `GET /api/entries` lists the holder's own entries; `POST /api/entries` records a new flight for the signed-in holder.
 - `POST /api/fstd` records a synthetic training (simulator) session for the signed-in holder.
 - `GET /api/entries/{id}` returns the current version and its full change history; `PATCH /api/entries/{id}` records a correction as a new version, and returns 409 if the entry is already locked.
-- `POST /api/entries/{id}/sign` countersigns and locks an entry. The signer must hold a permitting role, have the second factor enabled, and present a current code.
-- `GET /api/export/logbook` returns the holder's complete logbook as a PDF, including the sign-offs and the full change log appendix (FOCA 2.5).
+- `POST /api/entries/{id}/sign` countersigns and locks an entry. The signer must hold a permitting role (instructor, examiner, supervising PIC, ATO, DTO, head of training, airport or other), have the second factor enabled, and present a current code. `POST /api/entries/batch/sign` with `{ entryIds: [...] }` signs several at once after a single step-up (FOCA 2.4.2).
+- `GET /api/export/logbook` returns the holder's complete logbook as a PDF, including the sign-offs and the full change log appendix (FOCA 2.5). Accepts `?from=&to=` to cover only a revalidation period (FOCA 2.5.1).
 - `GET /api/reference/{airports|aircraft}?q=` searches the reference databases; `POST /api/reference/{airports|aircraft|fstd}` adds a record (administrator only). Places and aircraft on an entry are validated against these.
 - `GET /api/audit/verify` recomputes the whole ledger chain. Administrator only.
 
@@ -319,6 +327,10 @@ Each requirement has code that implements it and tests that exercise it.
 | Export with sign-offs and full change log (FOCA 2.4.6, 2.5) | `db/exportRepository.ts`, `pdf/logbook.ts`, `api/export/logbook.ts` | `test/export.integration.test.ts` |
 | Reference databases for places and aircraft (FOCA 2.3.2, 2.3.3) | `domain/icao.ts`, `db/referenceRepository.ts`, `http/validateReferences.ts` | `test/icao.test.ts`, `test/reference.integration.test.ts` |
 | Augmented-crew time share (FOCA 2.3.4) | `domain/crew.ts`, `domain/validation.ts` | `test/crew.test.ts` |
+| Instructor seat positions and the jump-seat rule (FOCA 2.2.4) | `domain/validation.ts` | `test/validation.test.ts` |
+| Aircraft category and sailplane launch method (FOCA 2.2.5, 2.2.6) | `domain/validation.ts` | `test/validation.test.ts` |
+| Expanded signing parties and batch signing (FOCA 2.4.1, 2.4.2) | `auth/roles.ts`, `api/entries/[id]/sign.ts` | `test/auth.test.ts` |
+| Date-range export for a revalidation period (FOCA 2.5.1) | `db/exportRepository.ts`, `api/export/logbook.ts` | `test/export.integration.test.ts` |
 
 ## FOCA acceptance (Swiss competent authority)
 
@@ -339,15 +351,16 @@ Done or substantially done:
 - An export that carries the AMC1 FCL.050 grid, the applied attributes, the sign-offs and the complete change log, and that flags an entry that needs a signature but does not have one (2.4.6, 2.5).
 - Aircraft, airport and FSTD-device reference databases, with entries validated against them (2.3.2, 2.3.3). The mechanism and the validation are in place; loading the full ICAO airport and aircraft-type datasets is an operational step the provider performs through the reference endpoint.
 - The augmented-crew share for logged time: two thirds with three pilots, one half with four, applied to every category of time (from the "Logging of Flight Time" document, 2.3.4).
+- Instructor and examiner seat positions, with the rule that time on the jump seat cannot be logged as PIC or instructor time (2.2.4).
+- Aircraft category on an entry and the sailplane launch method, with a TMG free to be logged as aeroplane or sailplane (2.2.5, 2.2.6).
+- The expanded set of signing parties (instructor, examiner, supervising PIC, ATO, DTO, head of training, airport, other) and signing several entries at once (2.4.1, 2.4.2).
+- A date-range export covering a single revalidation period (2.5.1).
 
-Still to do for route 1.3:
-- The remaining sailplane and balloon specifics, and TMG dual-category handling (2.2.5, 2.2.6).
-- Instructor sub-roles (pilot seat, jump seat, supervising, examiner) and their effect on what counts as PIC or instructor time (2.2.4).
-- A signature captured as an on-screen image (or an official Swiss e-signature), and batch signing of several entries at once (2.4.1, 2.4.2, 2.4.3).
-- A date-range export for a specific revalidation period (2.5.1).
-- The 48-hour grace window before edits become tracked changes (2.3.7).
+Two deliberate choices worth noting for a reviewer:
+- The change log records every correction. FOCA 2.3.7 allows an exception, a 48-hour window in which edits need not be tracked, but recording everything is stronger rather than weaker, so that window is intentionally not used.
+- The full sailplane and balloon column layout, which differs from the aeroplane logbook, is not reproduced as a separate printed layout yet. The category-specific data is captured, and the aeroplane-format export carries it.
 
-And the part that is not code: route 1.3 finishes with a FOCA process, a declaration of conformity, testing against a FOCA test account, the dLIS data format which FOCA releases only after acceptance, an acceptance letter, and fees. The software can be built to meet the conditions, but the acceptance decision is FOCA's.
+The remaining items are not backend code. Route 1.3 finishes with a FOCA process: a declaration of conformity, testing against a FOCA test account, the dLIS data format which FOCA releases only after acceptance, an acceptance letter, and fees; the acceptance decision is FOCA's. And the one technical item that needs a frontend is the on-screen signature image (2.4.3): the signing and locking are done, but capturing a drawn signature needs a user interface.
 
 ## Scope and limitations
 

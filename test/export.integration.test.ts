@@ -117,4 +117,36 @@ describe.skipIf(!hasDb)("FOCA export (integration)", () => {
     const b = await PDFDocument.load(withoutAudit);
     expect(a.getPageCount()).toBeGreaterThan(b.getPageCount()); // appendix pages added
   });
+
+  it("filters an export to a date range (FOCA 2.5.1)", async () => {
+    const studentKeys = provisionSigningKeypair(MASTER);
+    const student = await createUser({
+      email: `range-${uniq()}@x.com`,
+      passwordHash: "x",
+      name: "Range Student",
+      roles: ["PILOT"],
+      signingPublicKey: studentKeys.publicKey,
+      signingKeyWrapped: studentKeys.wrappedPrivateKey,
+    });
+    const may = flight(student.id, []);
+    const june: FlightEntryInput = {
+      ...may,
+      legs: [
+        {
+          departurePlace: "EGKB",
+          departureTime: new Date("2026-06-10T13:00:00Z"),
+          arrivalPlace: "EGKB",
+          arrivalTime: new Date("2026-06-10T14:00:00Z"),
+        },
+      ],
+    };
+    await createEntry(may, validateEntry(may).derived!, student.id);
+    await createEntry(june, validateEntry(june).derived!, student.id);
+
+    const all = await loadLogbookForExport(student.id);
+    expect(all.length).toBe(2);
+    const juneOnly = await loadLogbookForExport(student.id, { from: "2026-06-01", to: "2026-06-30" });
+    expect(juneOnly.length).toBe(1);
+    expect(juneOnly[0]!.row.date).toBe("2026-06-10");
+  });
 });

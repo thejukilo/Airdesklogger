@@ -34,6 +34,7 @@ const EntryShape = z.object({
     registration: z.string().min(1),
     engineClass: z.enum(["SE", "ME"]),
     multiPilot: z.boolean(),
+    category: z.enum(["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"]).optional(),
   }),
   legs: z.array(LegShape).min(1),
   picName: z.string(),
@@ -48,8 +49,10 @@ const EntryShape = z.object({
   function: z.object({
     primary: z.enum(["PIC", "PICUS", "SPIC", "CO_PILOT", "DUAL"]),
     instructor: z.number().int().nonnegative(),
+    instructorPosition: z.enum(["PILOT_SEAT", "JUMP_SEAT", "SUPERVISING", "EXAMINER"]).optional(),
   }),
   remarks: z.string(),
+  launchMethod: z.enum(["WINCH", "AEROTOW", "SELF_LAUNCH", "BUNGEE", "CAR_TOW"]).optional(),
   crewSize: z.number().int().optional(),
   attributes: z.array(z.string()).optional(),
 });
@@ -97,6 +100,7 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
       conditions: data.conditions,
       function: data.function,
       remarks: data.remarks,
+      ...(data.launchMethod !== undefined ? { launchMethod: data.launchMethod } : {}),
       ...(data.crewSize !== undefined ? { crewSize: data.crewSize } : {}),
       attributes: (data.attributes ?? []) as EntryAttribute[],
       enteredInLocalTime: enteredLocal,

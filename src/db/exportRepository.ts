@@ -59,17 +59,30 @@ function toRow(entryId: string, content: Record<string, unknown>, signed: boolea
   };
 }
 
-export async function loadLogbookForExport(pilotId: string): Promise<ExportEntry[]> {
+export interface ExportRange {
+  from?: string | undefined; // yyyy-mm-dd inclusive
+  to?: string | undefined; // yyyy-mm-dd inclusive
+}
+
+export async function loadLogbookForExport(
+  pilotId: string,
+  range: ExportRange = {},
+): Promise<ExportEntry[]> {
   const pool = getPool();
 
+  // Dates are stored as yyyy-mm-dd strings, so a lexicographic comparison is a
+  // correct date comparison. A range lets an export cover just a revalidation
+  // period (FOCA 2.5.1).
   const { rows: entryRows } = await pool.query(
     `SELECT e.id, e.locked,
             v.content
        FROM flight_entries e
        JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
       WHERE e.pilot_id = $1
+        AND v.content->'columns'->>'date' >= COALESCE($2, '0000-01-01')
+        AND v.content->'columns'->>'date' <= COALESCE($3, '9999-12-31')
       ORDER BY v.content->'columns'->>'date' ASC, e.created_at ASC`,
-    [pilotId],
+    [pilotId, range.from ?? null, range.to ?? null],
   );
   if (entryRows.length === 0) return [];
 

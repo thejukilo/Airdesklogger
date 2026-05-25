@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS signatures (
   entry_id     uuid NOT NULL REFERENCES flight_entries(id),
   version_no   integer NOT NULL,
   signer_id    uuid NOT NULL REFERENCES pilots(id),
-  signer_role  text NOT NULL CHECK (signer_role IN ('INSTRUCTOR','EXAMINER','SUPERVISING_PIC')),
+  signer_role  text NOT NULL,
   content_hash text NOT NULL,
   signature    text NOT NULL,
   public_key   text NOT NULL,
@@ -200,3 +200,10 @@ CREATE TABLE IF NOT EXISTS fstd_devices (
   aircraft_type        text,
   created_at           timestamptz NOT NULL DEFAULT now()
 );
+
+-- Permitted signer roles (FOCA 2.4.1). A named constraint so it can be updated
+-- on an existing database; the older inline constraint is dropped if present.
+ALTER TABLE signatures DROP CONSTRAINT IF EXISTS signatures_signer_role_check;
+ALTER TABLE signatures DROP CONSTRAINT IF EXISTS signatures_signer_role_ck;
+ALTER TABLE signatures ADD CONSTRAINT signatures_signer_role_ck
+  CHECK (signer_role IN ('INSTRUCTOR','EXAMINER','SUPERVISING_PIC','ATO','DTO','HOT','AIRPORT','OTHER'));

@@ -94,4 +94,29 @@ describe("entry validation & column derivation", () => {
     expect(r.valid).toBe(false);
     expect(r.issues.some((i) => i.field === "picName")).toBe(true);
   });
+
+  it("rejects PIC or instructor time logged from the jump seat", () => {
+    const r = validateEntry(
+      baseEntry({ function: { primary: "PIC", instructor: 30, instructorPosition: "JUMP_SEAT" } }),
+    );
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.field === "function.instructor")).toBe(true);
+    expect(r.issues.some((i) => i.field === "function.primary")).toBe(true);
+  });
+
+  it("allows a launch method only for a sailplane", () => {
+    const onAeroplane = validateEntry(baseEntry({ launchMethod: "WINCH" }));
+    expect(onAeroplane.valid).toBe(false);
+    expect(onAeroplane.issues.some((i) => i.field === "launchMethod")).toBe(true);
+
+    const onSailplane = validateEntry(
+      baseEntry({
+        aircraft: { makeModelVariant: "ASK-21", registration: "G-GLID", engineClass: "SE", multiPilot: false, category: "SAILPLANE" },
+        launchMethod: "WINCH",
+      }),
+    );
+    expect(onSailplane.valid).toBe(true);
+    expect(onSailplane.derived!.launchMethod).toBe("WINCH");
+    expect(onSailplane.derived!.category).toBe("SAILPLANE");
+  });
 });

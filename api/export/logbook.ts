@@ -23,7 +23,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const entries = await loadLogbookForExport(claims.sub);
+    const from = typeof req.query.from === "string" ? req.query.from : undefined;
+    const to = typeof req.query.to === "string" ? req.query.to : undefined;
+    const entries = await loadLogbookForExport(claims.sub, { from, to });
     const rows: LogbookEntryForPdf[] = entries.map((e) => e.row);
 
     const audit: AuditAppendix = { signoffs: [], changeLog: [] };
@@ -49,6 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         pilotName: user.name,
         ...(user.licenseNumber ? { licenseNumber: user.licenseNumber } : {}),
         ...(user.address ? { holderAddress: user.address } : {}),
+        ...(user.dateOfBirth ? { dateOfBirth: user.dateOfBirth } : {}),
       },
       audit,
     );

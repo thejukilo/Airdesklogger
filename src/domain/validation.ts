@@ -83,6 +83,23 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     issues.push({ field: "function.instructor", message: "Instructor time must be 0..block time." });
   }
 
+  // Jump-seat rule (FOCA 2.2.4 and Logging of Flight Time 2.3.2): time on the
+  // jump seat cannot be logged as PIC or instructor time.
+  if (input.function.instructorPosition === "JUMP_SEAT") {
+    if (input.function.instructor > 0) {
+      issues.push({ field: "function.instructor", message: "Instructor time cannot be logged from the jump seat." });
+    }
+    if (input.function.primary === "PIC" || input.function.primary === "PICUS" || input.function.primary === "SPIC") {
+      issues.push({ field: "function.primary", message: "PIC time cannot be logged from the jump seat." });
+    }
+  }
+
+  // Sailplane launch method only applies to sailplanes (FOCA 2.2.5).
+  const category = input.aircraft.category ?? "AEROPLANE";
+  if (input.launchMethod !== undefined && category !== "SAILPLANE") {
+    issues.push({ field: "launchMethod", message: "Launch method applies only to sailplanes." });
+  }
+
   // Column 9.
   if (!isNonNegInt(input.landings.day)) {
     issues.push({ field: "landings.day", message: "Day landings must be a non-negative integer." });
@@ -127,6 +144,9 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     enteredInLocalTime: input.enteredInLocalTime ?? false,
     signatureRequired: requiresSignature(attributes),
     crewSize,
+    category,
+    ...(input.launchMethod !== undefined ? { launchMethod: input.launchMethod } : {}),
+    ...(input.function.instructorPosition !== undefined ? { instructorPosition: input.function.instructorPosition } : {}),
     date: utcDateKey(first.departureTime),
     departurePlace: first.departurePlace,
     departureTime: first.departureTime,
@@ -179,6 +199,7 @@ export function validateFstdSession(input: FstdSessionInput): ValidationResult {
     enteredInLocalTime: input.enteredInLocalTime ?? false,
     signatureRequired: requiresSignature(attributes),
     crewSize: 2,
+    category: "AEROPLANE",
     date,
     departurePlace: "",
     departureTime: input.date,

@@ -63,6 +63,16 @@ describe("authorisation rules", () => {
     expect(canSignAs(["PILOT"], "SUPERVISING_PIC")).toBe(true);
     expect(canSignAs(["PILOT"], "INSTRUCTOR")).toBe(false);
   });
+
+  it("maps the organisational signer capacities (FOCA 2.4.1)", () => {
+    expect(canSignAs(["ATO"], "ATO")).toBe(true);
+    expect(canSignAs(["DTO"], "DTO")).toBe(true);
+    expect(canSignAs(["HOT"], "HOT")).toBe(true);
+    expect(canSignAs(["AIRPORT"], "AIRPORT")).toBe(true);
+    expect(canSignAs(["ADMIN"], "OTHER")).toBe(true);
+    expect(canSignAs(["PILOT"], "ATO")).toBe(false);
+    expect(canSignAs(["INSTRUCTOR"], "OTHER")).toBe(false);
+  });
 });
 
 describe("signing key vault", () => {

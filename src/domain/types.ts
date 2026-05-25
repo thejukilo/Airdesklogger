@@ -16,6 +16,19 @@ export type PilotFunction = "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL";
 /** Who must countersign, if anyone. */
 export type CountersignRole = "SUPERVISING_PIC" | "INSTRUCTOR" | "EXAMINER";
 
+/** Aircraft category (FOCA 2.1.4). A TMG may be logged as aeroplane or sailplane. */
+export type AircraftCategory = "AEROPLANE" | "HELICOPTER" | "SAILPLANE" | "BALLOON";
+
+/** Sailplane launch method (FOCA 2.2.5). */
+export type LaunchMethod = "WINCH" | "AEROTOW" | "SELF_LAUNCH" | "BUNGEE" | "CAR_TOW";
+
+/**
+ * Where an instructor or examiner sat (FOCA 2.2.4). Time spent on the jump seat
+ * cannot be logged as PIC or instructor time per the Logging of Flight Time
+ * document, so the position is recorded and validated.
+ */
+export type InstructorPosition = "PILOT_SEAT" | "JUMP_SEAT" | "SUPERVISING" | "EXAMINER";
+
 export interface Aircraft {
   /** Make/model/variant, e.g. "Cessna 172S". Column 4. */
   makeModelVariant: string;
@@ -25,6 +38,8 @@ export interface Aircraft {
   engineClass: "SE" | "ME";
   /** Multi-pilot type/operation drives column 6. */
   multiPilot: boolean;
+  /** Category; defaults to aeroplane when omitted. */
+  category?: AircraftCategory | undefined;
 }
 
 /** One flight leg (off-blocks to on-blocks). Columns 2 & 3. */
@@ -51,6 +66,8 @@ export interface FunctionTime {
   primary: PilotFunction;
   /** Instructor minutes (independent of primary; an FI is usually also PIC). */
   instructor: number;
+  /** Where the instructor/examiner sat, when applicable (FOCA 2.2.4). */
+  instructorPosition?: InstructorPosition | undefined;
 }
 
 /**
@@ -66,6 +83,8 @@ export interface FlightEntryInput {
   conditions: OperationalConditionTime; // column 10
   function: FunctionTime; // column 11
   remarks: string; // column 12
+  /** Sailplane launch method, when the aircraft is a sailplane (FOCA 2.2.5). */
+  launchMethod?: LaunchMethod;
   /** Operating crew size: 2 (normal), or 3/4 for augmented operation (FOCA 2.3.4). */
   crewSize?: number;
   /** Structured FOCA attributes (skill test, cross country, etc.). */
@@ -127,6 +146,12 @@ export interface DerivedColumns {
   isMultiFlight: boolean;
   /** Operating crew size; 3 or 4 means the logged times are a share (FOCA 2.3.4). */
   crewSize: number;
+  /** Aircraft category for the entry (defaults to aeroplane). */
+  category: AircraftCategory;
+  /** Sailplane launch method, if recorded. */
+  launchMethod?: LaunchMethod;
+  /** Instructor/examiner seat position, if recorded. */
+  instructorPosition?: InstructorPosition;
   /** Present only when kind is FSTD (column 11 of the layout). */
   fstd?: FstdColumns;
   /** Structured FOCA attributes applied to the entry. */

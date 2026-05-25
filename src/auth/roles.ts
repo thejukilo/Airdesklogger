@@ -7,9 +7,26 @@
  * this user sign off an entry in the given capacity.
  */
 
-export type Role = "PILOT" | "INSTRUCTOR" | "EXAMINER" | "ADMIN";
+export type Role =
+  | "PILOT"
+  | "INSTRUCTOR"
+  | "EXAMINER"
+  | "ADMIN"
+  | "ATO"
+  | "DTO"
+  | "HOT"
+  | "AIRPORT";
 
-export const ALL_ROLES: readonly Role[] = ["PILOT", "INSTRUCTOR", "EXAMINER", "ADMIN"];
+export const ALL_ROLES: readonly Role[] = [
+  "PILOT",
+  "INSTRUCTOR",
+  "EXAMINER",
+  "ADMIN",
+  "ATO",
+  "DTO",
+  "HOT",
+  "AIRPORT",
+];
 
 export function isRole(value: string): value is Role {
   return (ALL_ROLES as readonly string[]).includes(value);
@@ -20,8 +37,20 @@ export function canEditOwnLogbook(userId: string, logbookHolderId: string): bool
   return userId === logbookHolderId;
 }
 
-/** The signer roles, mapped to the capacities they are allowed to attest. */
-export type SignerCapacity = "INSTRUCTOR" | "EXAMINER" | "SUPERVISING_PIC";
+/**
+ * The signer capacities, and the role each one requires. FOCA 2.4.1 allows
+ * instructors, examiners, training organisations, heads of training, airports
+ * and other parties to sign.
+ */
+export type SignerCapacity =
+  | "INSTRUCTOR"
+  | "EXAMINER"
+  | "SUPERVISING_PIC"
+  | "ATO"
+  | "DTO"
+  | "HOT"
+  | "AIRPORT"
+  | "OTHER";
 
 export function canSignAs(roles: readonly Role[], capacity: SignerCapacity): boolean {
   switch (capacity) {
@@ -33,5 +62,16 @@ export function canSignAs(roles: readonly Role[], capacity: SignerCapacity): boo
     case "SUPERVISING_PIC":
       // Supervising-PIC countersignature (for PICUS) only needs a qualified pilot.
       return roles.includes("PILOT") || roles.includes("INSTRUCTOR") || roles.includes("EXAMINER");
+    case "ATO":
+      return roles.includes("ATO");
+    case "DTO":
+      return roles.includes("DTO");
+    case "HOT":
+      return roles.includes("HOT");
+    case "AIRPORT":
+      return roles.includes("AIRPORT");
+    case "OTHER":
+      // A catch-all party; only an administrator may attest as "other".
+      return roles.includes("ADMIN");
   }
 }
