@@ -327,12 +327,10 @@ export async function getEntryMeta(
   };
 }
 
-/** Entries belonging to one holder, newest first, with a small summary. */
+/** Entries belonging to one holder, newest first, with the full content for display. */
 export async function listEntriesForPilot(pilotId: string) {
   const { rows } = await getPool().query(
-    `SELECT e.id, e.locked, e.current_version,
-            v.content->'columns'->>'date'  AS date,
-            v.content->'columns'->>'total' AS total_minutes
+    `SELECT e.id, e.locked, v.content
        FROM flight_entries e
        JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
       WHERE e.pilot_id = $1

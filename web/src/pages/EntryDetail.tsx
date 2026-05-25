@@ -87,7 +87,7 @@ export function EntryDetail() {
   if (!entry?.current) return <Alert>Entry not found.</Alert>;
 
   const c = entry.current.content;
-  const cols = c.columns ?? {};
+  const cols = c.columns;
   const locked = entry.current.locked;
   const isOwner = c.pilotId === user?.id;
   const canSign = !locked && !isOwner && capabilities.length > 0;
@@ -120,12 +120,12 @@ export function EntryDetail() {
 
       <Card>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          <Row label="Date (UTC)" value={String(cols.date ?? "")} />
+          <Row label="Date (UTC)" value={String(cols?.date ?? "")} />
           <Row label="Aircraft" value={`${c.aircraft?.makeModelVariant ?? ""} (${c.aircraft?.registration ?? ""})`} />
-          <Row label="From" value={String(cols.departurePlace ?? "")} />
-          <Row label="To" value={String(cols.arrivalPlace ?? "")} />
-          <Row label="Total time" value={hhmm(cols.total)} />
-          <Row label="PIC time" value={hhmm(cols.pic)} />
+          <Row label="From" value={String(cols?.departurePlace ?? "")} />
+          <Row label="To" value={String(cols?.arrivalPlace ?? "")} />
+          <Row label="Total time" value={hhmm(cols?.total)} />
+          <Row label="PIC time" value={hhmm(cols?.pic)} />
           <Row label="Name PIC" value={c.picName ?? ""} />
           <Row label="Status" value={locked ? "Locked (signed)" : "Open"} />
         </dl>

@@ -82,14 +82,46 @@ export function register(input: {
   return request("/auth/register", { method: "POST", body: JSON.stringify(input) });
 }
 
-export interface EntrySummary {
-  id: string;
+export interface EntryColumns {
+  kind: string;
   date: string;
-  total_minutes: string | null;
-  locked: boolean;
+  departurePlace: string;
+  arrivalPlace: string;
+  departureTime: string;
+  arrivalTime: string;
+  singleEngine: number;
+  multiEngine: number;
+  multiPilot: number;
+  total: number;
+  dayLandings: number;
+  nightLandings: number;
+  night: number;
+  ifr: number;
+  pic: number;
+  coPilot: number;
+  dual: number;
+  instructor: number;
+  enteredInLocalTime: boolean;
+  fstd?: { deviceType: string; qualificationNumber: string; totalMinutes: number };
 }
 
-export function listEntries(): Promise<{ entries: EntrySummary[] }> {
+export interface EntryContent {
+  pilotId: string;
+  picName?: string;
+  remarks?: string;
+  operatingRole?: string;
+  aircraft?: { makeModelVariant?: string; registration?: string };
+  function?: { primary?: string; instructor?: number; tookControl?: boolean };
+  columns?: EntryColumns;
+}
+
+export interface EntryRow {
+  id: string;
+  locked: boolean;
+  content: EntryContent;
+}
+
+export function listEntries(): Promise<{ entries: EntryRow[] }> {
   return request("/entries", { method: "GET" });
 }
 
@@ -201,14 +233,6 @@ export interface EntryDetail {
     signatureImage: string | null;
     signerLicense: string | null;
   }>;
-}
-
-export interface EntryContent {
-  pilotId: string;
-  picName?: string;
-  remarks?: string;
-  aircraft?: { makeModelVariant?: string; registration?: string };
-  columns?: Record<string, unknown>;
 }
 
 export function getEntry(id: string): Promise<EntryDetail> {

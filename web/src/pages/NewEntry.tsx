@@ -55,6 +55,35 @@ function resolveAirport(code: string, setName: (n: string | null) => void): () =
   return () => clearTimeout(t);
 }
 
+// FOCA 2.2.3 structured attributes, with friendly labels.
+const ATTRIBUTES: Array<{ key: string; label: string }> = [
+  { key: "skill_test", label: "Skill test" },
+  { key: "proficiency_check", label: "Proficiency check" },
+  { key: "operator_proficiency_check", label: "Operator proficiency check" },
+  { key: "operator_line_check", label: "Operator line check" },
+  { key: "language_proficiency_check", label: "Language proficiency check" },
+  { key: "cross_country", label: "Cross country" },
+  { key: "solo", label: "Solo" },
+  { key: "training_flight", label: "Training flight" },
+  { key: "refresher_training", label: "Refresher training" },
+  { key: "difference_training", label: "Difference training" },
+  { key: "familiarization", label: "Familiarisation" },
+  { key: "instruction_training_course", label: "Instruction training course" },
+  { key: "demonstration_of_ability_to_instruct", label: "Demo of ability to instruct" },
+  { key: "course_completed", label: "Course completed" },
+  { key: "series_of_flights", label: "Series of flights" },
+  { key: "zftt", label: "ZFTT" },
+  { key: "aerobatic_privilege", label: "Aerobatic" },
+  { key: "cloud_flying_privilege", label: "Cloud flying" },
+  { key: "launch_privilege", label: "Launch privilege" },
+  { key: "towing", label: "Towing" },
+  { key: "low_visibility_landing", label: "Low-visibility landing" },
+  { key: "sea_landings", label: "Sea landing" },
+  { key: "mountain_landings", label: "Mountain landing" },
+  { key: "heslo", label: "HESLO" },
+  { key: "hec", label: "HEC" },
+];
+
 const empty = {
   date: "",
   blockStart: "",
@@ -70,11 +99,13 @@ const empty = {
   tookControl: false,
   operatingRole: "",
   flightRules: "VFR",
+  instructor: 0,
   dayLandings: 1,
   nightLandings: 0,
   night: 0,
   picName: "SELF",
   remarks: "",
+  attributes: [] as string[],
 };
 
 export function NewEntry() {
@@ -89,6 +120,15 @@ export function NewEntry() {
 
   function set<K extends keyof typeof f>(k: K, v: (typeof f)[K]) {
     setF((prev) => ({ ...prev, [k]: v }));
+  }
+
+  function toggleAttr(key: string) {
+    setF((prev) => ({
+      ...prev,
+      attributes: prev.attributes.includes(key)
+        ? prev.attributes.filter((a) => a !== key)
+        : [...prev.attributes, key],
+    }));
   }
 
   // Auto-fill aircraft details a moment after the registration stops changing.
@@ -155,10 +195,11 @@ export function NewEntry() {
         conditions: { night: Number(f.night), ifr },
         function: {
           primary: f.primary,
-          instructor: 0,
+          instructor: Number(f.instructor),
           ...(f.primary === "SAFETY_PILOT" ? { tookControl: f.tookControl } : {}),
         },
         ...(f.operatingRole ? { operatingRole: f.operatingRole } : {}),
+        ...(f.attributes.length ? { attributes: f.attributes } : {}),
         remarks: f.remarks,
       } as never);
       navigate("/");
@@ -261,10 +302,32 @@ export function NewEntry() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <Field label="Day landings" type="number" min={0} value={f.dayLandings} onChange={(e) => set("dayLandings", Number(e.target.value))} />
             <Field label="Night landings" type="number" min={0} value={f.nightLandings} onChange={(e) => set("nightLandings", Number(e.target.value))} />
             <Field label="Night time (min)" type="number" min={0} value={f.night} onChange={(e) => set("night", Number(e.target.value))} />
+            <Field label="Instructor time (min)" type="number" min={0} value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} />
+          </div>
+
+          <div>
+            <span className="mb-2 block text-sm font-medium text-slate-700">
+              Attributes and endorsements
+            </span>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+              {ATTRIBUTES.map((a) => (
+                <label key={a.key} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={f.attributes.includes(a.key)}
+                    onChange={() => toggleAttr(a.key)}
+                  />
+                  {a.label}
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              A skill test, proficiency check or line check will require a sign-off.
+            </p>
           </div>
 
           <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />
