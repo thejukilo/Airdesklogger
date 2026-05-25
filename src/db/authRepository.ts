@@ -32,6 +32,13 @@ export interface UserRow {
   signingKeyWrapped: string | null;
 }
 
+/** A date column may arrive as a JS Date (node-postgres) or a string; either way return yyyy-mm-dd. */
+function dateOnly(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+}
+
 function mapUser(r: Record<string, unknown>): UserRow {
   return {
     id: r.id as string,
@@ -39,7 +46,7 @@ function mapUser(r: Record<string, unknown>): UserRow {
     name: r.name as string,
     firstName: (r.first_name as string) ?? null,
     lastName: (r.last_name as string) ?? null,
-    dateOfBirth: r.date_of_birth ? String(r.date_of_birth).slice(0, 10) : null,
+    dateOfBirth: dateOnly(r.date_of_birth),
     licenseNumber: (r.license_number as string) ?? null,
     address: (r.address as string) ?? null,
     instructorCertificate: (r.instructor_certificate as string) ?? null,
@@ -130,6 +137,10 @@ export async function updateProfile(userId: string, p: ProfileUpdate): Promise<U
 
   if (p.firstName !== undefined) add("first_name", blank(p.firstName));
   if (p.lastName !== undefined) add("last_name", blank(p.lastName));
+  // Keep the single display name (used on the export and header) in step with the
+  // forename and surname when both are given.
+  const fullName = [blank(p.firstName), blank(p.lastName)].filter(Boolean).join(" ");
+  if (p.firstName !== undefined && p.lastName !== undefined && fullName) add("name", fullName);
   if (p.dateOfBirth !== undefined) add("date_of_birth", blank(p.dateOfBirth), "::date");
   if (p.address !== undefined) add("address", blank(p.address));
   if (p.licenseNumber !== undefined) add("license_number", blank(p.licenseNumber));

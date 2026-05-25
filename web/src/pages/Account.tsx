@@ -34,9 +34,12 @@ export function Account() {
     api
       .getProfile()
       .then((p) => {
+        // The account is created with a single full name; split it as a starting
+        // point for forename and surname when those are not yet set.
+        const parts = (p.name ?? "").trim().split(/\s+/).filter(Boolean);
         setProfile({
-          firstName: p.firstName ?? "",
-          lastName: p.lastName ?? "",
+          firstName: p.firstName ?? parts[0] ?? "",
+          lastName: p.lastName ?? parts.slice(1).join(" "),
           dateOfBirth: p.dateOfBirth ?? "",
           address: p.address ?? "",
           licenseNumber: p.licenseNumber ?? "",
@@ -46,7 +49,7 @@ export function Account() {
         });
         setMfaLogin(p.mfaRequiredForLogin);
       })
-      .catch(() => {});
+      .catch((err) => setProfileMsg(err instanceof Error ? err.message : "Could not load your profile."));
   }, []);
 
   async function toggleMfaLogin(required: boolean) {

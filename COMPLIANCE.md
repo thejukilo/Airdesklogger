@@ -48,7 +48,7 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 - [x] 2.2.4 Pilot functions incl. instructor on pilot seat / jump seat / supervising / as examiner (`InstructorPosition`)
 - [x] 2.2.5 Sailplane launch method (`LaunchMethod`)
 - [x] 2.2.6 TMG and powered gliders loggable as aeroplane or sailplane (category is selectable)
-- [x] 2.2.7 Local-time entry possible, default UTC, and the export indicates entries made in local time. Time face is UTC with a Z suffix; a "(entered in local time)" note is added in the Remarks column.
+- [ ] PARTIAL: 2.2.7 Local-time entry possible with UTC default. Local times are converted to UTC against the aerodrome's own timezone and shown as UTC (Z). The provenance flag (entered in local time) is still stored on the record but is no longer printed on the export, so the "indicate on the print-out" part of 2.2.7 is not currently shown on the face of the PDF (a deliberate choice; the time is accurate UTC).
 - [x] 2.2.3 Additional attributes. The 25 attributes (`src/domain/attributes.ts`) plus the refinements: HESLO 1 to 4 and HEC 1 to 2 levels with a cycle count, mountain landing ski or wheels, and low-visibility landing type (`AttributeDetails`).
 
 ### 2.3 Integrity of the record

@@ -34,7 +34,8 @@ interface LeafColumn {
   sub: string; // sub-header
   width: number;
   value: (e: DerivedColumns) => string;
-  totalKey?: SummableField; // present => participates in totals rows
+  totalKey?: SummableField; // present => summed directly in the totals rows
+  totalValue?: (t: ColumnTotals) => string; // present => totals derived from the summed columns
 }
 
 const MIN = (m: number) => (m > 0 ? formatHHMM(m) : "");
@@ -56,8 +57,10 @@ const COLUMNS: LeafColumn[] = [
   { group: "NAME PIC", sub: "", width: 78, value: () => "" },
   { group: "LANDINGS", sub: "Day", width: 30, value: (e) => NUM(e.dayLandings), totalKey: "dayLandings" },
   { group: "LANDINGS", sub: "Ngt", width: 30, value: (e) => NUM(e.nightLandings), totalKey: "nightLandings" },
-  { group: "COND. TIME", sub: "Night", width: 40, value: (e) => MIN(e.night), totalKey: "night" },
-  { group: "COND. TIME", sub: "IFR", width: 40, value: (e) => MIN(e.ifr), totalKey: "ifr" },
+  { group: "COND. TIME", sub: "Day", width: 38, value: (e) => MIN(e.total - e.night), totalValue: (t) => MIN(t.total - t.night) },
+  { group: "COND. TIME", sub: "Night", width: 38, value: (e) => MIN(e.night), totalKey: "night" },
+  { group: "COND. TIME", sub: "VFR", width: 38, value: (e) => MIN(e.total - e.ifr), totalValue: (t) => MIN(t.total - t.ifr) },
+  { group: "COND. TIME", sub: "IFR", width: 38, value: (e) => MIN(e.ifr), totalKey: "ifr" },
   { group: "FUNCTION TIME", sub: "PIC", width: 40, value: (e) => MIN(e.pic), totalKey: "pic" },
   { group: "FUNCTION TIME", sub: "Co", width: 40, value: (e) => MIN(e.coPilot), totalKey: "coPilot" },
   { group: "FUNCTION TIME", sub: "Dual", width: 40, value: (e) => MIN(e.dual), totalKey: "dual" },
@@ -83,9 +86,6 @@ function remarksText(e: LogbookEntryForPdf): string {
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
   if (e.launchMethod) parts.push(`(launch: ${e.launchMethod})`);
   if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
-  // The time face is always UTC (Z); this records that the pilot keyed the entry
-  // in local time, which FOCA 2.2.7 requires the export to indicate.
-  if (e.enteredInLocalTime) parts.push("(entered in local time)");
   if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
   const d = e.attributeDetails;
   if (d) {
@@ -425,6 +425,7 @@ function drawGrid(
     p.drawText(tr.label, { x: MARGIN + 4, y, size: 7, font: bold, color: BLACK });
     COLUMNS.forEach((c, ci) => {
       if (c.totalKey) centeredText(p, MIN_OR_NUM(c.totalKey, tr.totals[c.totalKey]), colX(ci), c.width, y, 6.5, bold);
+      else if (c.totalValue) centeredText(p, c.totalValue(tr.totals), colX(ci), c.width, y, 6.5, bold);
     });
     void labelW;
   });
