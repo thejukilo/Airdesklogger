@@ -4,11 +4,21 @@ import { RequestError } from "../../src/http/parseEntry.js";
 import { validateFstdSession } from "../../src/domain/validation.js";
 import { createFstdEntry } from "../../src/db/repository.js";
 import { validateFstdReferences } from "../../src/http/validateReferences.js";
+import { fstdDeviceExists, upsertFstdDevice } from "../../src/db/referenceRepository.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
+
+const DEVICE_KINDS = ["FNPT_I", "FNPT_II", "FTD", "FFS", "BITD", "OTHER"] as const;
+type DeviceKind = (typeof DEVICE_KINDS)[number];
+function asDeviceKind(v: unknown): DeviceKind {
+  return DEVICE_KINDS.includes(v as DeviceKind) ? (v as DeviceKind) : "OTHER";
+}
 
 /**
  * Record a synthetic training (FSTD) session for the signed-in holder. As with
  * flight entries, the holder id comes from the session, not the request body.
+ * A device that is not yet in the reference set is provisionally recorded from
+ * the session (the same approach as aircraft), since FSTDs have no public
+ * registry to look up; the provider can refine the record later.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== "POST") {
@@ -23,6 +33,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (!result.valid || !result.derived) {
       res.status(422).json({ valid: false, issues: result.issues });
       return;
+    }
+    if (!(await fstdDeviceExists(input.qualificationNumber))) {
+      await upsertFstdDevice({
+        qualificationNumber: input.qualificationNumber,
+        deviceKind: asDeviceKind((raw as { deviceKind?: unknown })?.deviceKind),
+        aircraftType: input.deviceType,
+      });
     }
     const refIssues = await validateFstdReferences(input);
     if (refIssues.length > 0) {

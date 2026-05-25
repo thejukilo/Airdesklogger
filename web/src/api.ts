@@ -177,6 +177,21 @@ export function createEntry(input: NewEntryRequest): Promise<{ entryId: string }
   return request("/entries", { method: "POST", body: JSON.stringify(input) });
 }
 
+export interface NewFstdRequest {
+  deviceType: string;
+  deviceKind: string;
+  qualificationNumber: string;
+  instruction: string;
+  date: string;
+  totalMinutes: number;
+  remarks: string;
+  attributes?: string[];
+}
+
+export function createFstd(input: NewFstdRequest): Promise<{ entryId: string }> {
+  return request("/fstd", { method: "POST", body: JSON.stringify(input) });
+}
+
 export interface AircraftMatch {
   registration: string;
   model: string;

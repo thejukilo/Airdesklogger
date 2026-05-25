@@ -5,6 +5,7 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Logbook } from "./pages/Logbook";
 import { NewEntry } from "./pages/NewEntry";
+import { NewFstd } from "./pages/NewFstd";
 import { EntryDetail } from "./pages/EntryDetail";
 import { Account } from "./pages/Account";
 import { Sign } from "./pages/Sign";
@@ -74,6 +75,14 @@ function AppShell() {
           element={
             <RequireAuth>
               <NewEntry />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/fstd"
+          element={
+            <RequireAuth>
+              <NewFstd />
             </RequireAuth>
           }
         />
