@@ -87,6 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(400).json({ error: err.message });
       return;
     }
-    throw err;
+    console.error("entry handler error:", err);
+    res.status(500).json({ error: "Server error handling the entry." });
   }
 }

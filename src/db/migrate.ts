@@ -21,6 +21,12 @@ export async function migrate(): Promise<void> {
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
+  // Run automatically on deploy. If no database is configured (for example a
+  // preview build without DATABASE_URL), skip cleanly so the build still passes.
+  if (!process.env.DATABASE_URL && !process.env.PGHOST) {
+    console.log("No database configured; skipping migration.");
+    process.exit(0);
+  }
   migrate()
     .then(() => {
       console.log("Migration complete.");
