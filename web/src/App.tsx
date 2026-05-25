@@ -26,7 +26,7 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 text-ink">
       <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-3">
           <Link to="/" className="font-semibold tracking-tight">
             AirdeskLogger
           </Link>
@@ -42,7 +42,7 @@ function Shell({ children }: { children: ReactNode }) {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-screen-2xl px-4 py-6">{children}</main>
     </div>
   );
 }

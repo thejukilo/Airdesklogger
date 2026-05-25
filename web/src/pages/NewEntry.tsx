@@ -6,9 +6,9 @@ import { ATTRIBUTES } from "../labels";
 
 /**
  * Times are entered as a date plus block-off and block-on times. The pilot
- * chooses UTC or local; either way they are sent as ISO instants (UTC keeps "Z",
- * local carries the device offset) and the server stores UTC, flagging local
- * entries (FOCA 2.2.7). A block-on time at or before block-off rolls to the next
+ * chooses UTC or local. UTC is sent with a Z; local is sent as a bare wall-clock
+ * value and the server converts it using the aerodrome's timezone (FOCA 2.2.7),
+ * always storing UTC. A block-on time at or before block-off rolls to the next
  * day.
  */
 type TimeMode = "utc" | "local";
@@ -268,7 +268,7 @@ export function NewEntry() {
             {aircraftMsg && <p className="mt-1 text-xs text-slate-500">{aircraftMsg}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
             <Select label="Category" value={f.category} onChange={(e) => set("category", e.target.value)}>
               <option value="AEROPLANE">Aeroplane</option>
@@ -286,7 +286,7 @@ export function NewEntry() {
             </label>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." required />
               {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
@@ -308,7 +308,7 @@ export function NewEntry() {
               <option value="utc">UTC</option>
               <option value="local">Local time (at the aerodrome)</option>
             </Select>
-            <div className="mt-3 grid grid-cols-2 gap-4">
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} required />
               <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} required />
             </div>
@@ -329,7 +329,7 @@ export function NewEntry() {
               minutes between them, recorded as one entry (AMC1 FCL.050).
             </p>
             {f.extraLegs.map((l, i) => (
-              <div key={i} className="mb-2 grid grid-cols-9 items-end gap-2">
+              <div key={i} className="mb-2 grid grid-cols-2 items-end gap-2 sm:grid-cols-9">
                 <div className="col-span-2">
                   <Field label="From" value={l.departurePlace} onChange={(e) => setLeg(i, "departurePlace", e.target.value)} />
                 </div>
@@ -342,14 +342,14 @@ export function NewEntry() {
                 <div className="col-span-2">
                   <Field label={timeLabels.on} type="time" value={l.blockEnd} onChange={(e) => setLeg(i, "blockEnd", e.target.value)} />
                 </div>
-                <button type="button" onClick={() => removeLeg(i)} className="pb-2 text-xs text-slate-500 underline">
+                <button type="button" onClick={() => removeLeg(i)} className="col-span-2 pb-2 text-left text-xs text-slate-500 underline sm:col-span-1">
                   Remove
                 </button>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
               label={isDual ? "Name of PIC (flight instructor)" : "Name of PIC"}
               value={f.picName}
@@ -374,7 +374,7 @@ export function NewEntry() {
             </label>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select label="Operating role (optional)" value={f.operatingRole} onChange={(e) => set("operatingRole", e.target.value)}>
               <option value="">Not recorded</option>
               <option value="PILOT_FLYING">Pilot flying</option>
@@ -415,7 +415,7 @@ export function NewEntry() {
               A skill test, proficiency check or line check will require a sign-off.
             </p>
             {showDetails && (
-              <div className="mt-3 grid grid-cols-2 gap-4 rounded-md bg-slate-50 p-3">
+              <div className="mt-3 grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
                 {has("heslo") && (
                   <Select label="HESLO level" value={f.hesloLevel} onChange={(e) => set("hesloLevel", e.target.value)}>
                     <option value="">Not set</option>

@@ -78,7 +78,7 @@ export function Logbook() {
         ) : entries.length === 0 ? (
           <p className="text-sm text-slate-500">No entries yet. Record your first flight.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full whitespace-nowrap text-sm">
               <thead>
                 <tr className="border-b text-left text-xs uppercase tracking-wide text-slate-500">
@@ -151,6 +151,57 @@ export function Logbook() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Mobile: a stacked card per entry instead of the wide table. */}
+        {!loading && entries.length > 0 && (
+          <ul className="space-y-3 md:hidden">
+            {entries.map((e) => {
+              const c = e.content.columns;
+              const fstd = c?.fstd;
+              return (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/entry/${e.id}`)}
+                    className="w-full rounded-lg border bg-white p-3 text-left active:bg-slate-50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{c?.date}</span>
+                      {e.locked ? (
+                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Signed</span>
+                      ) : (
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Open</span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-sm">
+                      {fstd ? (
+                        <span className="text-slate-500">FSTD {fstd.deviceType}</span>
+                      ) : (
+                        <span>
+                          {e.content.aircraft?.registration}
+                          <span className="ml-1 text-slate-400">{e.content.aircraft?.makeModelVariant}</span>
+                        </span>
+                      )}
+                    </div>
+                    {!fstd && (
+                      <div className="mt-1 font-mono text-[13px] text-slate-600">
+                        {c?.departurePlace} {clock(c?.departureTime)} to {c?.arrivalPlace} {clock(c?.arrivalTime)}
+                      </div>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                      <span>Total <span className="font-mono font-semibold text-ink">{fstd ? hhmm(fstd.totalMinutes) : hhmm(c?.total)}</span></span>
+                      {e.content.function?.primary && <span>{FUNCTION_LABELS[e.content.function.primary] ?? e.content.function.primary}</span>}
+                      {e.content.picName && <span>PIC {e.content.picName}</span>}
+                      {((c?.dayLandings ?? 0) + (c?.nightLandings ?? 0)) > 0 && (
+                        <span>Ldg {(c?.dayLandings ?? 0) + (c?.nightLandings ?? 0)}</span>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Card>
 
