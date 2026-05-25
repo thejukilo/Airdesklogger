@@ -6,6 +6,7 @@
  * account and a logbook holder are the same row.
  */
 
+import { randomBytes } from "node:crypto";
 import { getPool } from "./pool.js";
 import type { Role } from "../auth/roles.js";
 
@@ -13,8 +14,12 @@ export interface UserRow {
   id: string;
   email: string | null;
   name: string;
+  firstName: string | null;
+  lastName: string | null;
+  dateOfBirth: string | null;
   licenseNumber: string | null;
   address: string | null;
+  emailVerified: boolean;
   roles: Role[];
   passwordHash: string | null;
   mfaSecretWrapped: string | null;
@@ -28,8 +33,12 @@ function mapUser(r: Record<string, unknown>): UserRow {
     id: r.id as string,
     email: (r.email as string) ?? null,
     name: r.name as string,
+    firstName: (r.first_name as string) ?? null,
+    lastName: (r.last_name as string) ?? null,
+    dateOfBirth: r.date_of_birth ? String(r.date_of_birth).slice(0, 10) : null,
     licenseNumber: (r.license_number as string) ?? null,
     address: (r.address as string) ?? null,
+    emailVerified: Boolean(r.email_verified),
     roles: (r.roles as Role[]) ?? [],
     passwordHash: (r.password_hash as string) ?? null,
     mfaSecretWrapped: (r.mfa_secret_wrapped as string) ?? null,
@@ -40,35 +49,56 @@ function mapUser(r: Record<string, unknown>): UserRow {
 }
 
 const USER_COLUMNS =
-  "id, email, name, license_number, address, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
+  "id, email, name, first_name, last_name, date_of_birth, license_number, address, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
 
 export interface NewUser {
   email: string;
   passwordHash: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
   roles: Role[];
   licenseNumber?: string;
   address?: string;
+  emailVerificationToken?: string;
   signingPublicKey: string;
   signingKeyWrapped: string;
 }
 
 export async function createUser(u: NewUser): Promise<UserRow> {
+  const verificationToken = u.emailVerificationToken ?? randomBytes(24).toString("base64url");
   const { rows } = await getPool().query(
-    `INSERT INTO pilots (email, password_hash, name, roles, license_number, address, signing_public_key, signing_key_wrapped)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING ${USER_COLUMNS}`,
+    `INSERT INTO pilots
+       (email, password_hash, name, first_name, last_name, date_of_birth, roles,
+        license_number, address, email_verification_token, signing_public_key, signing_key_wrapped)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ${USER_COLUMNS}`,
     [
       u.email.toLowerCase(),
       u.passwordHash,
       u.name,
+      u.firstName ?? null,
+      u.lastName ?? null,
+      u.dateOfBirth ?? null,
       u.roles,
       u.licenseNumber ?? null,
       u.address ?? null,
+      verificationToken,
       u.signingPublicKey,
       u.signingKeyWrapped,
     ],
   );
   return mapUser(rows[0]);
+}
+
+/** Confirm an email address from its verification token. Returns the user id. */
+export async function verifyEmailByToken(token: string): Promise<string | null> {
+  const { rows } = await getPool().query(
+    `UPDATE pilots SET email_verified = true, email_verification_token = null, updated_at = now()
+      WHERE email_verification_token = $1 RETURNING id`,
+    [token],
+  );
+  return rows[0] ? (rows[0].id as string) : null;
 }
 
 export async function getUserByEmail(email: string): Promise<UserRow | null> {

@@ -55,6 +55,8 @@ async function main(): Promise<void> {
     conditions: { night: 0, ifr: 0 },
     function: { primary: "PIC", instructor: 0 },
     remarks: "Local circuits",
+    attributes: ["series_of_flights"],
+    enteredInLocalTime: true,
   };
   const mv = validateEntry(multi);
   console.log("multi-flight valid:", mv.valid, "total min:", mv.derived?.total, "isMultiFlight:", mv.derived?.isMultiFlight);
@@ -72,6 +74,7 @@ async function main(): Promise<void> {
     conditions: { night: 0, ifr: 25 },
     function: { primary: "SPIC", instructor: 0 },
     remarks: "SPIC: PPL skill test",
+    attributes: ["skill_test"],
   };
   const sv = validateEntry(spic);
   const created = await createEntry(spic, sv.derived!, student);

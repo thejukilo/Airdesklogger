@@ -4,9 +4,10 @@
  */
 
 import { z } from "zod";
-import { parseUtcInstant, NonUtcTimeError } from "../domain/time.js";
+import { parseInstant, AmbiguousTimeError } from "../domain/time.js";
 import { RequestError } from "./parseEntry.js";
 import type { FstdSessionInput } from "../domain/types.js";
+import type { EntryAttribute } from "../domain/attributes.js";
 
 const Shape = z.object({
   pilotId: z.string().min(1),
@@ -16,6 +17,7 @@ const Shape = z.object({
   date: z.string(),
   totalMinutes: z.number().int().positive(),
   remarks: z.string(),
+  attributes: z.array(z.string()).optional(),
 });
 
 export function parseFstdRequest(body: unknown): FstdSessionInput {
@@ -26,9 +28,16 @@ export function parseFstdRequest(body: unknown): FstdSessionInput {
     throw new RequestError(`Invalid ${first ? first.path.join(".") || "body" : "body"}: ${first?.message ?? "unknown"}`);
   }
   try {
-    return { ...parsed.data, date: parseUtcInstant(parsed.data.date) };
+    const { date, attributes, ...rest } = parsed.data;
+    const parsedDate = parseInstant(date);
+    return {
+      ...rest,
+      date: parsedDate.utc,
+      attributes: (attributes ?? []) as EntryAttribute[],
+      enteredInLocalTime: parsedDate.enteredLocal,
+    };
   } catch (err) {
-    if (err instanceof NonUtcTimeError) throw new RequestError(err.message);
+    if (err instanceof AmbiguousTimeError) throw new RequestError(err.message);
     throw err;
   }
 }

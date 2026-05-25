@@ -5,6 +5,8 @@
  * (see multiFlight.ts). All times are UTC instants; all durations are minutes.
  */
 
+import type { EntryAttribute } from "./attributes.js";
+
 /** A logbook record is either a flown flight or a synthetic training session. */
 export type EntryKind = "FLIGHT" | "FSTD";
 
@@ -64,6 +66,10 @@ export interface FlightEntryInput {
   conditions: OperationalConditionTime; // column 10
   function: FunctionTime; // column 11
   remarks: string; // column 12
+  /** Structured FOCA attributes (skill test, cross country, etc.). */
+  attributes?: EntryAttribute[];
+  /** True when any time in the entry was supplied as local time (FOCA 2.2.7). */
+  enteredInLocalTime?: boolean;
 }
 
 /**
@@ -83,6 +89,8 @@ export interface FstdSessionInput {
   date: Date; // UTC
   totalMinutes: number;
   remarks: string;
+  attributes?: EntryAttribute[];
+  enteredInLocalTime?: boolean;
 }
 
 /** Derived FSTD column values (column 11). */
@@ -117,4 +125,10 @@ export interface DerivedColumns {
   isMultiFlight: boolean;
   /** Present only when kind is FSTD (column 11 of the layout). */
   fstd?: FstdColumns;
+  /** Structured FOCA attributes applied to the entry. */
+  attributes: EntryAttribute[];
+  /** True when any time was entered as local time (flagged on exports). */
+  enteredInLocalTime: boolean;
+  /** True when an attribute requires a sign-off that is not yet present. */
+  signatureRequired: boolean;
 }

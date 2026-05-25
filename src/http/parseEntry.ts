@@ -9,8 +9,9 @@
  */
 
 import { z } from "zod";
-import { parseUtcInstant, NonUtcTimeError } from "../domain/time.js";
+import { parseInstant, AmbiguousTimeError } from "../domain/time.js";
 import type { FlightEntryInput } from "../domain/types.js";
+import type { EntryAttribute } from "../domain/attributes.js";
 
 export class RequestError extends Error {
   constructor(message: string) {
@@ -49,6 +50,7 @@ const EntryShape = z.object({
     instructor: z.number().int().nonnegative(),
   }),
   remarks: z.string(),
+  attributes: z.array(z.string()).optional(),
 });
 
 /** Vercel parses a JSON body into an object, but a raw string can also arrive. */
@@ -73,23 +75,32 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
   const data = parsed.data;
 
   try {
+    let enteredLocal = false;
+    const legs = data.legs.map((l) => {
+      const dep = parseInstant(l.departureTime);
+      const arr = parseInstant(l.arrivalTime);
+      if (dep.enteredLocal || arr.enteredLocal) enteredLocal = true;
+      return {
+        departurePlace: l.departurePlace,
+        departureTime: dep.utc,
+        arrivalPlace: l.arrivalPlace,
+        arrivalTime: arr.utc,
+      };
+    });
     return {
       pilotId: data.pilotId,
       aircraft: data.aircraft,
-      legs: data.legs.map((l) => ({
-        departurePlace: l.departurePlace,
-        departureTime: parseUtcInstant(l.departureTime),
-        arrivalPlace: l.arrivalPlace,
-        arrivalTime: parseUtcInstant(l.arrivalTime),
-      })),
+      legs,
       picName: data.picName,
       landings: data.landings,
       conditions: data.conditions,
       function: data.function,
       remarks: data.remarks,
+      attributes: (data.attributes ?? []) as EntryAttribute[],
+      enteredInLocalTime: enteredLocal,
     };
   } catch (err) {
-    if (err instanceof NonUtcTimeError) throw new RequestError(err.message);
+    if (err instanceof AmbiguousTimeError) throw new RequestError(err.message);
     throw err;
   }
 }

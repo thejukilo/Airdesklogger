@@ -13,6 +13,17 @@ import type { DerivedColumns, FlightEntryInput, FstdSessionInput } from "./types
 import { minutesBetween, utcDateKey } from "./time.js";
 import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
+import { isEntryAttribute, requiresSignature, type EntryAttribute } from "./attributes.js";
+
+function validateAttributes(attributes: EntryAttribute[] | undefined, issues: ValidationIssue[]): EntryAttribute[] {
+  const attrs = attributes ?? [];
+  for (const a of attrs) {
+    if (!isEntryAttribute(a)) {
+      issues.push({ field: "attributes", message: `Unknown attribute "${a}".` });
+    }
+  }
+  return attrs.filter(isEntryAttribute);
+}
 
 export interface ValidationIssue {
   field: string;
@@ -96,10 +107,15 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     issues.push({ field: "picName", message: "Name of PIC is required (use SELF if applicable)." });
   }
 
+  const attributes = validateAttributes(input.attributes, issues);
+
   if (issues.length > 0) return { valid: false, issues };
 
   const derived: DerivedColumns = {
     kind: "FLIGHT",
+    attributes,
+    enteredInLocalTime: input.enteredInLocalTime ?? false,
+    signatureRequired: requiresSignature(attributes),
     date: utcDateKey(first.departureTime),
     departurePlace: first.departurePlace,
     departureTime: first.departureTime,
@@ -141,11 +157,16 @@ export function validateFstdSession(input: FstdSessionInput): ValidationResult {
   if (Number.isNaN(input.date.getTime())) {
     issues.push({ field: "date", message: "A valid session date is required." });
   }
+  const attributes = validateAttributes(input.attributes, issues);
+
   if (issues.length > 0) return { valid: false, issues };
 
   const date = utcDateKey(input.date);
   const derived: DerivedColumns = {
     kind: "FSTD",
+    attributes,
+    enteredInLocalTime: input.enteredInLocalTime ?? false,
+    signatureRequired: requiresSignature(attributes),
     date,
     departurePlace: "",
     departureTime: input.date,

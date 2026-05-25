@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { hashPassword } from "../../src/auth/passwords.js";
 import { provisionSigningKeypair } from "../../src/auth/signingKeys.js";
@@ -20,6 +21,9 @@ const Body = z.object({
   email: z.string().email(),
   password: z.string().min(12),
   name: z.string().min(1),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use yyyy-mm-dd").optional(),
   licenseNumber: z.string().optional(),
   address: z.string().optional(),
   roles: z.array(z.string()).optional(),
@@ -35,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request." });
     return;
   }
-  const { email, password, name, licenseNumber, address } = parsed.data;
+  const { email, password, name, firstName, lastName, dateOfBirth, licenseNumber, address } = parsed.data;
 
   let roles: Role[] = ["PILOT"];
   if (parsed.data.roles && parsed.data.roles.length > 0) {
@@ -56,12 +60,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const passwordHash = await hashPassword(password);
   const { publicKey, wrappedPrivateKey } = provisionSigningKeypair(getSigningMasterKey());
+  const emailVerificationToken = randomBytes(24).toString("base64url");
 
   const user = await createUser({
     email,
     passwordHash,
     name,
     roles,
+    emailVerificationToken,
+    ...(firstName !== undefined ? { firstName } : {}),
+    ...(lastName !== undefined ? { lastName } : {}),
+    ...(dateOfBirth !== undefined ? { dateOfBirth } : {}),
     ...(licenseNumber !== undefined ? { licenseNumber } : {}),
     ...(address !== undefined ? { address } : {}),
     signingPublicKey: publicKey,
@@ -69,7 +78,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   });
 
   await logAccountEvent({ userId: user.id, email, eventType: "REGISTER", ...ipOf(req) });
-  res.status(201).json({ id: user.id, email: user.email, name: user.name, roles: user.roles });
+  // The token is returned here for wiring an email step; in production it is sent
+  // to the address rather than returned in the response.
+  res.status(201).json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    roles: user.roles,
+    emailVerificationToken,
+  });
 }
 
 function ipOf(req: VercelRequest): { ip?: string } {

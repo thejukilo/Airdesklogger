@@ -45,7 +45,8 @@ A few choices run through the whole codebase and are worth stating plainly, beca
 src/
   domain/        Pure compliance logic. No database, no I/O. This is the part to read first.
     columns.ts       The twelve-column matrix, used as the single source of truth.
-    time.ts          UTC enforcement and date handling.
+    attributes.ts    Structured FOCA entry attributes and the sign-off subset.
+    time.ts          UTC storage, with local-time entry parsing and date handling.
     duration.ts      Integer-minute durations and HH:MM formatting.
     types.ts         Core domain types for an entry, its legs and its function time.
     multiFlight.ts   The rule for combining several flights into one entry.
@@ -87,9 +88,9 @@ test/              One test file per domain module, plus database and PDF tests.
 
 ## The compliance features in detail
 
-### UTC enforcement
+### Time: UTC storage, with local-time entry allowed
 
-`parseUtcInstant` accepts an ISO-8601 string only if it ends in `Z` or `+00:00`. Anything else throws `NonUtcTimeError`. The reasoning is that silently converting a local time to UTC is exactly the kind of quiet behaviour that produces wrong logbooks, so the system refuses the input and forces the caller to be explicit. Once inside the domain a time is a JavaScript `Date`, which is a point on the UTC timeline, and all display goes back out through `toUtcIso` or `formatLogbookDate`.
+The database stores UTC only. What changed to meet FOCA 2.2.7 is the entry boundary. FOCA requires that a pilot be able to enter a time in local time as well as UTC, with UTC as the default, and that exports flag any entry made in local time. So `parseInstant` accepts either a UTC time (suffix `Z` or `+00:00`) or a local time with an explicit offset such as `+02:00`. A local time is converted to UTC for storage, and the entry is marked as having been made in local time. A time with no zone at all is still rejected, because without an offset there is no way to convert it. The export marks local entries with an `L` next to the date and explains it in the page header. The strict `parseUtcInstant` is still available for places that must be UTC-only.
 
 ### The multi-flight rule
 
@@ -100,6 +101,10 @@ AMC1 FCL.050(b)(1)(vi) reads: "if the holder of a licence carries out a number o
 ### Synthetic training (FSTD) sessions
 
 AMC1 FCL.050(a)(3) requires simulator sessions to be recorded too, and the printed layout gives them column 11. An FSTD session is its own kind of logbook record, recorded on its own row with the flight columns left blank: device type and qualification number (or FNPT I / FNPT II for other devices), the date, and the total time of the session including pre- and after-flight checks, with the exercise noted in the remarks. `validateFstdSession` produces the row, the session time accumulates in its own running total separate from flight time, and the PDF prints it in the FSTD column.
+
+### Structured entry attributes
+
+FOCA 2.2.3 requires a set of attributes to be recorded as structured values rather than buried in free text, so they can be evaluated for licence and endorsement eligibility: skill test, proficiency check, operator proficiency and line checks, cross country, series of flights, towing, landing types, and others. `src/domain/attributes.ts` holds that list and validates entries against it. It also names the subset that is a check or a test and is therefore only creditable once countersigned, so that FOCA 2.4.6 ("flag an entry that needs a signature but does not have one") can be honoured. The attributes and the signature flag are shown in the remarks column of the export.
 
 ### Pilot function time, including PICUS and SPIC
 
@@ -212,6 +217,7 @@ Account endpoints:
 
 - `POST /api/auth/register` creates an account. Anyone may register as a pilot. Granting instructor, examiner or admin needs a bootstrap token in the `x-admin-bootstrap` header, so a user cannot make themselves an examiner.
 - `POST /api/auth/login` checks the password and returns a session token. A single factor here on purpose; the second factor is required at sign-off.
+- `POST /api/auth/verify-email` confirms an email address from the token issued at registration (FOCA 2.1.3).
 - `POST /api/auth/mfa/setup` and `POST /api/auth/mfa/activate` enrol and turn on the second factor for the signed-in account.
 
 Logbook endpoints (require a session):
@@ -283,10 +289,40 @@ Each requirement has code that implements it and tests that exercise it.
 | Second factor (TOTP) required for sign-off | `auth/totp.ts`, `api/entries/[id]/sign.ts` | `test/totp.test.ts`, `test/authFlow.integration.test.ts` |
 | Signer private keys wrapped at rest | `auth/signingKeys.ts` | `test/auth.test.ts` |
 | Security log of logins and step-ups | `db/schema.sql`, `db/authRepository.ts` | `test/authFlow.integration.test.ts` |
+| Local-time entry stored as UTC and flagged (FOCA 2.2.7) | `domain/time.ts`, `http/parseEntry.ts` | `test/time.test.ts` |
+| Structured entry attributes and missing-signature flag (FOCA 2.2.3, 2.4.6) | `domain/attributes.ts` | `test/attributes.test.ts` |
+| Confirmed email and personal details (FOCA 2.1.3) | `db/authRepository.ts`, `api/auth/verify-email.ts` | `test/authFlow.integration.test.ts` |
+
+## FOCA acceptance (Swiss competent authority)
+
+FOCA, the Swiss authority, publishes two relevant documents: "Accepted Logbook Formats" (the acceptance criteria) and "Logging of Flight Time" (national rules for how function time is logged in particular cases). FOCA accepts a logbook by one of three routes: paper or electronic submitted as a hand-signed PDF in the AMC1 FCL.050 format (routes 1.1 and 1.2), or a listed "accepted digital logbook" that submits datasets into the dLIS licensing system (route 1.3). We are building toward route 1.3.
+
+Chapter 2 of the acceptance document lists concrete conditions. Where they stand:
+
+Done or substantially done:
+- Server-side storage of all data (2.1.1, 2.1.2), via PostgreSQL.
+- Flight entries and FSTD sessions (2.1.5).
+- The Part-FCL columns and values, calculated automatically (2.2.2, 2.3.4).
+- Structured entry attributes (2.2.3), with the sign-off subset flagged.
+- Local-time entry possible with UTC default, flagged on exports (2.2.7).
+- Strong validation on entry, structured storage (2.3.1).
+- An immutable change log the user cannot edit (2.3.7).
+- Tamper-evident sign-off that locks the entry (2.4.4, 2.4.5).
+- Account identity with a confirmed-email step, and the basic personal data the authority asks for: names, date of birth, licence number, address (2.1.3).
+
+Still to do for route 1.3:
+- Aircraft and airport reference databases with the full property sets, and an FSTD device list with level (2.3.2, 2.3.3).
+- The remaining sailplane and balloon specifics, and TMG dual-category handling (2.2.5, 2.2.6).
+- Instructor sub-roles and the augmented-crew fraction rules from the "Logging of Flight Time" document (2.2.4).
+- A signature captured as an on-screen image (or an official Swiss e-signature), and batch signing of several entries at once (2.4.1, 2.4.2, 2.4.3).
+- A richer export that carries the applied attributes, the signatures, and the complete change log, and that flags entries missing a required signature (2.4.6, 2.5).
+- The 48-hour grace window before edits become tracked changes (2.3.7).
+
+And the part that is not code: route 1.3 finishes with a FOCA process, a declaration of conformity, testing against a FOCA test account, the dLIS data format which FOCA releases only after acceptance, an acceptance letter, and fees. The software can be built to meet the conditions, but the acceptance decision is FOCA's.
 
 ## Scope and limitations
 
-This is the backend. It includes accounts, authentication with a second factor for sign-off, the flight and FSTD logbook endpoints, the validation and the PDF rendering. The column layout, the multi-flight rule and the FSTD session were checked against the text of AMC1 FCL.050 (the August 2020 Easy Access Rules consolidation). What is not here yet: a client application, and a full structured data export for backup and retention beyond the PDF. National rules specific to a given competent authority are not reflected unless that authority's guidance has been read. The software does not validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
+This is the backend. It includes accounts, authentication with a second factor for sign-off, the flight and FSTD logbook endpoints, the validation and the PDF rendering. The column layout, the multi-flight rule and the FSTD session were checked against the text of AMC1 FCL.050 (the August 2020 Easy Access Rules consolidation), and the Swiss FOCA acceptance criteria were read and partly implemented as set out in the FOCA section above, with the remaining route 1.3 items listed there. What is not here yet: a client application, and the route 1.3 items. The software does not validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
 
 ## Glossary
 

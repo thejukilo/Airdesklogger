@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   parseUtcInstant,
   NonUtcTimeError,
+  parseInstant,
+  AmbiguousTimeError,
   toUtcIso,
   utcDateKey,
   formatLogbookDate,
@@ -39,5 +41,27 @@ describe("UTC enforcement", () => {
     const a = parseUtcInstant("2026-05-25T10:00:00Z");
     const b = parseUtcInstant("2026-05-25T11:25:00Z");
     expect(minutesBetween(a, b)).toBe(85);
+  });
+});
+
+describe("local-time entry (FOCA 2.2.7)", () => {
+  it("accepts UTC and marks it not-local", () => {
+    const r = parseInstant("2026-05-25T10:00:00Z");
+    expect(r.enteredLocal).toBe(false);
+    expect(toUtcIso(r.utc)).toBe("2026-05-25T10:00:00Z");
+  });
+
+  it("accepts a local time with offset, converts to UTC, and flags it", () => {
+    const r = parseInstant("2026-05-25T12:00:00+02:00");
+    expect(r.enteredLocal).toBe(true);
+    expect(toUtcIso(r.utc)).toBe("2026-05-25T10:00:00Z"); // 12:00 +02:00 == 10:00 UTC
+  });
+
+  it("treats +00:00 as UTC, not local", () => {
+    expect(parseInstant("2026-05-25T10:00:00+00:00").enteredLocal).toBe(false);
+  });
+
+  it("rejects a timezone-less time (cannot convert)", () => {
+    expect(() => parseInstant("2026-05-25T10:00:00")).toThrow(AmbiguousTimeError);
   });
 });

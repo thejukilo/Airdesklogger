@@ -64,6 +64,15 @@ function fmtIsoDate(iso: string): string {
   return `${d}/${m}/${(y ?? "").slice(2)}`;
 }
 
+/** Remarks cell: free text, then any structured attributes, then a sign-off flag. */
+function remarksText(e: LogbookEntryForPdf): string {
+  const parts: string[] = [];
+  if (e.remarks) parts.push(e.remarks);
+  if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
+  if (e.signatureRequired) parts.push("(signature required)");
+  return parts.join(" ");
+}
+
 const MARGIN = 28;
 const HEADER_H = 30; // two-row column header
 const ROW_H = 18;
@@ -133,7 +142,7 @@ function drawPage(
   p.drawText("EASA FLIGHT CREW LOGBOOK  -  AMC1 FCL.050", { x: MARGIN, y: top - 10, size: 11, font: bold, color: BLACK });
   p.drawText(
     `Holder: ${opts.pilotName}${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}` +
-      `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    All times UTC`,
+      `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    All times UTC unless marked L (local)`,
     { x: MARGIN, y: top - 24, size: 8, font, color: GREY },
   );
   p.drawText(`Page ${page.pageNumber} of ${totalPages}`, {
@@ -241,11 +250,11 @@ function drawGrid(
       const x = colX(idx);
       let text = "";
       if (c.group === "DATE") {
-        text = formatLogbookDate(e.departureTime);
+        text = formatLogbookDate(e.departureTime) + (e.enteredInLocalTime ? " L" : "");
       } else if (c.group === "FSTD SESSION") {
         text = c.value(row);
       } else if (c.group === "REMARKS") {
-        text = e.remarks ?? "";
+        text = remarksText(e);
       } else if (!isFstd) {
         if (c.group === "AIRCRAFT" && c.sub === "Type") text = e.aircraftType ?? "";
         else if (c.group === "AIRCRAFT" && c.sub === "Reg") text = e.aircraftReg ?? "";

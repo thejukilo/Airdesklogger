@@ -119,6 +119,11 @@ CREATE TRIGGER trg_no_edit_when_locked
 -- EXISTS so the migration stays idempotent on an existing database.
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email              text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS address            text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS first_name         text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS last_name          text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS date_of_birth      date;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email_verified     boolean NOT NULL DEFAULT false;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email_verification_token text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_hash      text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS roles              text[] NOT NULL DEFAULT '{PILOT}';
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_secret_wrapped text;
