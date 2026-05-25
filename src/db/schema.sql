@@ -136,6 +136,10 @@ ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_enabled        boolean NOT NULL 
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_activated_at   timestamptz;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_public_key text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_key_wrapped text;
+-- Password reset: a hashed, single-use, time-limited token (FOCA-agnostic, a
+-- standard account-recovery measure). The token itself is only ever emailed.
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_reset_token_hash  text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_reset_expires_at  timestamptz;
 -- Preferred paper size for the PDF export ('A4' or 'LETTER').
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS export_paper_size  text NOT NULL DEFAULT 'A4';
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS updated_at         timestamptz NOT NULL DEFAULT now();
@@ -152,11 +156,16 @@ CREATE TABLE IF NOT EXISTS account_events (
   user_id     uuid REFERENCES pilots(id),
   email       text,
   event_type  text NOT NULL CHECK (event_type IN
-                ('REGISTER','LOGIN_SUCCESS','LOGIN_FAILED','MFA_SETUP','MFA_ACTIVATED','SIGN_STEP_UP','SIGN_STEP_UP_FAILED')),
+                ('REGISTER','LOGIN_SUCCESS','LOGIN_FAILED','MFA_SETUP','MFA_ACTIVATED','SIGN_STEP_UP','SIGN_STEP_UP_FAILED','PASSWORD_RESET_REQUEST')),
   detail      jsonb,
   ip          text,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Keep the allowed event types in sync on a database that predates a new one.
+ALTER TABLE account_events DROP CONSTRAINT IF EXISTS account_events_event_type_check;
+ALTER TABLE account_events ADD CONSTRAINT account_events_event_type_check CHECK (event_type IN
+  ('REGISTER','LOGIN_SUCCESS','LOGIN_FAILED','MFA_SETUP','MFA_ACTIVATED','SIGN_STEP_UP','SIGN_STEP_UP_FAILED','PASSWORD_RESET_REQUEST'));
 
 CREATE INDEX IF NOT EXISTS idx_account_events_user ON account_events(user_id);
 

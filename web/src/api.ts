@@ -90,6 +90,14 @@ export function resendVerification(email: string): Promise<{ ok: boolean }> {
   return request("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
 }
 
+export function requestPasswordReset(email: string): Promise<{ ok: boolean }> {
+  return request("/auth/request-password-reset", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function resetPassword(token: string, password: string): Promise<{ ok: boolean }> {
+  return request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
+}
+
 export interface AttributeDetails {
   hesloLevel?: 1 | 2 | 3 | 4;
   hecLevel?: 1 | 2;

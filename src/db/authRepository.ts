@@ -159,6 +159,35 @@ export async function setEmailVerificationToken(userId: string, token: string): 
   );
 }
 
+/** Store a hashed, time-limited password reset token for a user. */
+export async function setPasswordResetToken(
+  userId: string,
+  tokenHash: string,
+  expiresAt: string,
+): Promise<void> {
+  await getPool().query(
+    `UPDATE pilots SET password_reset_token_hash = $2, password_reset_expires_at = $3, updated_at = now()
+      WHERE id = $1`,
+    [userId, tokenHash, expiresAt],
+  );
+}
+
+/**
+ * Set a new password from a valid (unexpired) reset token, clear the token, and
+ * confirm the email address (the link was delivered to and opened from it).
+ * Returns true when a matching, unexpired token was consumed.
+ */
+export async function consumePasswordReset(tokenHash: string, newPasswordHash: string): Promise<boolean> {
+  const { rows } = await getPool().query(
+    `UPDATE pilots SET password_hash = $2, email_verified = true,
+       password_reset_token_hash = null, password_reset_expires_at = null, updated_at = now()
+      WHERE password_reset_token_hash = $1 AND password_reset_expires_at > now()
+      RETURNING id`,
+    [tokenHash, newPasswordHash],
+  );
+  return rows.length > 0;
+}
+
 /** Confirm an email address from its verification token. Returns the user id. */
 export async function verifyEmailByToken(token: string): Promise<string | null> {
   const { rows } = await getPool().query(
@@ -203,7 +232,8 @@ export type AccountEventType =
   | "MFA_SETUP"
   | "MFA_ACTIVATED"
   | "SIGN_STEP_UP"
-  | "SIGN_STEP_UP_FAILED";
+  | "SIGN_STEP_UP_FAILED"
+  | "PASSWORD_RESET_REQUEST";
 
 export async function logAccountEvent(e: {
   userId?: string;

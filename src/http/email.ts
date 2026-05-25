@@ -151,6 +151,53 @@ export async function sendVerificationEmail(m: { to: string; name: string; link:
   }
 }
 
+/**
+ * The email that carries a password reset link. The link is single-use and
+ * time-limited. Returns false when SMTP is not configured.
+ */
+export async function sendPasswordResetEmail(m: { to: string; name: string; link: string }): Promise<boolean> {
+  if (!emailConfigured()) return false;
+  const greetingName = m.name?.trim() || "there";
+
+  const text =
+    `Hello ${greetingName},\n\n` +
+    `We received a request to reset the password on your AirdeskLogger account.\n\n` +
+    `Open this link to choose a new password:\n${m.link}\n\n` +
+    `The link works once and expires in an hour. If you did not ask for this, you can ignore the message and your password stays unchanged.\n\n` +
+    `Sent by AirdeskLogger.`;
+
+  const html =
+    `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
+    `<p>Hello ${escapeHtml(greetingName)},</p>` +
+    `<p>We received a request to reset the password on your AirdeskLogger account.</p>` +
+    `<p><a href="${m.link}" style="color:#1a1a1a">Choose a new password</a></p>` +
+    `<p style="color:#666;font-size:13px">The link works once and expires in an hour. If you did not ask for this, you can ignore the message and your password stays unchanged.</p>` +
+    `<p style="color:#666;font-size:13px">Sent by AirdeskLogger.</p>` +
+    `</div>`;
+
+  try {
+    const transport = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? "587"),
+      secure: process.env.SMTP_SECURE === "true",
+      ...(process.env.SMTP_USER
+        ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS ?? "" } }
+        : {}),
+    });
+    await transport.sendMail({
+      from: process.env.SMTP_FROM,
+      to: m.to,
+      subject: "Reset your AirdeskLogger password",
+      text,
+      html,
+    });
+    return true;
+  } catch (err) {
+    console.error("password reset email failed:", err);
+    return false;
+  }
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }

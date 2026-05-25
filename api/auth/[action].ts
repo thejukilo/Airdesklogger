@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { hashPassword, verifyPassword } from "../../src/auth/passwords.js";
 import { signSession } from "../../src/auth/tokens.js";
@@ -10,16 +10,23 @@ import {
   getUserByEmail,
   verifyEmailByToken,
   setEmailVerificationToken,
+  setPasswordResetToken,
+  consumePasswordReset,
   logAccountEvent,
 } from "../../src/db/authRepository.js";
 import { getJwtSecret, getSigningMasterKey } from "../../src/config.js";
 import { clientIp } from "../../src/http/auth.js";
-import { sendVerificationEmail } from "../../src/http/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../../src/http/email.js";
 
+function origin(req: VercelRequest): string {
+  return process.env.APP_BASE_URL ?? `https://${req.headers.host}`;
+}
 /** The address a verification link points at, from config or the request host. */
 function verificationLink(req: VercelRequest, token: string): string {
-  const origin = process.env.APP_BASE_URL ?? `https://${req.headers.host}`;
-  return `${origin}/verify?token=${encodeURIComponent(token)}`;
+  return `${origin(req)}/verify?token=${encodeURIComponent(token)}`;
+}
+function hashToken(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
 /**
@@ -38,6 +45,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return await verifyEmail(req, res);
       case "resend-verification":
         return await resendVerification(req, res);
+      case "request-password-reset":
+        return await requestPasswordReset(req, res);
+      case "reset-password":
+        return await resetPassword(req, res);
       default:
         res.status(404).json({ error: "Unknown auth action." });
     }
@@ -227,6 +238,55 @@ async function resendVerification(req: VercelRequest, res: VercelResponse): Prom
     const token = randomBytes(24).toString("base64url");
     await setEmailVerificationToken(user.id, token);
     await sendVerificationEmail({ to: parsed.data.email, name: user.name, link: verificationLink(req, token) });
+  }
+  res.status(200).json({ ok: true });
+}
+
+// ---- password reset -----------------------------------------------------------
+
+const ResetRequestBody = z.object({ email: z.string().email() });
+
+async function requestPasswordReset(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Use POST." });
+    return;
+  }
+  const parsed = ResetRequestBody.safeParse(body(req));
+  if (!parsed.success) {
+    res.status(400).json({ error: "A valid email address is required." });
+    return;
+  }
+  // Issue a single-use token only for an existing account, but answer the same
+  // way regardless so the endpoint cannot reveal which addresses have accounts.
+  const user = await getUserByEmail(parsed.data.email);
+  if (user) {
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 3_600_000).toISOString(); // one hour
+    await setPasswordResetToken(user.id, hashToken(token), expiresAt);
+    const link = `${origin(req)}/reset?token=${encodeURIComponent(token)}`;
+    await sendPasswordResetEmail({ to: parsed.data.email, name: user.name, link });
+    const ip = clientIp(req);
+    await logAccountEvent({ userId: user.id, email: user.email ?? "", eventType: "PASSWORD_RESET_REQUEST", ...(ip !== undefined ? { ip } : {}) });
+  }
+  res.status(200).json({ ok: true });
+}
+
+const ResetBody = z.object({ token: z.string().min(1), password: z.string().min(12) });
+
+async function resetPassword(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Use POST." });
+    return;
+  }
+  const parsed = ResetBody.safeParse(body(req));
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "A token and a password of at least 12 characters are required." });
+    return;
+  }
+  const ok = await consumePasswordReset(hashToken(parsed.data.token), await hashPassword(parsed.data.password));
+  if (!ok) {
+    res.status(400).json({ error: "This reset link is invalid or has expired. Request a new one." });
+    return;
   }
   res.status(200).json({ ok: true });
 }

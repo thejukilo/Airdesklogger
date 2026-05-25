@@ -66,6 +66,9 @@ export function Login() {
       <p className="mt-4 text-center text-sm text-slate-600">
         No account? <Link to="/register" className="font-medium text-ink underline">Create one</Link>
       </p>
+      <p className="mt-2 text-center text-sm text-slate-600">
+        <Link to="/forgot" className="text-slate-500 underline">Forgot your password?</Link>
+      </p>
     </div>
   );
 }
