@@ -67,6 +67,8 @@ const empty = {
   multiPilot: false,
   departurePlace: "",
   arrivalPlace: "",
+  departurePlaceName: "",
+  arrivalPlaceName: "",
   primary: "PIC",
   tookControl: false,
   operatingRole: "",
@@ -132,6 +134,13 @@ export function NewEntry() {
     return () => clearTimeout(t);
   }, [reg]);
 
+  // EASA times the flight from first movement (block) for aeroplanes, but from
+  // rotor start to rotor stop for helicopters (AMC1 FCL.050 (g)).
+  const timeLabels =
+    f.category === "HELICOPTER"
+      ? { off: "Rotor start", on: "Rotor stop" }
+      : { off: "Block off (start)", on: "Block on (end)" };
+
   // Show the airport name for entered ICAO codes.
   const dep = f.departurePlace.trim().toUpperCase();
   const arr = f.arrivalPlace.trim().toUpperCase();
@@ -159,6 +168,12 @@ export function NewEntry() {
             departureTime: toIso(`${f.date}T${f.blockStart}`, timeMode),
             arrivalPlace: f.arrivalPlace.toUpperCase(),
             arrivalTime: toIso(`${arrivalDate}T${f.blockEnd}`, timeMode),
+            ...(f.departurePlace.toUpperCase() === "ZZZZ" && f.departurePlaceName
+              ? { departurePlaceName: f.departurePlaceName }
+              : {}),
+            ...(f.arrivalPlace.toUpperCase() === "ZZZZ" && f.arrivalPlaceName
+              ? { arrivalPlaceName: f.arrivalPlaceName }
+              : {}),
           },
         ],
         picName: f.picName,
@@ -221,12 +236,18 @@ export function NewEntry() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
+              <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." required />
               {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
+              {dep === "ZZZZ" && (
+                <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
+              )}
             </div>
             <div>
-              <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
+              <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." required />
               {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
+              {arr === "ZZZZ" && (
+                <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
+              )}
             </div>
           </div>
 
@@ -236,10 +257,10 @@ export function NewEntry() {
               <option value="local">Local time (this device)</option>
             </Select>
             <div className="mt-3 grid grid-cols-2 gap-4">
-              <Field label="Block off (start)" type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} required />
-              <Field label="Block on (end)" type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} required />
+              <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} required />
+              <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} required />
             </div>
-            <p className="mt-1 text-xs text-slate-500">Stored as UTC; local entries are flagged on the export.</p>
+            <p className="mt-1 text-xs text-slate-500">Stored as UTC; an entry made in local time is noted on the export.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

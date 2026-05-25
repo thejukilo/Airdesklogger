@@ -157,8 +157,14 @@ export function EntryDetail() {
           />
           <Detail label="Category" value={CATEGORY_LABELS[cols?.category ?? ""] ?? cols?.category} />
           <Detail label="Name PIC" value={c.picName} />
-          <Detail label="From" value={cols?.departurePlace} />
-          <Detail label="To" value={cols?.arrivalPlace} />
+          <Detail
+            label="From"
+            value={cols?.departurePlaceName ? `${cols.departurePlace} (${cols.departurePlaceName})` : cols?.departurePlace}
+          />
+          <Detail
+            label="To"
+            value={cols?.arrivalPlaceName ? `${cols.arrivalPlace} (${cols.arrivalPlaceName})` : cols?.arrivalPlace}
+          />
           <Detail label="Total time" value={hhmm(cols?.total)} />
           <Detail label="Block off" value={timeZ(cols?.departureTime)} />
           <Detail label="Block on" value={timeZ(cols?.arrivalTime)} />

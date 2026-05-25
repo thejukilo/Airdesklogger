@@ -77,6 +77,8 @@ function fmtIsoDate(iso: string): string {
 function remarksText(e: LogbookEntryForPdf): string {
   const parts: string[] = [];
   if (e.remarks) parts.push(e.remarks);
+  if (e.departurePlaceName) parts.push(`(from: ${e.departurePlaceName})`);
+  if (e.arrivalPlaceName) parts.push(`(to: ${e.arrivalPlaceName})`);
   if (e.operatingRole) parts.push(e.operatingRole === "PILOT_FLYING" ? "(PF)" : "(PM)");
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
   if (e.launchMethod) parts.push(`(launch: ${e.launchMethod})`);

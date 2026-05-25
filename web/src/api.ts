@@ -91,6 +91,8 @@ export interface EntryColumns {
   date: string;
   departurePlace: string;
   arrivalPlace: string;
+  departurePlaceName?: string;
+  arrivalPlaceName?: string;
   departureTime: string;
   arrivalTime: string;
   singleEngine: number;
@@ -150,6 +152,8 @@ export interface NewEntryRequest {
     departureTime: string;
     arrivalPlace: string;
     arrivalTime: string;
+    departurePlaceName?: string;
+    arrivalPlaceName?: string;
   }>;
   picName: string;
   landings: { day: number; night: number };

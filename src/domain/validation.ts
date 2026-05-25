@@ -15,6 +15,7 @@ import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
 import { isValidCrewSize, loggedMinutes } from "./crew.js";
 import { isEntryAttribute, requiresSignature, type EntryAttribute } from "./attributes.js";
+import { isNoLocationIndicator } from "./icao.js";
 
 function validateAttributes(attributes: EntryAttribute[] | undefined, issues: ValidationIssue[]): EntryAttribute[] {
   const attrs = attributes ?? [];
@@ -115,6 +116,17 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     issues.push({ field: "picName", message: "Name of PIC is required (use SELF if applicable)." });
   }
 
+  // FOCA 2.3.3: when the place is the ZZZZ no-location indicator, the name of the
+  // aerodrome or place has to be given in free text.
+  input.legs.forEach((leg, i) => {
+    if (isNoLocationIndicator(leg.departurePlace) && !leg.departurePlaceName?.trim()) {
+      issues.push({ field: `legs[${i}].departurePlaceName`, message: "Name the departure place when using ZZZZ." });
+    }
+    if (isNoLocationIndicator(leg.arrivalPlace) && !leg.arrivalPlaceName?.trim()) {
+      issues.push({ field: `legs[${i}].arrivalPlaceName`, message: "Name the arrival place when using ZZZZ." });
+    }
+  });
+
   const attributes = validateAttributes(input.attributes, issues);
   if (issues.length > 0) return { valid: false, issues };
 
@@ -165,6 +177,8 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     departureTime: first.departureTime,
     arrivalPlace: last.arrivalPlace,
     arrivalTime: last.arrivalTime,
+    ...(first.departurePlaceName !== undefined ? { departurePlaceName: first.departurePlaceName } : {}),
+    ...(last.arrivalPlaceName !== undefined ? { arrivalPlaceName: last.arrivalPlaceName } : {}),
     singleEngine,
     multiEngine,
     multiPilot,

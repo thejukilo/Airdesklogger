@@ -25,6 +25,8 @@ const LegShape = z.object({
   departureTime: z.string(),
   arrivalPlace: z.string().min(1),
   arrivalTime: z.string(),
+  departurePlaceName: z.string().optional(),
+  arrivalPlaceName: z.string().optional(),
 });
 
 const EntryShape = z.object({
@@ -91,6 +93,8 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
         departureTime: dep.utc,
         arrivalPlace: l.arrivalPlace,
         arrivalTime: arr.utc,
+        ...(l.departurePlaceName !== undefined ? { departurePlaceName: l.departurePlaceName } : {}),
+        ...(l.arrivalPlaceName !== undefined ? { arrivalPlaceName: l.arrivalPlaceName } : {}),
       };
     });
     return {

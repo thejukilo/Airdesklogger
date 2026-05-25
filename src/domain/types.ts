@@ -51,6 +51,9 @@ export interface FlightLeg {
   departureTime: Date; // UTC
   arrivalPlace: string;
   arrivalTime: Date; // UTC
+  /** Free-text place name, required when the place is the ZZZZ indicator (FOCA 2.3.3). */
+  departurePlaceName?: string | undefined;
+  arrivalPlaceName?: string | undefined;
 }
 
 export interface Landings {
@@ -138,6 +141,9 @@ export interface DerivedColumns {
   departureTime: Date;
   arrivalPlace: string;
   arrivalTime: Date;
+  /** Free-text place names for the no-location (ZZZZ) case (FOCA 2.3.3). */
+  departurePlaceName?: string | undefined;
+  arrivalPlaceName?: string | undefined;
   singleEngine: number; // column 5a
   multiEngine: number; // column 5b
   multiPilot: number; // column 6

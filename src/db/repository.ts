@@ -48,6 +48,8 @@ export function buildVersionContent(input: FlightEntryInput, derived: DerivedCol
       departureTime: toUtcIso(l.departureTime),
       arrivalPlace: l.arrivalPlace,
       arrivalTime: toUtcIso(l.arrivalTime),
+      ...(l.departurePlaceName !== undefined ? { departurePlaceName: l.departurePlaceName } : {}),
+      ...(l.arrivalPlaceName !== undefined ? { arrivalPlaceName: l.arrivalPlaceName } : {}),
     })),
     picName: input.picName,
     landings: input.landings,
