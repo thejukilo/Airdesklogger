@@ -248,6 +248,37 @@ export async function getCurrentVersion(entryId: string) {
   return rows[0] ?? null;
 }
 
+/** Ownership and lock state, without loading the full content. */
+export async function getEntryMeta(
+  entryId: string,
+): Promise<{ pilotId: string; locked: boolean; currentVersion: number } | null> {
+  const { rows } = await getPool().query(
+    "SELECT pilot_id, locked, current_version FROM flight_entries WHERE id = $1",
+    [entryId],
+  );
+  if (!rows[0]) return null;
+  return {
+    pilotId: rows[0].pilot_id as string,
+    locked: Boolean(rows[0].locked),
+    currentVersion: Number(rows[0].current_version),
+  };
+}
+
+/** Entries belonging to one holder, newest first, with a small summary. */
+export async function listEntriesForPilot(pilotId: string) {
+  const { rows } = await getPool().query(
+    `SELECT e.id, e.locked, e.current_version,
+            v.content->'columns'->>'date'  AS date,
+            v.content->'columns'->>'total' AS total_minutes
+       FROM flight_entries e
+       JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
+      WHERE e.pilot_id = $1
+      ORDER BY v.content->'columns'->>'date' DESC, e.created_at DESC`,
+    [pilotId],
+  );
+  return rows;
+}
+
 export async function getHistory(entryId: string) {
   const { rows } = await getPool().query(
     `SELECT version_no, content_hash, change_reason, created_by, created_at

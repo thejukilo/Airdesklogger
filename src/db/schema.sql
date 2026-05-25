@@ -111,3 +111,43 @@ DROP TRIGGER IF EXISTS trg_no_edit_when_locked ON flight_entry_versions;
 CREATE TRIGGER trg_no_edit_when_locked
   BEFORE INSERT ON flight_entry_versions
   FOR EACH ROW EXECUTE FUNCTION forbid_version_when_locked();
+
+-- ---- Accounts and authentication ----------------------------------------------
+
+-- The pilots table doubles as the account table: a holder, instructor or
+-- examiner all authenticate as a row here. These columns are added with IF NOT
+-- EXISTS so the migration stays idempotent on an existing database.
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email              text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_hash      text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS roles              text[] NOT NULL DEFAULT '{PILOT}';
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_secret_wrapped text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_enabled        boolean NOT NULL DEFAULT false;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_activated_at   timestamptz;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_public_key text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_key_wrapped text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS updated_at         timestamptz NOT NULL DEFAULT now();
+
+-- One account per email address, case-insensitively.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pilots_email ON pilots (lower(email)) WHERE email IS NOT NULL;
+
+-- Security log, separate from the flight audit trail. Records who authenticated
+-- and when, and every second-factor step-up used to sign an entry. Append-only,
+-- like the flight trail, so it cannot be quietly edited after the fact. A failed
+-- login keeps the attempted email but no user id.
+CREATE TABLE IF NOT EXISTS account_events (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid REFERENCES pilots(id),
+  email       text,
+  event_type  text NOT NULL CHECK (event_type IN
+                ('REGISTER','LOGIN_SUCCESS','LOGIN_FAILED','MFA_SETUP','MFA_ACTIVATED','SIGN_STEP_UP','SIGN_STEP_UP_FAILED')),
+  detail      jsonb,
+  ip          text,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_events_user ON account_events(user_id);
+
+DROP TRIGGER IF EXISTS trg_account_events_immutable ON account_events;
+CREATE TRIGGER trg_account_events_immutable
+  BEFORE UPDATE OR DELETE ON account_events
+  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();

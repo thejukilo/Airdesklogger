@@ -61,13 +61,24 @@ src/
     repository.ts    Create, amend and sign operations, each writing a ledger record.
   pdf/
     logbook.ts       Renders the EASA grid, totals and signature block to PDF.
+  auth/
+    passwords.ts     Argon2id password hashing.
+    totp.ts          RFC 6238 time-based one-time passwords (the second factor).
+    tokens.ts        Session tokens (JWT).
+    roles.ts         Roles and the authorisation rules.
+    signingKeys.ts   Per-signer key pairs, with the private key wrapped at rest.
   http/
-    parseEntry.ts    Turns an HTTP request body into a validated entry, enforcing UTC here.
+    parseEntry.ts    Turns a request body into a validated entry, enforcing UTC here.
+    auth.ts          Pulls and verifies the session token off a request.
+  config.ts          Reads and checks the auth secrets from the environment.
   demo.ts            An end-to-end walk through the whole lifecycle.
 api/               Vercel serverless functions. Thin handlers over the domain logic.
   health.ts          Liveness check.
   validate.ts        Validates one entry and returns the derived columns.
   logbook-pdf.ts     Renders entries to a PDF.
+  auth/              Register, login and the two MFA endpoints.
+  entries/           Create, list, read, amend and sign-off endpoints.
+  audit/verify.ts    Recomputes the ledger chain (admin only).
 public/            The static landing page Vercel publishes (a short description of the API).
 vercel.json        Tells Vercel how to build and what to publish.
 test/              One test file per domain module, plus database and PDF tests.
@@ -113,6 +124,16 @@ When an instructor or examiner signs off a training flight or a skill test, they
 A valid signature locks the entry. After that point the database trigger refuses any new version for that entry, which is how "permanently locked from future editing" is achieved. The signing functions take the key material as an argument rather than generating or holding it internally, so a deployment can keep the private key in a key management service and store only the public key in the database for later verification.
 
 Verification is offline and repeatable. `verifySignature` recomputes the payload from the stored fields and checks it against the stored public key, so an auditor can confirm a sign-off years later without trusting the running service.
+
+### Authentication, roles and the second factor
+
+Every change to a logbook is now tied to an authenticated person, which is what makes the audit trail and the sign-off meaningful. Authentication is self-hosted in our own Postgres rather than handed to an outside provider, so the identity data stays where the flight data is.
+
+Passwords are hashed with Argon2id (the WASM build, so it runs the same in tests and in a serverless function). Sessions are short-lived JSON Web Tokens that carry the user id and roles. A person can hold more than one role, because an instructor is usually also a pilot and an examiner is usually also an instructor; the rules in `roles.ts` work that out. A pilot can only write to their own logbook, and the holder id always comes from the session rather than the request body, so one pilot cannot post into another's logbook.
+
+Sign-off is the one action that demands a second factor. Each account has its own Ed25519 signing key. The public half is stored in the clear so signatures stay verifiable for the life of the record; the private half is wrapped with AES-256-GCM under a server master key before it is stored, and it is only unwrapped for the moment of signing, after the signer has presented a valid time-based one-time code (TOTP, implemented from RFC 6238 and checked against the standard's own test vectors). A signer cannot countersign their own logbook. Both the successful and the failed step-ups are written to a security log that is append-only in the same way the flight trail is, so an attempt to sign is itself a recorded event.
+
+The master key and the session secret come from the environment, never the database, so a database leak on its own exposes neither a usable private key nor a way to mint sessions.
 
 ### Page totals and carry-over
 
@@ -176,11 +197,26 @@ npm run typecheck
 
 The functions in `api/` are deliberately thin. They parse and check the request, call into the domain logic, and shape the response. None of the logic that matters lives in the handler itself, which keeps the rules in one place and easy to test.
 
+Open endpoints (no database needed):
+
 - `GET /api/health` reports that the service is running and returns the current UTC time.
 - `POST /api/validate` takes one flight entry as JSON, validates it, and returns the twelve derived column values. A time that is not in UTC comes back as a 400. A rule failure (for example a multi-flight grouping that does not return to its origin) comes back as a 422 with the list of issues.
 - `POST /api/logbook-pdf` takes a holder name and a list of entries and returns a PDF in the EASA layout. Every entry is validated first, so an invalid entry stops the render and names the row that failed.
 
-The validate and PDF endpoints do not touch the database, so they work on a fresh deployment before any storage is set up. The create, amend and sign-off operations live in `src/db/repository.ts` and are exposed as endpoints once a database connection is configured.
+Account endpoints:
+
+- `POST /api/auth/register` creates an account. Anyone may register as a pilot. Granting instructor, examiner or admin needs a bootstrap token in the `x-admin-bootstrap` header, so a user cannot make themselves an examiner.
+- `POST /api/auth/login` checks the password and returns a session token. A single factor here on purpose; the second factor is required at sign-off.
+- `POST /api/auth/mfa/setup` and `POST /api/auth/mfa/activate` enrol and turn on the second factor for the signed-in account.
+
+Logbook endpoints (require a session):
+
+- `GET /api/entries` lists the holder's own entries; `POST /api/entries` records a new one for the signed-in holder.
+- `GET /api/entries/{id}` returns the current version and its full change history; `PATCH /api/entries/{id}` records a correction as a new version, and returns 409 if the entry is already locked.
+- `POST /api/entries/{id}/sign` countersigns and locks an entry. The signer must hold a permitting role, have the second factor enabled, and present a current code.
+- `GET /api/audit/verify` recomputes the whole ledger chain. Administrator only.
+
+The open endpoints work on a fresh deployment before any storage is set up. The rest need a configured database and the auth secrets described below.
 
 A request to `POST /api/validate` looks like this:
 
@@ -209,7 +245,9 @@ Use a pooled database connection. Set `DATABASE_URL` to a pooled endpoint such a
 
 The PDF generator is already serverless-safe. It is pure JavaScript and uses the standard fonts, so there are no font files to include in the deployment and nothing native to compile.
 
-Keep signing keys out of the database. The signing functions accept the key material as a parameter, so the private key should come from an environment variable or a key management service at request time, and only the public key should ever be written to `pilots.public_key`.
+Set the auth secrets. Two environment variables are required for anything beyond the open endpoints, and the service refuses to use weak values: `AUTH_JWT_SECRET` (at least 32 characters, signs session tokens) and `AUTH_SIGNING_MASTER_KEY` (exactly 64 hex characters, wraps each signer's private key). An optional `ADMIN_BOOTSTRAP_TOKEN` lets a registration request grant elevated roles. The `.env.example` file shows how to generate each one. These come from the environment, never the database.
+
+Keep signing keys out of reach. Private signing keys are wrapped under the master key before they are stored, and the master key lives only in the environment, so a database leak alone does not expose a usable key.
 
 ## How an auditor can check the data
 
@@ -233,10 +271,15 @@ Each requirement has code that implements it and tests that exercise it.
 | Cryptographic signatures and locking | `domain/signature.ts`, `db/repository.ts` | `test/signature.test.ts`, `test/db.integration.test.ts` |
 | Page-by-page totals with carry-over | `domain/totals.ts` | `test/totals.test.ts` |
 | PDF in the EASA layout | `pdf/logbook.ts` | `test/pdf.test.ts` |
+| Authenticated identity tied to every change | `auth/passwords.ts`, `auth/tokens.ts`, `db/authRepository.ts` | `test/auth.test.ts`, `test/authFlow.integration.test.ts` |
+| Roles and own-logbook authorisation | `auth/roles.ts`, `api/entries` | `test/auth.test.ts` |
+| Second factor (TOTP) required for sign-off | `auth/totp.ts`, `api/entries/[id]/sign.ts` | `test/totp.test.ts`, `test/authFlow.integration.test.ts` |
+| Signer private keys wrapped at rest | `auth/signingKeys.ts` | `test/auth.test.ts` |
+| Security log of logins and step-ups | `db/schema.sql`, `db/authRepository.ts` | `test/authFlow.integration.test.ts` |
 
 ## Scope and limitations
 
-This is the backend core. It exposes a small HTTP API for validation and PDF rendering, but it does not yet include authentication, user accounts, the storage endpoints, or any client application. It does not attempt to validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
+This is the backend. It now includes accounts, authentication with a second factor for sign-off, and the logbook endpoints, alongside the validation and PDF rendering. It does not yet include a client application, and a few logbook details remain to be added: synthetic training (simulator) sessions, which the EASA logbook records in a separate section, and a full data export for backup and retention beyond the PDF. It does not attempt to validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
 
 ## Glossary
 
