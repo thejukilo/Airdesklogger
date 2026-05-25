@@ -13,16 +13,13 @@ import { ATTRIBUTES } from "../labels";
  */
 type TimeMode = "utc" | "local";
 
-function deviceOffset(localValue: string): string {
-  const d = new Date(localValue);
-  const minutesEast = -d.getTimezoneOffset();
-  const sign = minutesEast >= 0 ? "+" : "-";
-  const abs = Math.abs(minutesEast);
-  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
-}
-
-function toIso(localValue: string, mode: TimeMode): string {
-  return mode === "utc" ? `${localValue}:00Z` : `${localValue}:00${deviceOffset(localValue)}`;
+/**
+ * UTC times are sent with a Z suffix. Local times are sent as a bare wall-clock
+ * value with no zone: the server converts them using the aerodrome's own
+ * timezone (from the ICAO code), not this device's timezone.
+ */
+function toSubmitTime(dateTime: string, mode: TimeMode): string {
+  return mode === "utc" ? `${dateTime}:00Z` : `${dateTime}:00`;
 }
 
 function nextDay(date: string): string {
@@ -202,6 +199,7 @@ export function NewEntry() {
       const arrivalDate = f.blockEnd > f.blockStart ? f.date : nextDay(f.date);
       const ifr = f.flightRules === "IFR" ? blockMinutes(f.date, f.blockStart, f.blockEnd) : 0;
       await api.createEntry({
+        timeZone: timeMode === "local" ? "LOCAL" : "UTC",
         aircraft: {
           makeModelVariant: f.makeModelVariant,
           registration: reg,
@@ -212,9 +210,9 @@ export function NewEntry() {
         legs: [
           {
             departurePlace: f.departurePlace.toUpperCase(),
-            departureTime: toIso(`${f.date}T${f.blockStart}`, timeMode),
+            departureTime: toSubmitTime(`${f.date}T${f.blockStart}`, timeMode),
             arrivalPlace: f.arrivalPlace.toUpperCase(),
-            arrivalTime: toIso(`${arrivalDate}T${f.blockEnd}`, timeMode),
+            arrivalTime: toSubmitTime(`${arrivalDate}T${f.blockEnd}`, timeMode),
             ...(f.departurePlace.toUpperCase() === "ZZZZ" && f.departurePlaceName
               ? { departurePlaceName: f.departurePlaceName }
               : {}),
@@ -224,9 +222,9 @@ export function NewEntry() {
           },
           ...f.extraLegs.map((l) => ({
             departurePlace: l.departurePlace.toUpperCase(),
-            departureTime: toIso(`${f.date}T${l.blockStart}`, timeMode),
+            departureTime: toSubmitTime(`${f.date}T${l.blockStart}`, timeMode),
             arrivalPlace: l.arrivalPlace.toUpperCase(),
-            arrivalTime: toIso(`${l.blockEnd > l.blockStart ? f.date : nextDay(f.date)}T${l.blockEnd}`, timeMode),
+            arrivalTime: toSubmitTime(`${l.blockEnd > l.blockStart ? f.date : nextDay(f.date)}T${l.blockEnd}`, timeMode),
           })),
         ],
         picName: f.picName,
@@ -308,13 +306,15 @@ export function NewEntry() {
           <div className="rounded-md bg-slate-50 p-3">
             <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
               <option value="utc">UTC</option>
-              <option value="local">Local time (this device)</option>
+              <option value="local">Local time (at the aerodrome)</option>
             </Select>
             <div className="mt-3 grid grid-cols-2 gap-4">
               <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} required />
               <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} required />
             </div>
-            <p className="mt-1 text-xs text-slate-500">Stored as UTC; an entry made in local time is noted on the export.</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
+            </p>
           </div>
 
           <div>

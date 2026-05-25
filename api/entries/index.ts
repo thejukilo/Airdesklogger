@@ -5,6 +5,9 @@ import { createEntry, listEntriesForPilot } from "../../src/db/repository.js";
 import { validateFlightReferences } from "../../src/http/validateReferences.js";
 import { getAirportCoords } from "../../src/db/referenceRepository.js";
 import { nightMinutes } from "../../src/domain/night.js";
+import { zonedWallClockToUtc, LocalTimeError } from "../../src/domain/localTime.js";
+import { toUtcIso } from "../../src/domain/time.js";
+import { timezoneAt } from "../../src/http/timezone.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
 /**
@@ -24,7 +27,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (req.method === "POST") {
       const raw = typeof req.body === "string" ? safeJson(req.body) : req.body;
-      const input = parseEntryRequest({ ...(raw as object), pilotId: claims.sub });
+      // Local block times are interpreted at the aerodrome, not on the device:
+      // convert them to UTC using each airport's own timezone before parsing.
+      const localMode = (raw as { timeZone?: unknown })?.timeZone === "LOCAL";
+      const body = localMode ? { ...(raw as object), legs: await legsLocalToUtc(raw) } : raw;
+      const input = parseEntryRequest({ ...(body as object), pilotId: claims.sub });
+      if (localMode) input.enteredInLocalTime = true;
       // A flight cannot be logged before it has happened. Guards against a date
       // or block time accidentally set in the future.
       const latestArrival = Math.max(...input.legs.map((l) => l.arrivalTime.getTime()));
@@ -73,6 +81,51 @@ function safeJson(s: string): unknown {
   } catch {
     return {};
   }
+}
+
+/** The IANA timezone of an aerodrome, from its stored coordinates. */
+async function timezoneForPlace(icao: string): Promise<string | null> {
+  const coords = await getAirportCoords(icao);
+  return coords ? timezoneAt(coords.latitude, coords.longitude) : null;
+}
+
+interface RawLeg {
+  departurePlace: string;
+  arrivalPlace: string;
+  departureTime: string;
+  arrivalTime: string;
+  [k: string]: unknown;
+}
+
+/**
+ * Convert a request's local block times to UTC using each end's aerodrome
+ * timezone. Departure is converted in the departure airport's zone, arrival in
+ * the arrival airport's zone. A place with no known timezone (no coordinates, or
+ * the ZZZZ indicator) cannot be converted, so the request is refused.
+ */
+async function legsLocalToUtc(raw: unknown): Promise<RawLeg[]> {
+  const legs = Array.isArray((raw as { legs?: unknown })?.legs) ? ((raw as { legs: RawLeg[] }).legs) : [];
+  return Promise.all(
+    legs.map(async (leg) => {
+      const depTz = await timezoneForPlace(String(leg.departurePlace).toUpperCase());
+      const arrTz = await timezoneForPlace(String(leg.arrivalPlace).toUpperCase());
+      if (!depTz || !arrTz) {
+        throw new RequestError(
+          "Local time needs a known aerodrome timezone at both ends. Use coded aerodromes, or switch the entry to UTC.",
+        );
+      }
+      try {
+        return {
+          ...leg,
+          departureTime: toUtcIso(zonedWallClockToUtc(String(leg.departureTime), depTz)),
+          arrivalTime: toUtcIso(zonedWallClockToUtc(String(leg.arrivalTime), arrTz)),
+        };
+      } catch (err) {
+        if (err instanceof LocalTimeError) throw new RequestError(err.message);
+        throw err;
+      }
+    }),
+  );
 }
 
 /** Sum of night minutes across the legs, using each departure aerodrome. */

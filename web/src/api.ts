@@ -161,6 +161,7 @@ export function listEntries(): Promise<{ entries: EntryRow[] }> {
 }
 
 export interface NewEntryRequest {
+  timeZone?: "UTC" | "LOCAL";
   aircraft: {
     makeModelVariant: string;
     registration: string;
