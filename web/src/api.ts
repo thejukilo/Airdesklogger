@@ -198,6 +198,7 @@ export interface Profile {
   licenseNumber: string | null;
   instructorCertificate: string | null;
   examinerCertificate: string | null;
+  paperSize: "A4" | "LETTER";
   roles: string[];
   mfaEnabled: boolean;
 }
@@ -214,6 +215,7 @@ export function updateProfile(input: {
   licenseNumber?: string;
   instructorCertificate?: string;
   examinerCertificate?: string;
+  paperSize?: "A4" | "LETTER";
 }): Promise<Profile> {
   return request("/account", { method: "PATCH", body: JSON.stringify(input) });
 }

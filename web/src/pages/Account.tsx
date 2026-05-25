@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import QRCode from "qrcode";
 import { useAuth } from "../auth";
 import * as api from "../api";
-import { Alert, Button, Card, Field } from "../components/ui";
+import { Alert, Button, Card, Field, Select } from "../components/ui";
 
 const emptyProfile = {
   firstName: "",
@@ -12,6 +12,7 @@ const emptyProfile = {
   licenseNumber: "",
   instructorCertificate: "",
   examinerCertificate: "",
+  paperSize: "A4" as "A4" | "LETTER",
 };
 
 export function Account() {
@@ -38,13 +39,31 @@ export function Account() {
           licenseNumber: p.licenseNumber ?? "",
           instructorCertificate: p.instructorCertificate ?? "",
           examinerCertificate: p.examinerCertificate ?? "",
+          paperSize: p.paperSize ?? "A4",
         }),
       )
       .catch(() => {});
   }, []);
 
-  const setP = (k: keyof typeof profile) => (e: { target: { value: string } }) =>
+  const setP = (k: Exclude<keyof typeof profile, "paperSize">) => (e: { target: { value: string } }) =>
     setProfile((p) => ({ ...p, [k]: e.target.value }));
+
+  const [paperMsg, setPaperMsg] = useState<string | null>(null);
+  const [savingPaper, setSavingPaper] = useState(false);
+
+  async function savePaper(size: "A4" | "LETTER") {
+    setProfile((p) => ({ ...p, paperSize: size }));
+    setPaperMsg(null);
+    setSavingPaper(true);
+    try {
+      await api.updateProfile({ paperSize: size });
+      setPaperMsg("Export setting saved.");
+    } catch (err) {
+      setPaperMsg(err instanceof Error ? err.message : "Could not save the setting.");
+    } finally {
+      setSavingPaper(false);
+    }
+  }
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -124,6 +143,25 @@ export function Account() {
             {savingProfile ? "Saving..." : "Save profile"}
           </Button>
         </form>
+      </Card>
+
+      <Card>
+        <h2 className="mb-1 font-medium">Export settings</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          Choose the paper size for your logbook PDF. Both render the EASA grid in landscape.
+        </p>
+        <div className="max-w-xs">
+          <Select
+            label="Paper size"
+            value={profile.paperSize}
+            disabled={savingPaper}
+            onChange={(e) => savePaper(e.target.value === "LETTER" ? "LETTER" : "A4")}
+          >
+            <option value="A4">A4 (landscape)</option>
+            <option value="LETTER">US Letter (landscape)</option>
+          </Select>
+        </div>
+        {paperMsg && <p className="mt-2 text-sm text-slate-600">{paperMsg}</p>}
       </Card>
 
       <Card>

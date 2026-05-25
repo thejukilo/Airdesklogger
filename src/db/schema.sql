@@ -136,6 +136,8 @@ ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_enabled        boolean NOT NULL 
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_activated_at   timestamptz;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_public_key text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_key_wrapped text;
+-- Preferred paper size for the PDF export ('A4' or 'LETTER').
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS export_paper_size  text NOT NULL DEFAULT 'A4';
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS updated_at         timestamptz NOT NULL DEFAULT now();
 
 -- One account per email address, case-insensitively.

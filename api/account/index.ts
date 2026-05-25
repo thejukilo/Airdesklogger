@@ -18,6 +18,7 @@ const Body = z.object({
   licenseNumber: z.string().optional(),
   instructorCertificate: z.string().optional(),
   examinerCertificate: z.string().optional(),
+  paperSize: z.enum(["A4", "LETTER"]).optional(),
 });
 
 function publicProfile(u: UserRow) {
@@ -32,6 +33,7 @@ function publicProfile(u: UserRow) {
     licenseNumber: u.licenseNumber,
     instructorCertificate: u.instructorCertificate,
     examinerCertificate: u.examinerCertificate,
+    paperSize: u.exportPaperSize,
     roles: u.roles,
     mfaEnabled: u.mfaEnabled,
   };

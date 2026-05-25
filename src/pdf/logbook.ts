@@ -13,7 +13,16 @@
  * serverless functions, with no runtime font-file reads or native binaries.
  */
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  pushGraphicsState,
+  popGraphicsState,
+  concatTransformationMatrix,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
 import { formatHHMM } from "../domain/duration.js";
 import { formatLogbookDate } from "../domain/time.js";
 import { paginate, type ColumnTotals, type LogbookPage } from "../domain/totals.js";
@@ -85,6 +94,37 @@ const TOTAL_ROW_H = 16;
 const SIG_H = 70;
 const GRID_W = COLUMNS.reduce((a, c) => a + c.width, 0);
 
+/**
+ * Standard paper sizes, in PDF points, given in portrait. The logbook grid is
+ * drawn in landscape, so the dimensions are swapped for the grid pages and used
+ * as-is for the portrait appendix pages.
+ */
+export type PaperSize = "A4" | "LETTER";
+const PAGE_PORTRAIT: Record<PaperSize, { w: number; h: number }> = {
+  A4: { w: 595.28, h: 841.89 },
+  LETTER: { w: 612, h: 792 },
+};
+const landscape = (d: { w: number; h: number }) => ({ w: d.h, h: d.w });
+
+/** Natural width of the whole grid block including its outer margins. */
+const CONTENT_W = GRID_W + 2 * MARGIN;
+/** Natural height of everything on a grid page apart from the entry rows. */
+const PAGE_FIXED_H = HEADER_H + 3 * TOTAL_ROW_H + SIG_H + 3 * MARGIN + 24;
+
+/**
+ * The grid is scaled to fit the chosen page width, which fixes the scale (and so
+ * the text size) regardless of how many rows are on the page. We then choose how
+ * many rows to lay out so that the scaled grid fills the page height rather than
+ * floating in a sea of white. Every page uses the same count, so the scale is
+ * identical from page to page.
+ */
+function rowsToFillPage(paper: PaperSize): number {
+  const land = landscape(PAGE_PORTRAIT[paper]);
+  const scale = land.w / CONTENT_W;
+  const naturalH = land.h / scale;
+  return Math.max(1, Math.floor((naturalH - PAGE_FIXED_H) / ROW_H));
+}
+
 const BLACK = rgb(0, 0, 0);
 const GREY = rgb(0.45, 0.45, 0.45);
 const SHADE = rgb(0.93, 0.93, 0.93);
@@ -104,6 +144,8 @@ export interface PdfOptions {
   holderAddress?: string;
   dateOfBirth?: string;
   rowsPerPage?: number;
+  /** Page size for the export. Defaults to A4. */
+  paperSize?: PaperSize;
 }
 
 /** Appendix content for a FOCA-style export (sign-offs and the change log). */
@@ -117,7 +159,9 @@ export async function generateLogbookPdf(
   opts: PdfOptions,
   audit?: AuditAppendix,
 ): Promise<Uint8Array> {
-  const rowsPerPage = opts.rowsPerPage ?? 12;
+  const paper = opts.paperSize ?? "A4";
+  const rowsPerPage = opts.rowsPerPage ?? rowsToFillPage(paper);
+  const resolved: PdfOptions = { ...opts, paperSize: paper, rowsPerPage };
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -126,21 +170,20 @@ export async function generateLogbookPdf(
   const pages = paginated.pages.length > 0 ? paginated.pages : [emptyPage()];
 
   for (const page of pages) {
-    drawPage(doc, font, bold, page, pages.length, opts, entries);
+    drawPage(doc, font, bold, page, pages.length, resolved, entries);
   }
 
   if (audit) {
+    const portrait = PAGE_PORTRAIT[paper];
     if (audit.signoffs.length > 0) {
-      drawAppendix(doc, font, bold, "SIGN-OFFS", audit.signoffs, opts.pilotName);
+      drawAppendix(doc, font, bold, "SIGN-OFFS", audit.signoffs, opts.pilotName, portrait);
     }
     // The change log is a mandatory part of the export (FOCA 2.3.7).
-    drawAppendix(doc, font, bold, "CHANGE LOG", audit.changeLog, opts.pilotName);
+    drawAppendix(doc, font, bold, "CHANGE LOG", audit.changeLog, opts.pilotName, portrait);
   }
 
   return doc.save();
 }
-
-const A4 = { w: 595.28, h: 841.89 };
 
 function drawAppendix(
   doc: PDFDocument,
@@ -149,9 +192,10 @@ function drawAppendix(
   title: string,
   rows: ReadonlyArray<{ entry: string; text: string }>,
   pilotName: string,
+  page: { w: number; h: number },
 ): void {
   const lineH = 13;
-  const top = A4.h - MARGIN;
+  const top = page.h - MARGIN;
   const bottom = MARGIN + 20;
   const usable = top - 40 - bottom;
   const perPage = Math.max(1, Math.floor(usable / lineH));
@@ -159,7 +203,7 @@ function drawAppendix(
   const pageCount = Math.ceil(lines.length / perPage);
 
   for (let pageNo = 0; pageNo < pageCount; pageNo++) {
-    const p = doc.addPage([A4.w, A4.h]);
+    const p = doc.addPage([page.w, page.h]);
     p.drawText(title, { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
     p.drawText(`Holder: ${pilotName}    All times UTC`, {
       x: MARGIN,
@@ -171,7 +215,7 @@ function drawAppendix(
     let y = top - 48;
     for (const row of lines.slice(pageNo * perPage, (pageNo + 1) * perPage)) {
       if (row.entry) p.drawText(clip(row.entry, 130, 8, bold), { x: MARGIN, y, size: 8, font: bold, color: BLACK });
-      p.drawText(clip(row.text, A4.w - MARGIN * 2 - 140, 8, font), {
+      p.drawText(clip(row.text, page.w - MARGIN * 2 - 140, 8, font), {
         x: MARGIN + 140,
         y,
         size: 8,
@@ -197,14 +241,24 @@ function drawPage(
   opts: PdfOptions,
   allEntries: readonly LogbookEntryForPdf[],
 ): void {
-  const rowsPerPage = page.rows.length || (opts.rowsPerPage ?? 12);
+  const paper = opts.paperSize ?? "A4";
+  const rowsPerPage = opts.rowsPerPage ?? rowsToFillPage(paper);
   const gridH = HEADER_H + rowsPerPage * ROW_H + 3 * TOTAL_ROW_H;
-  const pageW = GRID_W + 2 * MARGIN;
-  const pageH = gridH + SIG_H + 3 * MARGIN + 24;
-  const p = doc.addPage([pageW, pageH]);
+  const contentW = CONTENT_W;
+  const contentH = gridH + SIG_H + 3 * MARGIN + 24;
 
-  // Title / identity strip.
-  let top = pageH - MARGIN;
+  // The grid is drawn at its natural size, then scaled to fit a standard
+  // landscape page (A4 or US Letter) and centred. Drawing everything inside one
+  // graphics-state transform keeps every page at the same scale.
+  const land = landscape(PAGE_PORTRAIT[paper]);
+  const p = doc.addPage([land.w, land.h]);
+  const scale = Math.min(land.w / contentW, land.h / contentH);
+  const tx = (land.w - contentW * scale) / 2;
+  const ty = (land.h - contentH * scale) / 2;
+  p.pushOperators(pushGraphicsState(), concatTransformationMatrix(scale, 0, 0, scale, tx, ty));
+
+  // Title / identity strip, in natural (pre-scale) coordinates.
+  const top = contentH - MARGIN;
   p.drawText("EASA FLIGHT CREW LOGBOOK  -  AMC1 FCL.050", { x: MARGIN, y: top - 10, size: 11, font: bold, color: BLACK });
   p.drawText(
     `Holder: ${opts.pilotName}${opts.dateOfBirth ? `    DOB: ${opts.dateOfBirth}` : ""}` +
@@ -213,7 +267,7 @@ function drawPage(
     { x: MARGIN, y: top - 24, size: 8, font, color: GREY },
   );
   p.drawText(`Page ${page.pageNumber} of ${totalPages}`, {
-    x: pageW - MARGIN - 70,
+    x: contentW - MARGIN - 70,
     y: top - 10,
     size: 9,
     font,
@@ -222,7 +276,9 @@ function drawPage(
 
   const gridTop = top - 36;
   drawGrid(p, font, bold, gridTop, page, rowsPerPage, allEntries);
-  drawSignatureBlock(p, font, bold, gridTop - gridH - 14, pageW, opts.pilotName);
+  drawSignatureBlock(p, font, bold, gridTop - gridH - 14, contentW, opts.pilotName);
+
+  p.pushOperators(popGraphicsState());
 }
 
 function colX(index: number): number {

@@ -49,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       rows,
       {
         pilotName: user.name,
+        paperSize: user.exportPaperSize,
         ...(user.licenseNumber ? { licenseNumber: user.licenseNumber } : {}),
         ...(user.address ? { holderAddress: user.address } : {}),
         ...(user.dateOfBirth ? { dateOfBirth: user.dateOfBirth } : {}),

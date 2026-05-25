@@ -21,6 +21,7 @@ export interface UserRow {
   address: string | null;
   instructorCertificate: string | null;
   examinerCertificate: string | null;
+  exportPaperSize: "A4" | "LETTER";
   emailVerified: boolean;
   roles: Role[];
   passwordHash: string | null;
@@ -42,6 +43,7 @@ function mapUser(r: Record<string, unknown>): UserRow {
     address: (r.address as string) ?? null,
     instructorCertificate: (r.instructor_certificate as string) ?? null,
     examinerCertificate: (r.examiner_certificate as string) ?? null,
+    exportPaperSize: r.export_paper_size === "LETTER" ? "LETTER" : "A4",
     emailVerified: Boolean(r.email_verified),
     roles: (r.roles as Role[]) ?? [],
     passwordHash: (r.password_hash as string) ?? null,
@@ -53,7 +55,7 @@ function mapUser(r: Record<string, unknown>): UserRow {
 }
 
 const USER_COLUMNS =
-  "id, email, name, first_name, last_name, date_of_birth, license_number, address, instructor_certificate, examiner_certificate, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
+  "id, email, name, first_name, last_name, date_of_birth, license_number, address, instructor_certificate, examiner_certificate, export_paper_size, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
 
 export interface NewUser {
   email: string;
@@ -103,6 +105,7 @@ export interface ProfileUpdate {
   licenseNumber?: string | undefined;
   instructorCertificate?: string | undefined;
   examinerCertificate?: string | undefined;
+  paperSize?: "A4" | "LETTER" | undefined;
 }
 
 /**
@@ -113,10 +116,12 @@ export interface ProfileUpdate {
  */
 export async function updateProfile(userId: string, p: ProfileUpdate): Promise<UserRow> {
   const blank = (s: string | undefined) => (s && s.trim() !== "" ? s.trim() : null);
+  const paperSize = p.paperSize === "LETTER" || p.paperSize === "A4" ? p.paperSize : null;
   await getPool().query(
     `UPDATE pilots SET
        first_name = $2, last_name = $3, date_of_birth = $4::date, address = $5,
        license_number = $6, instructor_certificate = $7, examiner_certificate = $8,
+       export_paper_size = COALESCE($9, export_paper_size),
        updated_at = now()
      WHERE id = $1`,
     [
@@ -128,6 +133,7 @@ export async function updateProfile(userId: string, p: ProfileUpdate): Promise<U
       blank(p.licenseNumber),
       blank(p.instructorCertificate),
       blank(p.examinerCertificate),
+      paperSize,
     ],
   );
 
