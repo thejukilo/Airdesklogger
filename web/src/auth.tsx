@@ -8,6 +8,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setMfaEnabled: (enabled: boolean) => void;
+  refreshUser: (user: api.SessionUser) => void;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -55,6 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMfaEnabled(enabled: boolean) {
         localStorage.setItem(MFA_KEY, String(enabled));
         setMfaEnabled(enabled);
+      },
+      refreshUser(next: api.SessionUser) {
+        localStorage.setItem(USER_KEY, JSON.stringify(next));
+        setUser(next);
       },
     }),
     [user, mfaEnabled, loading],

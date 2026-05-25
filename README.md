@@ -247,7 +247,7 @@ npm run typecheck
 
 ## The web frontend
 
-The `web` folder is a Vite + React single-page app, styled with Tailwind, kept as a separate workspace so the audited backend and the user interface stay cleanly apart. It talks to the same API over relative `/api` paths and keeps the session token in the browser. The screens are sign-in and registration; the logbook list with a PDF export button; a form to record a flight, with aircraft lookup by registration; an entry view showing the change history and the sign-offs; an account page that enrols the second factor (a TOTP QR code); and a countersigning panel where an instructor or examiner draws their signature, presents a code, and locks the entry. It is web first; a React Native app for iOS and Android can later reuse the same API and the domain types.
+The `web` folder is a Vite + React single-page app, styled with Tailwind, kept as a separate workspace so the audited backend and the user interface stay cleanly apart. It talks to the same API over relative `/api` paths and keeps the session token in the browser. The screens are sign-in and registration; the logbook list with a PDF export button; a form to record a flight, with aircraft lookup by registration; an entry view showing the change history and the sign-offs; an account page that holds the profile and certificates and enrols the second factor (a TOTP QR code); and a countersigning panel where an instructor or examiner draws their signature, presents a code, and locks the entry. A user becomes a signer by declaring an instructor or examiner certificate on their profile, and that certificate number is recorded on every sign-off they make. The certificate is self-declared and not yet verified against the authority, which is a deliberate, documented choice; the recorded number keeps every sign-off attributable and auditable. It is web first; a React Native app for iOS and Android can later reuse the same API and the domain types.
 
 Run it in development against a running API by pointing the dev proxy at that API:
 
@@ -313,6 +313,7 @@ Account endpoints:
 
 - `POST /api/auth/register` creates an account. Anyone may register as a pilot. Granting instructor, examiner or admin needs a bootstrap token in the `x-admin-bootstrap` header, so a user cannot make themselves an examiner.
 - `POST /api/auth/login` checks the password and returns a session token. A single factor here on purpose; the second factor is required at sign-off.
+- `GET /api/account` returns the signed-in user's profile; `PATCH /api/account` updates personal details and the professional certificates. Declaring an instructor or examiner certificate grants the matching signer role.
 - `POST /api/auth/verify-email` confirms an email address from the token issued at registration (FOCA 2.1.3).
 - `POST /api/auth/mfa/setup` and `POST /api/auth/mfa/activate` enrol and turn on the second factor for the signed-in account.
 

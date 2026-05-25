@@ -115,7 +115,10 @@ export function EntryDetail() {
               <li key={i} className="flex items-center justify-between gap-4 border-b pb-3 last:border-0">
                 <div className="text-sm">
                   <div className="font-medium">{ROLE_LABELS[s.signerRole] ?? s.signerRole}</div>
-                  <div className="text-slate-500">{s.signerName} &middot; {s.signedAt}</div>
+                  <div className="text-slate-500">
+                    {s.signerName}
+                    {s.signerLicense ? ` (${s.signerLicense})` : ""} &middot; {s.signedAt}
+                  </div>
                 </div>
                 {s.signatureImage && <img src={s.signatureImage} alt="signature" className="h-12 rounded border bg-white" />}
               </li>

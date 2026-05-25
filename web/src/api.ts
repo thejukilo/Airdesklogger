@@ -137,6 +137,37 @@ export function lookupAircraft(
   });
 }
 
+export interface Profile {
+  id: string;
+  email: string | null;
+  name: string;
+  firstName: string | null;
+  lastName: string | null;
+  dateOfBirth: string | null;
+  address: string | null;
+  licenseNumber: string | null;
+  instructorCertificate: string | null;
+  examinerCertificate: string | null;
+  roles: string[];
+  mfaEnabled: boolean;
+}
+
+export function getProfile(): Promise<Profile> {
+  return request("/account", { method: "GET" });
+}
+
+export function updateProfile(input: {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  address?: string;
+  licenseNumber?: string;
+  instructorCertificate?: string;
+  examinerCertificate?: string;
+}): Promise<Profile> {
+  return request("/account", { method: "PATCH", body: JSON.stringify(input) });
+}
+
 export function mfaSetup(): Promise<{ secret: string; otpauthUri: string }> {
   return request("/auth/mfa/setup", { method: "POST" });
 }
@@ -158,6 +189,7 @@ export interface EntryDetail {
     signerRole: string;
     signedAt: string;
     signatureImage: string | null;
+    signerLicense: string | null;
   }>;
 }
 

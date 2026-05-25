@@ -124,6 +124,11 @@ ALTER TABLE pilots ADD COLUMN IF NOT EXISTS last_name          text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS date_of_birth      date;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email_verified     boolean NOT NULL DEFAULT false;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email_verification_token text;
+-- Self-declared professional credentials. Holding an instructor or examiner
+-- certificate is what lets a user countersign in that capacity; the number is
+-- recorded on every sign-off they make.
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS instructor_certificate text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS examiner_certificate   text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_hash      text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS roles              text[] NOT NULL DEFAULT '{PILOT}';
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_secret_wrapped text;
@@ -213,3 +218,8 @@ ALTER TABLE signatures ADD CONSTRAINT signatures_signer_role_ck
 -- be altered. The Ed25519 signature remains the integrity proof; the image is
 -- the human-facing signature.
 ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signature_image text;
+-- Snapshot of who signed, captured at signing time so it is stable and works
+-- for an external signer who has no account (filled in the one-time-link flow).
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signer_name    text;
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signer_email   text;
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signer_license text;

@@ -1,16 +1,65 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import QRCode from "qrcode";
 import { useAuth } from "../auth";
 import * as api from "../api";
 import { Alert, Button, Card, Field } from "../components/ui";
 
+const emptyProfile = {
+  firstName: "",
+  lastName: "",
+  dateOfBirth: "",
+  address: "",
+  licenseNumber: "",
+  instructorCertificate: "",
+  examinerCertificate: "",
+};
+
 export function Account() {
-  const { user, mfaEnabled, setMfaEnabled } = useAuth();
+  const { user, mfaEnabled, setMfaEnabled, refreshUser } = useAuth();
   const [secret, setSecret] = useState<string | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const [profile, setProfile] = useState(emptyProfile);
+  const [profileMsg, setProfileMsg] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    api
+      .getProfile()
+      .then((p) =>
+        setProfile({
+          firstName: p.firstName ?? "",
+          lastName: p.lastName ?? "",
+          dateOfBirth: p.dateOfBirth ?? "",
+          address: p.address ?? "",
+          licenseNumber: p.licenseNumber ?? "",
+          instructorCertificate: p.instructorCertificate ?? "",
+          examinerCertificate: p.examinerCertificate ?? "",
+        }),
+      )
+      .catch(() => {});
+  }, []);
+
+  const setP = (k: keyof typeof profile) => (e: { target: { value: string } }) =>
+    setProfile((p) => ({ ...p, [k]: e.target.value }));
+
+  async function saveProfile(e: FormEvent) {
+    e.preventDefault();
+    setProfileMsg(null);
+    setSavingProfile(true);
+    try {
+      const updated = await api.updateProfile(profile);
+      refreshUser({ id: updated.id, email: updated.email, name: updated.name, roles: updated.roles });
+      setProfileMsg("Profile saved.");
+    } catch (err) {
+      setProfileMsg(err instanceof Error ? err.message : "Could not save the profile.");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   async function startSetup() {
     setError(null);
@@ -48,20 +97,33 @@ export function Account() {
       <h1 className="text-xl font-semibold">Account</h1>
 
       <Card>
-        <dl className="space-y-1 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-slate-500">Name</dt>
-            <dd>{user?.name}</dd>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-medium">Profile</h2>
+          <span className="text-xs text-slate-500">{user?.email} &middot; {user?.roles.join(", ")}</span>
+        </div>
+        <form onSubmit={saveProfile} className="space-y-4">
+          {profileMsg && <p className="text-sm text-slate-600">{profileMsg}</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="First name" value={profile.firstName} onChange={setP("firstName")} />
+            <Field label="Last name" value={profile.lastName} onChange={setP("lastName")} />
+            <Field label="Date of birth" type="date" value={profile.dateOfBirth} onChange={setP("dateOfBirth")} />
+            <Field label="Pilot licence number" value={profile.licenseNumber} onChange={setP("licenseNumber")} />
           </div>
-          <div className="flex justify-between">
-            <dt className="text-slate-500">Email</dt>
-            <dd>{user?.email}</dd>
+          <Field label="Address" value={profile.address} onChange={setP("address")} />
+          <div className="rounded-md bg-slate-50 p-3">
+            <p className="mb-2 text-xs text-slate-500">
+              Enter a certificate number to be able to countersign in that capacity. The number is
+              recorded on every sign-off you make.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Instructor certificate (FI, CRI, ...)" value={profile.instructorCertificate} onChange={setP("instructorCertificate")} />
+              <Field label="Examiner certificate (FE, ...)" value={profile.examinerCertificate} onChange={setP("examinerCertificate")} />
+            </div>
           </div>
-          <div className="flex justify-between">
-            <dt className="text-slate-500">Roles</dt>
-            <dd>{user?.roles.join(", ")}</dd>
-          </div>
-        </dl>
+          <Button type="submit" disabled={savingProfile}>
+            {savingProfile ? "Saving..." : "Save profile"}
+          </Button>
+        </form>
       </Card>
 
       <Card>

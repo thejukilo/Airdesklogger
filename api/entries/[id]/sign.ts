@@ -128,10 +128,25 @@ async function signOne(
   }
   if (meta.locked) return { entryId, ok: false, status: 409, error: "Entry is already locked." };
 
+  // Record the licence appropriate to the capacity being signed.
+  const license =
+    role === "EXAMINER"
+      ? user.examinerCertificate
+      : role === "INSTRUCTOR"
+        ? user.instructorCertificate
+        : user.licenseNumber;
+
   const signature = await signCurrentVersion(
     entryId,
     keys,
-    { signerId: user.id, signerRole: role, ...(signatureImage ? { signatureImage } : {}) },
+    {
+      signerId: user.id,
+      signerRole: role,
+      signerName: user.name,
+      ...(user.email ? { signerEmail: user.email } : {}),
+      ...(license ? { signerLicense: license } : {}),
+      ...(signatureImage ? { signatureImage } : {}),
+    },
     signEntry,
   );
   return {

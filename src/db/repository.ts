@@ -219,7 +219,15 @@ export async function amendEntry(
 export async function signCurrentVersion(
   entryId: string,
   keys: { privateKey: string; publicKey: string },
-  signer: { signerId: string; signerRole: Signature["signerRole"]; signedAt?: string; signatureImage?: string },
+  signer: {
+    signerId: string;
+    signerRole: Signature["signerRole"];
+    signedAt?: string;
+    signatureImage?: string;
+    signerName?: string;
+    signerEmail?: string;
+    signerLicense?: string;
+  },
   signFn: (privateKeyPem: string, payload: SigningPayload) => string,
 ): Promise<Signature> {
   return withTransaction(async (client) => {
@@ -252,8 +260,8 @@ export async function signCurrentVersion(
     if (!verifySignature(signature)) throw new Error("Refusing to store an invalid signature");
 
     await client.query(
-      `INSERT INTO signatures (entry_id, version_no, signer_id, signer_role, content_hash, signature, public_key, signed_at, signature_image)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      `INSERT INTO signatures (entry_id, version_no, signer_id, signer_role, content_hash, signature, public_key, signed_at, signature_image, signer_name, signer_email, signer_license)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         entryId,
         versionNo,
@@ -264,6 +272,9 @@ export async function signCurrentVersion(
         signature.publicKey,
         payload.signedAt,
         signer.signatureImage ?? null,
+        signer.signerName ?? null,
+        signer.signerEmail ?? null,
+        signer.signerLicense ?? null,
       ],
     );
     await client.query(
@@ -326,16 +337,18 @@ export async function listEntriesForPilot(pilotId: string) {
 /** Sign-offs on an entry, with the signer's name, for the entry view. */
 export async function getEntrySignatures(entryId: string) {
   const { rows } = await getPool().query(
-    `SELECT s.signer_role, s.signed_at, s.signature_image, p.name AS signer_name
-       FROM signatures s JOIN pilots p ON p.id = s.signer_id
+    `SELECT s.signer_role, s.signed_at, s.signature_image, s.signer_license,
+            COALESCE(s.signer_name, p.name) AS signer_name
+       FROM signatures s LEFT JOIN pilots p ON p.id = s.signer_id
       WHERE s.entry_id = $1 ORDER BY s.signed_at ASC`,
     [entryId],
   );
   return rows.map((r) => ({
-    signerName: r.signer_name as string,
+    signerName: (r.signer_name as string) ?? "",
     signerRole: r.signer_role as string,
     signedAt: new Date(r.signed_at).toISOString().replace(/\.\d{3}Z$/, "Z"),
     signatureImage: (r.signature_image as string) ?? null,
+    signerLicense: (r.signer_license as string) ?? null,
   }));
 }
 

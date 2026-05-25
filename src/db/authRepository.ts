@@ -19,6 +19,8 @@ export interface UserRow {
   dateOfBirth: string | null;
   licenseNumber: string | null;
   address: string | null;
+  instructorCertificate: string | null;
+  examinerCertificate: string | null;
   emailVerified: boolean;
   roles: Role[];
   passwordHash: string | null;
@@ -38,6 +40,8 @@ function mapUser(r: Record<string, unknown>): UserRow {
     dateOfBirth: r.date_of_birth ? String(r.date_of_birth).slice(0, 10) : null,
     licenseNumber: (r.license_number as string) ?? null,
     address: (r.address as string) ?? null,
+    instructorCertificate: (r.instructor_certificate as string) ?? null,
+    examinerCertificate: (r.examiner_certificate as string) ?? null,
     emailVerified: Boolean(r.email_verified),
     roles: (r.roles as Role[]) ?? [],
     passwordHash: (r.password_hash as string) ?? null,
@@ -49,7 +53,7 @@ function mapUser(r: Record<string, unknown>): UserRow {
 }
 
 const USER_COLUMNS =
-  "id, email, name, first_name, last_name, date_of_birth, license_number, address, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
+  "id, email, name, first_name, last_name, date_of_birth, license_number, address, instructor_certificate, examiner_certificate, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
 
 export interface NewUser {
   email: string;
@@ -89,6 +93,56 @@ export async function createUser(u: NewUser): Promise<UserRow> {
     ],
   );
   return mapUser(rows[0]);
+}
+
+export interface ProfileUpdate {
+  firstName?: string | undefined;
+  lastName?: string | undefined;
+  dateOfBirth?: string | undefined; // yyyy-mm-dd or empty
+  address?: string | undefined;
+  licenseNumber?: string | undefined;
+  instructorCertificate?: string | undefined;
+  examinerCertificate?: string | undefined;
+}
+
+/**
+ * Update a user's profile and recompute the signer roles from the certificates
+ * they declare: holding an instructor certificate grants INSTRUCTOR, an examiner
+ * certificate grants EXAMINER. Other roles (PILOT, ADMIN, ATO and so on) are left
+ * as they are. Empty strings clear a field.
+ */
+export async function updateProfile(userId: string, p: ProfileUpdate): Promise<UserRow> {
+  const blank = (s: string | undefined) => (s && s.trim() !== "" ? s.trim() : null);
+  await getPool().query(
+    `UPDATE pilots SET
+       first_name = $2, last_name = $3, date_of_birth = $4::date, address = $5,
+       license_number = $6, instructor_certificate = $7, examiner_certificate = $8,
+       updated_at = now()
+     WHERE id = $1`,
+    [
+      userId,
+      blank(p.firstName),
+      blank(p.lastName),
+      blank(p.dateOfBirth),
+      blank(p.address),
+      blank(p.licenseNumber),
+      blank(p.instructorCertificate),
+      blank(p.examinerCertificate),
+    ],
+  );
+
+  const user = (await getUserById(userId))!;
+  const kept = user.roles.filter((r) => r !== "INSTRUCTOR" && r !== "EXAMINER");
+  const roles = Array.from(
+    new Set<Role>([
+      "PILOT",
+      ...kept,
+      ...(user.instructorCertificate ? (["INSTRUCTOR"] as Role[]) : []),
+      ...(user.examinerCertificate ? (["EXAMINER"] as Role[]) : []),
+    ]),
+  );
+  await getPool().query("UPDATE pilots SET roles = $2 WHERE id = $1", [userId, roles]);
+  return (await getUserById(userId))!;
 }
 
 /** Confirm an email address from its verification token. Returns the user id. */
