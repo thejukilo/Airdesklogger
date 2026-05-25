@@ -151,6 +151,14 @@ export async function updateProfile(userId: string, p: ProfileUpdate): Promise<U
   return (await getUserById(userId))!;
 }
 
+/** Store a fresh verification token for a user (used when resending the email). */
+export async function setEmailVerificationToken(userId: string, token: string): Promise<void> {
+  await getPool().query(
+    "UPDATE pilots SET email_verification_token = $2, updated_at = now() WHERE id = $1",
+    [userId, token],
+  );
+}
+
 /** Confirm an email address from its verification token. Returns the user id. */
 export async function verifyEmailByToken(token: string): Promise<string | null> {
   const { rows } = await getPool().query(

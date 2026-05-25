@@ -9,10 +9,18 @@ import {
   createUser,
   getUserByEmail,
   verifyEmailByToken,
+  setEmailVerificationToken,
   logAccountEvent,
 } from "../../src/db/authRepository.js";
 import { getJwtSecret, getSigningMasterKey } from "../../src/config.js";
 import { clientIp } from "../../src/http/auth.js";
+import { sendVerificationEmail } from "../../src/http/email.js";
+
+/** The address a verification link points at, from config or the request host. */
+function verificationLink(req: VercelRequest, token: string): string {
+  const origin = process.env.APP_BASE_URL ?? `https://${req.headers.host}`;
+  return `${origin}/verify?token=${encodeURIComponent(token)}`;
+}
 
 /**
  * Account actions, dispatched by the path segment so they share one serverless
@@ -28,6 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return await login(req, res);
       case "verify-email":
         return await verifyEmail(req, res);
+      case "resend-verification":
+        return await resendVerification(req, res);
       default:
         res.status(404).json({ error: "Unknown auth action." });
     }
@@ -109,14 +119,22 @@ async function register(req: VercelRequest, res: VercelResponse): Promise<void> 
 
   const ip = clientIp(req);
   await logAccountEvent({ userId: user.id, email, eventType: "REGISTER", ...(ip !== undefined ? { ip } : {}) });
-  // The token is returned here for wiring an email step; in production it is sent
-  // to the address rather than returned in the response.
+
+  // Send the confirmation email if SMTP is configured. The token is also returned
+  // so the link can be shown on screen as a fallback during setup.
+  const emailed = await sendVerificationEmail({
+    to: email,
+    name: user.name,
+    link: verificationLink(req, emailVerificationToken),
+  });
+
   res.status(201).json({
     id: user.id,
     email: user.email,
     name: user.name,
     roles: user.roles,
     emailVerificationToken,
+    emailed,
   });
 }
 
@@ -185,4 +203,30 @@ async function verifyEmail(req: VercelRequest, res: VercelResponse): Promise<voi
     return;
   }
   res.status(200).json({ emailVerified: true });
+}
+
+// ---- resend-verification ------------------------------------------------------
+
+const ResendBody = z.object({ email: z.string().email() });
+
+async function resendVerification(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Use POST." });
+    return;
+  }
+  const parsed = ResendBody.safeParse(body(req));
+  if (!parsed.success) {
+    res.status(400).json({ error: "A valid email address is required." });
+    return;
+  }
+  // Reissue a token and email it, but only for an account that exists and is not
+  // yet verified. The response is the same either way so the endpoint cannot be
+  // used to discover which addresses have accounts.
+  const user = await getUserByEmail(parsed.data.email);
+  if (user && !user.emailVerified) {
+    const token = randomBytes(24).toString("base64url");
+    await setEmailVerificationToken(user.id, token);
+    await sendVerificationEmail({ to: parsed.data.email, name: user.name, link: verificationLink(req, token) });
+  }
+  res.status(200).json({ ok: true });
 }

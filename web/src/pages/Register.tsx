@@ -8,6 +8,7 @@ export function Register() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [verifyToken, setVerifyToken] = useState<string | null>(null);
+  const [emailed, setEmailed] = useState(false);
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -25,6 +26,7 @@ export function Register() {
       });
       // The account must confirm its email before it can sign in (FOCA 2.1.3).
       setVerifyToken(res.emailVerificationToken);
+      setEmailed(res.emailed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the account.");
     } finally {
@@ -39,8 +41,10 @@ export function Register() {
         <Card>
           <div className="space-y-3 text-sm text-slate-600">
             <p>
-              Your account was created. Before you can sign in, confirm your email address. A
-              verification link was sent to {form.email}.
+              Your account was created. Before you can sign in, confirm your email address.
+              {emailed
+                ? ` A verification link was sent to ${form.email}.`
+                : " Use the button below to confirm."}
             </p>
             <Link to={`/verify?token=${encodeURIComponent(verifyToken)}`}>
               <Button className="w-full">Verify now</Button>

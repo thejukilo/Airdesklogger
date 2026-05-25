@@ -103,6 +103,54 @@ function row(label: string, value: string): string {
   return `<tr><td style="padding:2px 16px 2px 0;color:#666">${label}</td><td style="padding:2px 0">${escapeHtml(value)}</td></tr>`;
 }
 
+/**
+ * The email that confirms a new account's address (FOCA 2.1.3). Like the sign-off
+ * message it is a plain, personalised note rather than a bare link, which reads
+ * as legitimate to spam filters. Returns false when SMTP is not configured.
+ */
+export async function sendVerificationEmail(m: { to: string; name: string; link: string }): Promise<boolean> {
+  if (!emailConfigured()) return false;
+  const greetingName = m.name?.trim() || "there";
+
+  const text =
+    `Hello ${greetingName},\n\n` +
+    `Welcome to AirdeskLogger. Please confirm this email address to activate your account.\n\n` +
+    `Open this link to confirm:\n${m.link}\n\n` +
+    `If you did not create an account, you can ignore this message.\n\n` +
+    `Sent by AirdeskLogger.`;
+
+  const html =
+    `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
+    `<p>Hello ${escapeHtml(greetingName)},</p>` +
+    `<p>Welcome to AirdeskLogger. Please confirm this email address to activate your account.</p>` +
+    `<p><a href="${m.link}" style="color:#1a1a1a">Confirm my email address</a></p>` +
+    `<p style="color:#666;font-size:13px">If you did not create an account, you can ignore this message.</p>` +
+    `<p style="color:#666;font-size:13px">Sent by AirdeskLogger.</p>` +
+    `</div>`;
+
+  try {
+    const transport = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? "587"),
+      secure: process.env.SMTP_SECURE === "true",
+      ...(process.env.SMTP_USER
+        ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS ?? "" } }
+        : {}),
+    });
+    await transport.sendMail({
+      from: process.env.SMTP_FROM,
+      to: m.to,
+      subject: "Confirm your AirdeskLogger email address",
+      text,
+      html,
+    });
+    return true;
+  } catch (err) {
+    console.error("verification email failed:", err);
+    return false;
+  }
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }

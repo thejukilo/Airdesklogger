@@ -78,12 +78,16 @@ export function register(input: {
   password: string;
   name: string;
   licenseNumber?: string;
-}): Promise<{ id: string; email: string; emailVerificationToken: string }> {
+}): Promise<{ id: string; email: string; emailVerificationToken: string; emailed: boolean }> {
   return request("/auth/register", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function verifyEmail(token: string): Promise<{ emailVerified: boolean }> {
   return request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+}
+
+export function resendVerification(email: string): Promise<{ ok: boolean }> {
+  return request("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
 }
 
 export interface AttributeDetails {
