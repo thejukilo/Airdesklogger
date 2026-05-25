@@ -6,6 +6,7 @@ export * from "./duration.js";
 export * from "./types.js";
 export * from "./multiFlight.js";
 export * from "./functionTime.js";
+export * from "./crew.js";
 export * from "./validation.js";
 export * from "./hashChain.js";
 export * from "./signature.js";

@@ -50,6 +50,7 @@ const EntryShape = z.object({
     instructor: z.number().int().nonnegative(),
   }),
   remarks: z.string(),
+  crewSize: z.number().int().optional(),
   attributes: z.array(z.string()).optional(),
 });
 
@@ -96,6 +97,7 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
       conditions: data.conditions,
       function: data.function,
       remarks: data.remarks,
+      ...(data.crewSize !== undefined ? { crewSize: data.crewSize } : {}),
       attributes: (data.attributes ?? []) as EntryAttribute[],
       enteredInLocalTime: enteredLocal,
     };

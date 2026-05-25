@@ -66,6 +66,8 @@ export interface FlightEntryInput {
   conditions: OperationalConditionTime; // column 10
   function: FunctionTime; // column 11
   remarks: string; // column 12
+  /** Operating crew size: 2 (normal), or 3/4 for augmented operation (FOCA 2.3.4). */
+  crewSize?: number;
   /** Structured FOCA attributes (skill test, cross country, etc.). */
   attributes?: EntryAttribute[];
   /** True when any time in the entry was supplied as local time (FOCA 2.2.7). */
@@ -123,6 +125,8 @@ export interface DerivedColumns {
   dual: number; // column 11c
   instructor: number; // column 11d
   isMultiFlight: boolean;
+  /** Operating crew size; 3 or 4 means the logged times are a share (FOCA 2.3.4). */
+  crewSize: number;
   /** Present only when kind is FSTD (column 11 of the layout). */
   fstd?: FstdColumns;
   /** Structured FOCA attributes applied to the entry. */

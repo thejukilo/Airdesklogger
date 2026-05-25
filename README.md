@@ -52,6 +52,7 @@ src/
     types.ts         Core domain types for an entry, its legs and its function time.
     multiFlight.ts   The rule for combining several flights into one entry.
     functionTime.ts  PIC, co-pilot, dual, instructor, and the PICUS/SPIC countersign rules.
+    crew.ts          The augmented-crew time share (two thirds / one half).
     validation.ts    Derives the twelve column values and checks the cross-column invariants.
     hashChain.ts     The tamper-evident append-only ledger.
     signature.ts     Ed25519 sign-off and verification.
@@ -129,6 +130,10 @@ Two cases need a countersignature before the time counts:
 - SPIC, student pilot in command. A student acts as commander under instruction. The hours are credited as PIC, and the instructor countersigns. The instructor is not supposed to influence the conduct of the flight.
 
 `functionMinutes` works out how the total splits across the four columns, and `countersignRequirement` returns who has to sign (the supervising PIC for PICUS, the instructor for SPIC) and why. The remarks annotation that EASA expects in these cases is produced by `functionRemark`.
+
+### Augmented crew
+
+On a flight flown by more than the minimum crew, FOCA's "Logging of Flight Time" document (2.3.4) says each pilot logs only a share of the time: two thirds with three pilots, one half with four, applied to total time, function time, night and IFR alike (landings are counts and are never scaled). An entry carries a crew size; `src/domain/crew.ts` computes the share, and the validation applies it to the logged columns after checking the entered times against the actual block time. Augmented crew is only valid on a multi-pilot operation, and the export notes it in the remarks.
 
 ### The immutable audit trail
 
@@ -313,6 +318,7 @@ Each requirement has code that implements it and tests that exercise it.
 | Confirmed email and personal details (FOCA 2.1.3) | `db/authRepository.ts`, `api/auth/[action].ts` | `test/authFlow.integration.test.ts` |
 | Export with sign-offs and full change log (FOCA 2.4.6, 2.5) | `db/exportRepository.ts`, `pdf/logbook.ts`, `api/export/logbook.ts` | `test/export.integration.test.ts` |
 | Reference databases for places and aircraft (FOCA 2.3.2, 2.3.3) | `domain/icao.ts`, `db/referenceRepository.ts`, `http/validateReferences.ts` | `test/icao.test.ts`, `test/reference.integration.test.ts` |
+| Augmented-crew time share (FOCA 2.3.4) | `domain/crew.ts`, `domain/validation.ts` | `test/crew.test.ts` |
 
 ## FOCA acceptance (Swiss competent authority)
 
@@ -332,10 +338,11 @@ Done or substantially done:
 - Account identity with a confirmed-email step, and the basic personal data the authority asks for: names, date of birth, licence number, address (2.1.3).
 - An export that carries the AMC1 FCL.050 grid, the applied attributes, the sign-offs and the complete change log, and that flags an entry that needs a signature but does not have one (2.4.6, 2.5).
 - Aircraft, airport and FSTD-device reference databases, with entries validated against them (2.3.2, 2.3.3). The mechanism and the validation are in place; loading the full ICAO airport and aircraft-type datasets is an operational step the provider performs through the reference endpoint.
+- The augmented-crew share for logged time: two thirds with three pilots, one half with four, applied to every category of time (from the "Logging of Flight Time" document, 2.3.4).
 
 Still to do for route 1.3:
 - The remaining sailplane and balloon specifics, and TMG dual-category handling (2.2.5, 2.2.6).
-- Instructor sub-roles and the augmented-crew fraction rules from the "Logging of Flight Time" document (2.2.4).
+- Instructor sub-roles (pilot seat, jump seat, supervising, examiner) and their effect on what counts as PIC or instructor time (2.2.4).
 - A signature captured as an on-screen image (or an official Swiss e-signature), and batch signing of several entries at once (2.4.1, 2.4.2, 2.4.3).
 - A date-range export for a specific revalidation period (2.5.1).
 - The 48-hour grace window before edits become tracked changes (2.3.7).

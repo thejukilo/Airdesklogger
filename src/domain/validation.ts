@@ -13,6 +13,7 @@ import type { DerivedColumns, FlightEntryInput, FstdSessionInput } from "./types
 import { minutesBetween, utcDateKey } from "./time.js";
 import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
+import { isValidCrewSize, loggedMinutes } from "./crew.js";
 import { isEntryAttribute, requiresSignature, type EntryAttribute } from "./attributes.js";
 
 function validateAttributes(attributes: EntryAttribute[] | undefined, issues: ValidationIssue[]): EntryAttribute[] {
@@ -53,31 +54,33 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
 
   const first = input.legs[0]!;
   const last = input.legs[input.legs.length - 1]!;
-  const total = input.legs.reduce(
+  // Block time is the real time aloft; the logged time may be a crew share of it.
+  const blockTime = input.legs.reduce(
     (acc, leg) => acc + Math.max(0, minutesBetween(leg.departureTime, leg.arrivalTime)),
     0,
   );
 
-  // Columns 5 & 6: single-pilot SE/ME vs multi-pilot, exhaustively from total.
-  const multiPilot = input.aircraft.multiPilot ? total : 0;
-  const singleEngine =
-    !input.aircraft.multiPilot && input.aircraft.engineClass === "SE" ? total : 0;
-  const multiEngine =
-    !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
-
-  if (singleEngine + multiEngine + multiPilot !== total) {
+  const crewSize = input.crewSize ?? 2;
+  if (!isValidCrewSize(crewSize)) {
+    issues.push({ field: "crewSize", message: "Crew size must be 2, 3 or 4." });
+  }
+  if (crewSize > 2 && !input.aircraft.multiPilot) {
     issues.push({
-      field: "totalTime",
-      message: "Single-pilot SE + ME + multi-pilot time must equal total time of flight.",
+      field: "crewSize",
+      message: "Augmented crew (3 or 4 pilots) applies only to multi-pilot operations.",
     });
   }
 
-  // Column 10.
-  if (!isNonNegInt(input.conditions.night) || input.conditions.night > total) {
-    issues.push({ field: "conditions.night", message: "Night time must be 0..total." });
+  // Conditions and instructor time are validated against actual block time,
+  // before the crew share is applied.
+  if (!isNonNegInt(input.conditions.night) || input.conditions.night > blockTime) {
+    issues.push({ field: "conditions.night", message: "Night time must be 0..block time." });
   }
-  if (!isNonNegInt(input.conditions.ifr) || input.conditions.ifr > total) {
-    issues.push({ field: "conditions.ifr", message: "IFR time must be 0..total." });
+  if (!isNonNegInt(input.conditions.ifr) || input.conditions.ifr > blockTime) {
+    issues.push({ field: "conditions.ifr", message: "IFR time must be 0..block time." });
+  }
+  if (!isNonNegInt(input.function.instructor) || input.function.instructor > blockTime) {
+    issues.push({ field: "function.instructor", message: "Instructor time must be 0..block time." });
   }
 
   // Column 9.
@@ -91,31 +94,39 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     });
   }
 
-  // Column 11.
-  const fm = functionMinutes(input.function, total);
-  if (fm.pic + fm.coPilot + fm.dual !== total) {
-    issues.push({
-      field: "function.primary",
-      message: "PIC + co-pilot + dual time must equal total time of flight.",
-    });
-  }
-  if (!isNonNegInt(input.function.instructor) || input.function.instructor > total) {
-    issues.push({ field: "function.instructor", message: "Instructor time must be 0..total." });
-  }
-
   if (!input.picName || input.picName.trim() === "") {
     issues.push({ field: "picName", message: "Name of PIC is required (use SELF if applicable)." });
   }
 
   const attributes = validateAttributes(input.attributes, issues);
-
   if (issues.length > 0) return { valid: false, issues };
+
+  // Apply the crew share to every category of time (FOCA 2.3.4). Landings are
+  // counts, not time, and are never scaled.
+  const safeCrew = crewSize as 2 | 3 | 4;
+  const total = loggedMinutes(blockTime, safeCrew);
+
+  // Columns 5 & 6: single-pilot SE/ME vs multi-pilot, exhaustively from the
+  // logged total.
+  const multiPilot = input.aircraft.multiPilot ? total : 0;
+  const singleEngine =
+    !input.aircraft.multiPilot && input.aircraft.engineClass === "SE" ? total : 0;
+  const multiEngine =
+    !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
+
+  const night = loggedMinutes(input.conditions.night, safeCrew);
+  const ifr = loggedMinutes(input.conditions.ifr, safeCrew);
+
+  // Column 11.
+  const fm = functionMinutes(input.function, total);
+  const instructor = loggedMinutes(input.function.instructor, safeCrew);
 
   const derived: DerivedColumns = {
     kind: "FLIGHT",
     attributes,
     enteredInLocalTime: input.enteredInLocalTime ?? false,
     signatureRequired: requiresSignature(attributes),
+    crewSize,
     date: utcDateKey(first.departureTime),
     departurePlace: first.departurePlace,
     departureTime: first.departureTime,
@@ -127,12 +138,12 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     total,
     dayLandings: input.landings.day,
     nightLandings: input.landings.night,
-    night: input.conditions.night,
-    ifr: input.conditions.ifr,
+    night,
+    ifr,
     pic: fm.pic,
     coPilot: fm.coPilot,
     dual: fm.dual,
-    instructor: fm.instructor,
+    instructor,
     isMultiFlight: mf.isMultiFlight,
   };
 
@@ -167,6 +178,7 @@ export function validateFstdSession(input: FstdSessionInput): ValidationResult {
     attributes,
     enteredInLocalTime: input.enteredInLocalTime ?? false,
     signatureRequired: requiresSignature(attributes),
+    crewSize: 2,
     date,
     departurePlace: "",
     departureTime: input.date,

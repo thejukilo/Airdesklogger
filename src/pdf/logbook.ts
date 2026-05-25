@@ -68,6 +68,7 @@ function fmtIsoDate(iso: string): string {
 function remarksText(e: LogbookEntryForPdf): string {
   const parts: string[] = [];
   if (e.remarks) parts.push(e.remarks);
+  if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
   if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
   if (e.signatureRequired && !e.signed) parts.push("(signature required)");
   else if (e.signed) parts.push("(signed off)");

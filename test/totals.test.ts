@@ -8,6 +8,7 @@ function row(total: number, pic: number): DerivedColumns {
     attributes: [],
     enteredInLocalTime: false,
     signatureRequired: false,
+    crewSize: 2,
     date: "2026-05-25",
     departurePlace: "EGKB",
     departureTime: new Date("2026-05-25T08:00:00Z"),
