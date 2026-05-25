@@ -1,8 +1,18 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
 import { ATTRIBUTES } from "../labels";
+
+/** A titled card that groups related fields, so the form reads as sections. */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+      <div className="space-y-4">{children}</div>
+    </Card>
+  );
+}
 
 /**
  * Times are entered as a date plus block-off and block-on times. The pilot
@@ -251,23 +261,24 @@ export function NewEntry() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-semibold">New flight entry</h1>
-      <Card>
-        <form onSubmit={onSubmit} className="space-y-5">
-          {error && <Alert>{error}</Alert>}
+      <form onSubmit={onSubmit} className="space-y-4">
+        {error && <Alert>{error}</Alert>}
 
+        <Section title="Aircraft and date">
           <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} required />
-
           <div>
             <Field
               label="Aircraft registration"
               value={f.registration}
               onChange={(e) => set("registration", e.target.value)}
               hint="The type fills in automatically from the registration."
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
               required
             />
             {aircraftMsg && <p className="mt-1 text-xs text-slate-500">{aircraftMsg}</p>}
           </div>
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
             <Select label="Category" value={f.category} onChange={(e) => set("category", e.target.value)}>
@@ -285,17 +296,19 @@ export function NewEntry() {
               Multi-pilot operation
             </label>
           </div>
+        </Section>
 
+        <Section title="Route and times">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." required />
+              <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
               {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
               {dep === "ZZZZ" && (
                 <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
               )}
             </div>
             <div>
-              <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." required />
+              <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
               {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
               {arr === "ZZZZ" && (
                 <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
@@ -331,10 +344,10 @@ export function NewEntry() {
             {f.extraLegs.map((l, i) => (
               <div key={i} className="mb-2 grid grid-cols-2 items-end gap-2 sm:grid-cols-9">
                 <div className="col-span-2">
-                  <Field label="From" value={l.departurePlace} onChange={(e) => setLeg(i, "departurePlace", e.target.value)} />
+                  <Field label="From" value={l.departurePlace} onChange={(e) => setLeg(i, "departurePlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                 </div>
                 <div className="col-span-2">
-                  <Field label="To" value={l.arrivalPlace} onChange={(e) => setLeg(i, "arrivalPlace", e.target.value)} />
+                  <Field label="To" value={l.arrivalPlace} onChange={(e) => setLeg(i, "arrivalPlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                 </div>
                 <div className="col-span-2">
                   <Field label={timeLabels.off} type="time" value={l.blockStart} onChange={(e) => setLeg(i, "blockStart", e.target.value)} />
@@ -348,7 +361,9 @@ export function NewEntry() {
               </div>
             ))}
           </div>
+        </Section>
 
+        <Section title="Function">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
               label={isDual ? "Name of PIC (flight instructor)" : "Name of PIC"}
@@ -385,78 +400,80 @@ export function NewEntry() {
               <option value="IFR">IFR</option>
             </Select>
           </div>
+        </Section>
 
+        <Section title="Landings and time">
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Day landings" type="number" min={0} value={f.dayLandings} onChange={(e) => set("dayLandings", Number(e.target.value))} />
-            <Field label="Night landings" type="number" min={0} value={f.nightLandings} onChange={(e) => set("nightLandings", Number(e.target.value))} />
-            <Field label="Instructor time (min)" type="number" min={0} value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} />
+            <Field label="Day landings" type="number" min={0} inputMode="numeric" value={f.dayLandings} onChange={(e) => set("dayLandings", Number(e.target.value))} />
+            <Field label="Night landings" type="number" min={0} inputMode="numeric" value={f.nightLandings} onChange={(e) => set("nightLandings", Number(e.target.value))} />
+            <Field label="Instructor (min)" type="number" min={0} inputMode="numeric" value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} />
           </div>
-          <p className="-mt-2 text-xs text-slate-500">
+          <p className="text-xs text-slate-500">
             Night time is calculated automatically from the departure aerodrome and the block times.
           </p>
+        </Section>
 
-          <div>
-            <span className="mb-2 block text-sm font-medium text-slate-700">
-              Attributes and endorsements
-            </span>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-              {ATTRIBUTES.map((a) => (
-                <label key={a.key} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={f.attributes.includes(a.key)}
-                    onChange={() => toggleAttr(a.key)}
-                  />
-                  {a.label}
-                </label>
-              ))}
+        <Section title="Attributes and endorsements">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3">
+            {ATTRIBUTES.map((a) => (
+              <label key={a.key} className="flex items-center gap-2 py-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={f.attributes.includes(a.key)}
+                  onChange={() => toggleAttr(a.key)}
+                />
+                {a.label}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            A skill test, proficiency check or line check will require a sign-off.
+          </p>
+          {showDetails && (
+            <div className="grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
+              {has("heslo") && (
+                <Select label="HESLO level" value={f.hesloLevel} onChange={(e) => set("hesloLevel", e.target.value)}>
+                  <option value="">Not set</option>
+                  <option value="1">HESLO 1</option>
+                  <option value="2">HESLO 2</option>
+                  <option value="3">HESLO 3</option>
+                  <option value="4">HESLO 4</option>
+                </Select>
+              )}
+              {has("hec") && (
+                <Select label="HEC level" value={f.hecLevel} onChange={(e) => set("hecLevel", e.target.value)}>
+                  <option value="">Not set</option>
+                  <option value="1">HEC 1</option>
+                  <option value="2">HEC 2</option>
+                </Select>
+              )}
+              {(has("heslo") || has("hec")) && (
+                <Field label="Number of cycles" type="number" min={0} inputMode="numeric" value={f.hoistCycles} onChange={(e) => set("hoistCycles", Number(e.target.value))} />
+              )}
+              {has("mountain_landings") && (
+                <Select label="Mountain landing gear" value={f.mountainLandingGear} onChange={(e) => set("mountainLandingGear", e.target.value)}>
+                  <option value="">Not set</option>
+                  <option value="SKI">Ski</option>
+                  <option value="WHEELS">Wheels</option>
+                </Select>
+              )}
+              {has("low_visibility_landing") && (
+                <Field label="Low-visibility landing type" value={f.lowVisibilityLandingType} onChange={(e) => set("lowVisibilityLandingType", e.target.value)} hint="For example CAT II, CAT IIIA." />
+              )}
             </div>
-            <p className="mt-2 text-xs text-slate-500">
-              A skill test, proficiency check or line check will require a sign-off.
-            </p>
-            {showDetails && (
-              <div className="mt-3 grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
-                {has("heslo") && (
-                  <Select label="HESLO level" value={f.hesloLevel} onChange={(e) => set("hesloLevel", e.target.value)}>
-                    <option value="">Not set</option>
-                    <option value="1">HESLO 1</option>
-                    <option value="2">HESLO 2</option>
-                    <option value="3">HESLO 3</option>
-                    <option value="4">HESLO 4</option>
-                  </Select>
-                )}
-                {has("hec") && (
-                  <Select label="HEC level" value={f.hecLevel} onChange={(e) => set("hecLevel", e.target.value)}>
-                    <option value="">Not set</option>
-                    <option value="1">HEC 1</option>
-                    <option value="2">HEC 2</option>
-                  </Select>
-                )}
-                {(has("heslo") || has("hec")) && (
-                  <Field label="Number of cycles" type="number" min={0} value={f.hoistCycles} onChange={(e) => set("hoistCycles", Number(e.target.value))} />
-                )}
-                {has("mountain_landings") && (
-                  <Select label="Mountain landing gear" value={f.mountainLandingGear} onChange={(e) => set("mountainLandingGear", e.target.value)}>
-                    <option value="">Not set</option>
-                    <option value="SKI">Ski</option>
-                    <option value="WHEELS">Wheels</option>
-                  </Select>
-                )}
-                {has("low_visibility_landing") && (
-                  <Field label="Low-visibility landing type" value={f.lowVisibilityLandingType} onChange={(e) => set("lowVisibilityLandingType", e.target.value)} hint="For example CAT II, CAT IIIA." />
-                )}
-              </div>
-            )}
-          </div>
+          )}
+        </Section>
 
+        <Section title="Remarks">
           <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />
+        </Section>
 
-          <div className="flex gap-2">
-            <Button type="submit" disabled={busy}>{busy ? "Saving..." : "Save entry"}</Button>
-            <Button type="button" variant="ghost" onClick={() => navigate("/")}>Cancel</Button>
-          </div>
-        </form>
-      </Card>
+        {/* Sticky action bar on mobile so Save is always within reach. */}
+        <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t bg-white/95 px-4 py-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none">
+          <Button type="submit" disabled={busy} className="flex-1 md:flex-none">{busy ? "Saving..." : "Save entry"}</Button>
+          <Button type="button" variant="ghost" onClick={() => navigate("/")}>Cancel</Button>
+        </div>
+      </form>
     </div>
   );
 }
