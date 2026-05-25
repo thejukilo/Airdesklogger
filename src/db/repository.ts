@@ -342,6 +342,34 @@ export async function listEntriesForPilot(pilotId: string) {
   return rows;
 }
 
+/**
+ * The date of an existing flight whose time window overlaps [startIso, endIso)
+ * for this holder, or null when there is none. A pilot cannot be on two flights
+ * at once. FSTD sessions carry no flight time and are excluded, as is an entry
+ * being amended (excludeEntryId). Endpoints touch: a flight landing exactly when
+ * another departs does not overlap.
+ */
+export async function findOverlappingFlight(
+  pilotId: string,
+  startIso: string,
+  endIso: string,
+  excludeEntryId?: string,
+): Promise<string | null> {
+  const { rows } = await getPool().query(
+    `SELECT v.content->'columns'->>'date' AS date
+       FROM flight_entries e
+       JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
+      WHERE e.pilot_id = $1
+        AND ($4::uuid IS NULL OR e.id <> $4::uuid)
+        AND COALESCE(v.content->'columns'->>'kind', 'FLIGHT') = 'FLIGHT'
+        AND (v.content->'columns'->>'departureTime')::timestamptz < $3::timestamptz
+        AND (v.content->'columns'->>'arrivalTime')::timestamptz   > $2::timestamptz
+      LIMIT 1`,
+    [pilotId, startIso, endIso, excludeEntryId ?? null],
+  );
+  return rows[0] ? (rows[0].date as string) : null;
+}
+
 /** Sign-offs on an entry, with the signer's name, for the entry view. */
 export async function getEntrySignatures(entryId: string) {
   const { rows } = await getPool().query(

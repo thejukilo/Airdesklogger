@@ -15,6 +15,7 @@ import {
   getCurrentVersion,
   getHistory,
   getLedger,
+  findOverlappingFlight,
 } from "../src/db/repository.js";
 import { validateEntry } from "../src/domain/validation.js";
 import { verifyChain } from "../src/domain/hashChain.js";
@@ -116,6 +117,29 @@ describe.skipIf(!hasDb)("repository (integration)", () => {
     await expect(
       getPool().query("DELETE FROM audit_ledger WHERE entry_id = $1", [created.entryId]),
     ).rejects.toThrow(/append-only/);
+  });
+
+  it("detects a flight that overlaps an existing one for the same holder", async () => {
+    const pilot = await createPilot("Overlap Pilot");
+    // An existing flight on 20 June, 14:00 to 18:00 UTC.
+    const existing = entryFor(pilot);
+    existing.legs = [
+      {
+        departurePlace: "EGKB",
+        departureTime: new Date("2026-06-20T14:00:00Z"),
+        arrivalPlace: "EGKB",
+        arrivalTime: new Date("2026-06-20T18:00:00Z"),
+      },
+    ];
+    await createEntry(existing, validateEntry(existing).derived!, pilot);
+
+    // 16:00 to 17:00 the same day sits inside it: overlap.
+    expect(await findOverlappingFlight(pilot, "2026-06-20T16:00:00Z", "2026-06-20T17:00:00Z")).not.toBeNull();
+    // 18:00 to 19:00 begins exactly when the other ends: no overlap.
+    expect(await findOverlappingFlight(pilot, "2026-06-20T18:00:00Z", "2026-06-20T19:00:00Z")).toBeNull();
+    // A different holder is unaffected.
+    const other = await createPilot("Other Pilot");
+    expect(await findOverlappingFlight(other, "2026-06-20T16:00:00Z", "2026-06-20T17:00:00Z")).toBeNull();
   });
 
   it("keeps the global ledger chain valid across all operations", async () => {

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { parseEntryRequest, RequestError } from "../../src/http/parseEntry.js";
 import { validateEntry } from "../../src/domain/validation.js";
-import { createEntry, listEntriesForPilot } from "../../src/db/repository.js";
+import { createEntry, findOverlappingFlight, listEntriesForPilot } from "../../src/db/repository.js";
 import { validateFlightReferences } from "../../src/http/validateReferences.js";
 import { getAirportCoords } from "../../src/db/referenceRepository.js";
 import { nightMinutes } from "../../src/domain/night.js";
@@ -54,6 +54,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const refIssues = await validateFlightReferences(input);
       if (refIssues.length > 0) {
         res.status(422).json({ valid: false, issues: refIssues });
+        return;
+      }
+      // A pilot cannot be on two flights at once: reject a new entry whose time
+      // window overlaps an existing flight for this holder.
+      const startIso = new Date(Math.min(...input.legs.map((l) => l.departureTime.getTime()))).toISOString();
+      const endIso = new Date(Math.max(...input.legs.map((l) => l.arrivalTime.getTime()))).toISOString();
+      const clashDate = await findOverlappingFlight(claims.sub, startIso, endIso);
+      if (clashDate) {
+        res.status(422).json({
+          valid: false,
+          issues: [{ field: "legs", message: `This flight overlaps an existing entry on ${clashDate}. A pilot cannot be on two flights at the same time.` }],
+        });
         return;
       }
       const created = await createEntry(input, result.derived, claims.sub);
