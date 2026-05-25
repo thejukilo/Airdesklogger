@@ -61,7 +61,15 @@ src/
     repository.ts    Create, amend and sign operations, each writing a ledger record.
   pdf/
     logbook.ts       Renders the EASA grid, totals and signature block to PDF.
+  http/
+    parseEntry.ts    Turns an HTTP request body into a validated entry, enforcing UTC here.
   demo.ts            An end-to-end walk through the whole lifecycle.
+api/               Vercel serverless functions. Thin handlers over the domain logic.
+  health.ts          Liveness check.
+  validate.ts        Validates one entry and returns the derived columns.
+  logbook-pdf.ts     Renders entries to a PDF.
+public/            The static landing page Vercel publishes (a short description of the API).
+vercel.json        Tells Vercel how to build and what to publish.
 test/              One test file per domain module, plus database and PDF tests.
 ```
 
@@ -164,11 +172,40 @@ There is also a type check, which the continuous integration should run:
 npm run typecheck
 ```
 
+## The HTTP API
+
+The functions in `api/` are deliberately thin. They parse and check the request, call into the domain logic, and shape the response. None of the logic that matters lives in the handler itself, which keeps the rules in one place and easy to test.
+
+- `GET /api/health` reports that the service is running and returns the current UTC time.
+- `POST /api/validate` takes one flight entry as JSON, validates it, and returns the twelve derived column values. A time that is not in UTC comes back as a 400. A rule failure (for example a multi-flight grouping that does not return to its origin) comes back as a 422 with the list of issues.
+- `POST /api/logbook-pdf` takes a holder name and a list of entries and returns a PDF in the EASA layout. Every entry is validated first, so an invalid entry stops the render and names the row that failed.
+
+The validate and PDF endpoints do not touch the database, so they work on a fresh deployment before any storage is set up. The create, amend and sign-off operations live in `src/db/repository.ts` and are exposed as endpoints once a database connection is configured.
+
+A request to `POST /api/validate` looks like this:
+
+```
+{
+  "pilotId": "00000000-0000-0000-0000-000000000000",
+  "aircraft": { "makeModelVariant": "Cessna 172S", "registration": "G-ABCD", "engineClass": "SE", "multiPilot": false },
+  "legs": [
+    { "departurePlace": "EGKB", "departureTime": "2026-05-25T08:00:00Z", "arrivalPlace": "LFAT", "arrivalTime": "2026-05-25T09:30:00Z" }
+  ],
+  "picName": "SELF",
+  "landings": { "day": 1, "night": 0 },
+  "conditions": { "night": 0, "ifr": 20 },
+  "function": { "primary": "PIC", "instructor": 0 },
+  "remarks": "training"
+}
+```
+
 ## Deploying on Vercel
 
-Two things matter for serverless.
+The project is configured for Vercel in `vercel.json`. There is no application framework involved, so the build step runs the type check, the static landing page in `public` is published, and the files in `api` are deployed as serverless functions. This is also why a plain build without that configuration failed earlier with a message about a missing output directory: Vercel expected a static site to publish and there was none, because this is an API rather than a website.
 
-Use a pooled database connection. Set `DATABASE_URL` to a pooled endpoint such as Vercel Postgres, the Neon pooler, or Supabase with pgbouncer, so that a burst of function invocations does not exhaust direct connections. The pool size is read from `PGPOOL_MAX` and defaults to one, because each warm function instance keeps its own pool.
+Three things are worth knowing for a serverless deployment.
+
+Use a pooled database connection. Set `DATABASE_URL` to a pooled endpoint such as Vercel Postgres, the Neon pooler, or Supabase with pgbouncer, so that a burst of function invocations does not exhaust direct connections. The pool size is read from `PGPOOL_MAX` and defaults to one, because each warm function instance keeps its own pool. The validate and PDF endpoints work without any of this; only the storage endpoints need it.
 
 The PDF generator is already serverless-safe. It is pure JavaScript and uses the standard fonts, so there are no font files to include in the deployment and nothing native to compile.
 
@@ -199,7 +236,7 @@ Each requirement has code that implements it and tests that exercise it.
 
 ## Scope and limitations
 
-This is the backend core. It does not include the HTTP API, authentication, user accounts, or any client application. It does not attempt to validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
+This is the backend core. It exposes a small HTTP API for validation and PDF rendering, but it does not yet include authentication, user accounts, the storage endpoints, or any client application. It does not attempt to validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
 
 ## Glossary
 
