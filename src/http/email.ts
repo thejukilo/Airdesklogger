@@ -17,13 +17,64 @@ export function emailConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
 }
 
-export async function sendSignoffEmail(
-  to: string,
-  link: string,
-  holderName: string,
-  replyTo?: string,
-): Promise<boolean> {
+const ROLE_LABELS: Record<string, string> = {
+  INSTRUCTOR: "instructor",
+  EXAMINER: "examiner",
+  SUPERVISING_PIC: "supervising pilot-in-command",
+  ATO: "ATO",
+  DTO: "DTO",
+  HOT: "head of training",
+  AIRPORT: "airport",
+  OTHER: "authorised party",
+};
+
+export interface SignoffEmail {
+  to: string;
+  link: string;
+  holderName: string;
+  signerName: string;
+  capacity: string;
+  flight: { date: string; route: string; aircraft: string; total: string };
+  replyTo?: string;
+}
+
+/**
+ * A personalised, plain transactional message. A real greeting, the flight it
+ * concerns, and a footer identifying the sender read as legitimate to spam
+ * filters far better than a bare link, and give the signer the context they need.
+ */
+export async function sendSignoffEmail(m: SignoffEmail): Promise<boolean> {
   if (!emailConfigured()) return false;
+  const role = ROLE_LABELS[m.capacity] ?? "authorised party";
+  const greetingName = m.signerName?.trim() || "there";
+
+  const text =
+    `Hello ${greetingName},\n\n` +
+    `${m.holderName} has asked you to countersign a flight logbook entry as ${role}.\n\n` +
+    `Flight details:\n` +
+    `  Date:     ${m.flight.date}\n` +
+    `  Aircraft: ${m.flight.aircraft}\n` +
+    `  Route:    ${m.flight.route}\n` +
+    `  Total:    ${m.flight.total}\n\n` +
+    `To review the entry and add your signature, open this link:\n${m.link}\n\n` +
+    `The link works once and will expire. If you were not expecting this, you can ignore the message.\n\n` +
+    `Sent by AirdeskLogger on behalf of ${m.holderName}.`;
+
+  const html =
+    `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
+    `<p>Hello ${escapeHtml(greetingName)},</p>` +
+    `<p>${escapeHtml(m.holderName)} has asked you to countersign a flight logbook entry as <strong>${escapeHtml(role)}</strong>.</p>` +
+    `<table style="border-collapse:collapse;margin:12px 0">` +
+    row("Date", m.flight.date) +
+    row("Aircraft", m.flight.aircraft) +
+    row("Route", m.flight.route) +
+    row("Total", m.flight.total) +
+    `</table>` +
+    `<p><a href="${m.link}" style="color:#1a1a1a">Review the entry and add your signature</a></p>` +
+    `<p style="color:#666;font-size:13px">The link works once and will expire. If you were not expecting this, you can ignore the message.</p>` +
+    `<p style="color:#666;font-size:13px">Sent by AirdeskLogger on behalf of ${escapeHtml(m.holderName)}.</p>` +
+    `</div>`;
+
   try {
     const transport = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -35,23 +86,21 @@ export async function sendSignoffEmail(
     });
     await transport.sendMail({
       from: process.env.SMTP_FROM,
-      to,
-      ...(replyTo ? { replyTo } : {}),
-      subject: "Request to countersign a flight logbook entry",
-      text:
-        `${holderName} has asked you to countersign a flight logbook entry.\n\n` +
-        `Open this single-use link to review and sign it:\n${link}\n\n` +
-        `The link can be used once and will expire.`,
-      html:
-        `<p>${escapeHtml(holderName)} has asked you to countersign a flight logbook entry.</p>` +
-        `<p><a href="${link}">Open the signing page</a> to review and sign it.</p>` +
-        `<p>The link can be used once and will expire.</p>`,
+      to: m.to,
+      ...(m.replyTo ? { replyTo: m.replyTo } : {}),
+      subject: `${m.holderName} asks you to countersign a flight on ${m.flight.date}`,
+      text,
+      html,
     });
     return true;
   } catch (err) {
     console.error("sign-off email failed:", err);
     return false;
   }
+}
+
+function row(label: string, value: string): string {
+  return `<tr><td style="padding:2px 16px 2px 0;color:#666">${label}</td><td style="padding:2px 0">${escapeHtml(value)}</td></tr>`;
 }
 
 function escapeHtml(s: string): string {

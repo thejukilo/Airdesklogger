@@ -1,8 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { createSignoffRequest, getEntryMeta } from "../../../src/db/repository.js";
+import { createSignoffRequest, getEntryMeta, getCurrentVersion } from "../../../src/db/repository.js";
+import { getUserById } from "../../../src/db/authRepository.js";
 import { sendSignoffEmail, emailConfigured } from "../../../src/http/email.js";
 import { requireUser, AuthError } from "../../../src/http/auth.js";
+
+function hhmm(v: unknown): string {
+  const m = Number(v ?? 0);
+  if (!Number.isFinite(m) || m <= 0) return "00:00";
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
 
 /**
  * The holder asks an external instructor or examiner (someone without an
@@ -54,12 +61,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const origin = process.env.APP_BASE_URL ?? `https://${req.headers.host}`;
     const link = `${origin}/sign/${token}`;
-    const emailed = await sendSignoffEmail(
-      parsed.data.signerEmail,
+
+    // Gather context so the email reads as a genuine, useful request.
+    const holder = await getUserById(claims.sub);
+    const version = await getCurrentVersion(entryId);
+    const cols = (version?.content?.columns ?? {}) as Record<string, unknown>;
+    const ac = (version?.content?.aircraft ?? {}) as { makeModelVariant?: string; registration?: string };
+
+    const emailed = await sendSignoffEmail({
+      to: parsed.data.signerEmail,
       link,
-      claims.email || "A pilot",
-      claims.email || undefined,
-    );
+      holderName: holder?.name || "A pilot",
+      signerName: parsed.data.signerName,
+      capacity: parsed.data.capacity,
+      flight: {
+        date: String(cols.date ?? ""),
+        route: `${cols.departurePlace ?? ""} to ${cols.arrivalPlace ?? ""}`,
+        aircraft: `${ac.makeModelVariant ?? ""} (${ac.registration ?? ""})`,
+        total: hhmm(cols.total),
+      },
+      ...(claims.email ? { replyTo: claims.email } : {}),
+    });
 
     res.status(201).json({ link, expiresAt, emailed, emailConfigured: emailConfigured() });
   } catch (err) {
