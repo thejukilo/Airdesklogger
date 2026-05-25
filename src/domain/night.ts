@@ -98,3 +98,21 @@ export function nightMinutes(
   const nightMs = end - start - dayMs;
   return Math.round(Math.max(0, nightMs) / 60_000);
 }
+
+/**
+ * Whether a single instant falls in night (sun more than 6 degrees below the
+ * horizon) at a position. Used to classify a landing as day or night. Returns
+ * false when no position is known.
+ */
+export function isNightAt(
+  instant: Date,
+  coords: { latitude: number; longitude: number } | null | undefined,
+): boolean {
+  if (!coords) return false;
+  const t = instant.getTime();
+  const day = Math.floor(t / DAY_MS) * DAY_MS;
+  const { dawn, dusk, polarNight } = civilTwilight(day + DAY_MS / 2, coords.latitude, coords.longitude);
+  if (polarNight) return true;
+  if (dawn === null || dusk === null) return false; // sun never sets below civil twilight: daylight
+  return t < dawn || t >= dusk;
+}

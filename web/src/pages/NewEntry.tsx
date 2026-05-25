@@ -81,11 +81,9 @@ const empty = {
   operatingRole: "",
   flightRules: "VFR",
   instructor: 0,
-  dayLandings: 1,
-  nightLandings: 0,
+  landings: 1,
   picName: "SELF",
   remarks: "",
-  extraLegs: [] as Array<{ departurePlace: string; arrivalPlace: string; blockStart: string; blockEnd: string }>,
   attributes: [] as string[],
   hesloLevel: "",
   hecLevel: "",
@@ -115,19 +113,6 @@ export function NewEntry() {
         ? prev.attributes.filter((a) => a !== key)
         : [...prev.attributes, key],
     }));
-  }
-
-  function addLeg() {
-    setF((p) => ({
-      ...p,
-      extraLegs: [...p.extraLegs, { departurePlace: p.departurePlace, arrivalPlace: p.departurePlace, blockStart: "", blockEnd: "" }],
-    }));
-  }
-  function removeLeg(i: number) {
-    setF((p) => ({ ...p, extraLegs: p.extraLegs.filter((_, j) => j !== i) }));
-  }
-  function setLeg(i: number, k: "departurePlace" | "arrivalPlace" | "blockStart" | "blockEnd", v: string) {
-    setF((p) => ({ ...p, extraLegs: p.extraLegs.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
   }
 
   const has = (key: string) => f.attributes.includes(key);
@@ -230,15 +215,9 @@ export function NewEntry() {
               ? { arrivalPlaceName: f.arrivalPlaceName }
               : {}),
           },
-          ...f.extraLegs.map((l) => ({
-            departurePlace: l.departurePlace.toUpperCase(),
-            departureTime: toSubmitTime(`${f.date}T${l.blockStart}`, timeMode),
-            arrivalPlace: l.arrivalPlace.toUpperCase(),
-            arrivalTime: toSubmitTime(`${l.blockEnd > l.blockStart ? f.date : nextDay(f.date)}T${l.blockEnd}`, timeMode),
-          })),
         ],
         picName: f.picName,
-        landings: { day: Number(f.dayLandings), night: Number(f.nightLandings) },
+        landings: { day: Number(f.landings), night: 0 },
         conditions: { night: 0, ifr },
         function: {
           primary: f.primary,
@@ -329,38 +308,6 @@ export function NewEntry() {
               Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
             </p>
           </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">Additional legs (same-day series)</span>
-              <button type="button" onClick={addLeg} className="text-xs text-slate-600 underline">
-                Add leg
-              </button>
-            </div>
-            <p className="mb-2 text-xs text-slate-500">
-              For a series of flights on the same day that each return to the departure point with under 30
-              minutes between them, recorded as one entry (AMC1 FCL.050).
-            </p>
-            {f.extraLegs.map((l, i) => (
-              <div key={i} className="mb-2 grid grid-cols-2 items-end gap-2 sm:grid-cols-9">
-                <div className="col-span-2">
-                  <Field label="From" value={l.departurePlace} onChange={(e) => setLeg(i, "departurePlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
-                </div>
-                <div className="col-span-2">
-                  <Field label="To" value={l.arrivalPlace} onChange={(e) => setLeg(i, "arrivalPlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
-                </div>
-                <div className="col-span-2">
-                  <Field label={timeLabels.off} type="time" value={l.blockStart} onChange={(e) => setLeg(i, "blockStart", e.target.value)} />
-                </div>
-                <div className="col-span-2">
-                  <Field label={timeLabels.on} type="time" value={l.blockEnd} onChange={(e) => setLeg(i, "blockEnd", e.target.value)} />
-                </div>
-                <button type="button" onClick={() => removeLeg(i)} className="col-span-2 pb-2 text-left text-xs text-slate-500 underline sm:col-span-1">
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
         </Section>
 
         <Section title="Function">
@@ -403,13 +350,13 @@ export function NewEntry() {
         </Section>
 
         <Section title="Landings and time">
-          <div className="grid grid-cols-3 gap-4">
-            <Field label="Day landings" type="number" min={0} inputMode="numeric" value={f.dayLandings} onChange={(e) => set("dayLandings", Number(e.target.value))} />
-            <Field label="Night landings" type="number" min={0} inputMode="numeric" value={f.nightLandings} onChange={(e) => set("nightLandings", Number(e.target.value))} />
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Landings" type="number" min={0} inputMode="numeric" value={f.landings} onChange={(e) => set("landings", Number(e.target.value))} />
             <Field label="Instructor (min)" type="number" min={0} inputMode="numeric" value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} />
           </div>
           <p className="text-xs text-slate-500">
-            Night time is calculated automatically from the departure aerodrome and the block times.
+            Night time, and whether the landings count as day or night, are worked out automatically from the
+            aerodrome positions and the block times.
           </p>
         </Section>
 

@@ -4,7 +4,7 @@ import { validateEntry } from "../../src/domain/validation.js";
 import { createEntry, findOverlappingFlight, listEntriesForPilot } from "../../src/db/repository.js";
 import { validateFlightReferences } from "../../src/http/validateReferences.js";
 import { getAirportCoords } from "../../src/db/referenceRepository.js";
-import { nightMinutes } from "../../src/domain/night.js";
+import { nightMinutes, isNightAt } from "../../src/domain/night.js";
 import { zonedWallClockToUtc, LocalTimeError } from "../../src/domain/localTime.js";
 import { toUtcIso } from "../../src/domain/time.js";
 import { timezoneAt } from "../../src/http/timezone.js";
@@ -46,6 +46,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // Night time is computed, not taken from the client (FOCA 2.3.4). It is the
       // part of each leg that falls in night at the departure aerodrome.
       input.conditions.night = await computeNight(input);
+      // Landings are classified day or night automatically from the arrival: a
+      // landing after evening civil twilight (or before morning twilight) is a
+      // night landing. The client supplies only the count.
+      input.landings = await classifyLandings(input);
       const result = validateEntry(input);
       if (!result.valid || !result.derived) {
         res.status(422).json({ valid: false, issues: result.issues });
@@ -138,6 +142,19 @@ async function legsLocalToUtc(raw: unknown): Promise<RawLeg[]> {
       }
     }),
   );
+}
+
+/**
+ * Split the total landings into day and night from the arrival: if the aircraft
+ * arrives at night, the landings are night landings, otherwise day. The landing
+ * happens at the arrival aerodrome, so its position and time are used.
+ */
+async function classifyLandings(input: Parameters<typeof validateEntry>[0]): Promise<{ day: number; night: number }> {
+  const total = (input.landings.day || 0) + (input.landings.night || 0);
+  if (total === 0) return { day: 0, night: 0 };
+  const lastLeg = input.legs[input.legs.length - 1]!;
+  const coords = await getAirportCoords(lastLeg.arrivalPlace);
+  return isNightAt(lastLeg.arrivalTime, coords) ? { day: 0, night: total } : { day: total, night: 0 };
 }
 
 /** Sum of night minutes across the legs, using each departure aerodrome. */

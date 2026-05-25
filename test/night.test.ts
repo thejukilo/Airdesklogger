@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nightMinutes } from "../src/domain/night.js";
+import { nightMinutes, isNightAt } from "../src/domain/night.js";
 
 // London Heathrow, used as a representative mid-latitude position.
 const LONDON = { latitude: 51.47, longitude: -0.4543 };
@@ -31,6 +31,12 @@ describe("night time calculation (FOCA 2.3.4, EASA civil twilight)", () => {
     const dep = new Date(Date.UTC(2026, 11, 21, 22, 0));
     const arr = new Date(Date.UTC(2026, 11, 21, 23, 0));
     expect(nightMinutes(dep, arr, null)).toBe(0);
+  });
+
+  it("classifies a single instant as day or night for landing classification", () => {
+    expect(isNightAt(new Date(Date.UTC(2026, 5, 21, 12, 0)), LONDON)).toBe(false); // summer midday
+    expect(isNightAt(new Date(Date.UTC(2026, 11, 21, 22, 0)), LONDON)).toBe(true); // winter night
+    expect(isNightAt(new Date(Date.UTC(2026, 11, 21, 22, 0)), null)).toBe(false); // unknown position
   });
 
   it("never reports more night than the length of the flight", () => {
