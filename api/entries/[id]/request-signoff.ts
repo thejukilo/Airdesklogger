@@ -54,7 +54,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const origin = process.env.APP_BASE_URL ?? `https://${req.headers.host}`;
     const link = `${origin}/sign/${token}`;
-    const emailed = await sendSignoffEmail(parsed.data.signerEmail, link, claims.email || "A pilot");
+    const emailed = await sendSignoffEmail(
+      parsed.data.signerEmail,
+      link,
+      claims.email || "A pilot",
+      claims.email || undefined,
+    );
 
     res.status(201).json({ link, expiresAt, emailed, emailConfigured: emailConfigured() });
   } catch (err) {

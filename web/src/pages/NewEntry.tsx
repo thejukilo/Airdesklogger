@@ -3,9 +3,27 @@ import { useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
 
-/** datetime-local gives "YYYY-MM-DDTHH:MM"; the form treats it as UTC. */
-function toUtcIso(local: string): string {
-  return local ? `${local}:00Z` : "";
+/**
+ * A datetime-local input gives "YYYY-MM-DDTHH:MM" with no zone. The pilot chooses
+ * whether they typed UTC or their device's local time; either way it is sent as
+ * an ISO instant (UTC keeps "Z"; local carries the device offset) and the server
+ * stores UTC, flagging local entries (FOCA 2.2.7). Default is UTC.
+ */
+type TimeMode = "utc" | "local";
+
+function deviceOffset(localValue: string): string {
+  const d = new Date(localValue); // a zone-less value is parsed as device-local
+  const minutesEast = -d.getTimezoneOffset(); // DST-aware for that date
+  const sign = minutesEast >= 0 ? "+" : "-";
+  const abs = Math.abs(minutesEast);
+  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mm = String(abs % 60).padStart(2, "0");
+  return `${sign}${hh}:${mm}`;
+}
+
+function toIso(localValue: string, mode: TimeMode): string {
+  if (!localValue) return "";
+  return mode === "utc" ? `${localValue}:00Z` : `${localValue}:00${deviceOffset(localValue)}`;
 }
 
 const empty = {
@@ -31,6 +49,7 @@ const empty = {
 export function NewEntry() {
   const navigate = useNavigate();
   const [f, setF] = useState(empty);
+  const [timeMode, setTimeMode] = useState<TimeMode>("utc");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
@@ -86,9 +105,9 @@ export function NewEntry() {
         legs: [
           {
             departurePlace: f.departurePlace.toUpperCase(),
-            departureTime: toUtcIso(f.departureTime),
+            departureTime: toIso(f.departureTime, timeMode),
             arrivalPlace: f.arrivalPlace.toUpperCase(),
-            arrivalTime: toUtcIso(f.arrivalTime),
+            arrivalTime: toIso(f.arrivalTime, timeMode),
           },
         ],
         picName: f.picName,
@@ -108,7 +127,7 @@ export function NewEntry() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-semibold">New flight entry</h1>
-      <p className="text-sm text-slate-500">All times are entered and stored in UTC.</p>
+      <p className="text-sm text-slate-500">Choose whether you enter times in UTC or local time; they are always stored in UTC.</p>
       <Card>
         <form onSubmit={onSubmit} className="space-y-5">
           {error && <Alert>{error}</Alert>}
@@ -148,11 +167,21 @@ export function NewEntry() {
             Multi-pilot operation
           </label>
 
+          <div className="rounded-md bg-slate-50 p-3">
+            <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
+              <option value="utc">UTC</option>
+              <option value="local">Local time (this device)</option>
+            </Select>
+            <p className="mt-1 text-xs text-slate-500">
+              Stored as UTC either way. Local entries are converted using this device's offset and flagged on the export.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
-            <Field label="Departure time (UTC)" type="datetime-local" value={f.departureTime} onChange={(e) => set("departureTime", e.target.value)} required />
+            <Field label={`Departure time (${timeMode === "utc" ? "UTC" : "local"})`} type="datetime-local" value={f.departureTime} onChange={(e) => set("departureTime", e.target.value)} required />
             <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
-            <Field label="Arrival time (UTC)" type="datetime-local" value={f.arrivalTime} onChange={(e) => set("arrivalTime", e.target.value)} required />
+            <Field label={`Arrival time (${timeMode === "utc" ? "UTC" : "local"})`} type="datetime-local" value={f.arrivalTime} onChange={(e) => set("arrivalTime", e.target.value)} required />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

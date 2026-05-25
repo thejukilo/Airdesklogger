@@ -17,7 +17,12 @@ export function emailConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
 }
 
-export async function sendSignoffEmail(to: string, link: string, holderName: string): Promise<boolean> {
+export async function sendSignoffEmail(
+  to: string,
+  link: string,
+  holderName: string,
+  replyTo?: string,
+): Promise<boolean> {
   if (!emailConfigured()) return false;
   try {
     const transport = nodemailer.createTransport({
@@ -31,6 +36,7 @@ export async function sendSignoffEmail(to: string, link: string, holderName: str
     await transport.sendMail({
       from: process.env.SMTP_FROM,
       to,
+      ...(replyTo ? { replyTo } : {}),
       subject: "Request to countersign a flight logbook entry",
       text:
         `${holderName} has asked you to countersign a flight logbook entry.\n\n` +
