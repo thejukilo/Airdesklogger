@@ -107,7 +107,9 @@ test/              One test file per domain module, plus database and PDF tests.
 
 ### Time: UTC storage, with local-time entry allowed
 
-The database stores UTC only. What changed to meet FOCA 2.2.7 is the entry boundary. FOCA requires that a pilot be able to enter a time in local time as well as UTC, with UTC as the default, and that exports flag any entry made in local time. So `parseInstant` accepts either a UTC time (suffix `Z` or `+00:00`) or a local time with an explicit offset such as `+02:00`. A local time is converted to UTC for storage, and the entry is marked as having been made in local time. A time with no zone at all is still rejected, because without an offset there is no way to convert it. The export marks local entries with an `L` next to the date and explains it in the page header. The strict `parseUtcInstant` is still available for places that must be UTC-only.
+The database stores UTC only. What changed to meet FOCA 2.2.7 is the entry boundary. FOCA requires that a pilot be able to enter a time in local time as well as UTC, with UTC as the default. So `parseInstant` accepts either a UTC time (suffix `Z` or `+00:00`) or a local time with an explicit offset such as `+02:00`. A local time is converted to UTC for storage, and the fact that the pilot typed it in local time is preserved in the entry's stored content for audit. A time with no zone at all is still rejected, because without an offset there is no way to convert it. The strict `parseUtcInstant` is still available for places that must be UTC-only.
+
+Every time the logbook shows, on screen and in the PDF export, is UTC and is printed with a `Z` (Zulu) suffix, so there is never any doubt that a recorded time is UTC. We do not put a "local" mark on the face of the logbook: the record itself is always UTC, in line with FCL.050, and a local mark next to a printed time would invite exactly the wrong reading.
 
 ### The multi-flight rule
 
@@ -247,7 +249,7 @@ npm run typecheck
 
 ## The web frontend
 
-The `web` folder is a Vite + React single-page app, styled with Tailwind, kept as a separate workspace so the audited backend and the user interface stay cleanly apart. It talks to the same API over relative `/api` paths and keeps the session token in the browser. The screens are sign-in and registration; the logbook list, shown as a wide table that lays out every recorded column (date, aircraft, route, block off and on, total, function, the PIC, co-pilot, dual and instructor splits, night, IFR and landings) with a PDF export button; a form to record a flight; an entry view showing the change history and the sign-offs; an account page that holds the profile and certificates and enrols the second factor (a TOTP QR code); and a countersigning panel where an instructor or examiner draws their signature, presents a code, and locks the entry.
+The `web` folder is a Vite + React single-page app, styled with Tailwind, kept as a separate workspace so the audited backend and the user interface stay cleanly apart. It talks to the same API over relative `/api` paths and keeps the session token in the browser. The screens are sign-in and registration; the logbook list, shown as a wide table that lays out every recorded column (date, aircraft, route, block off and on, total, function, the PIC, co-pilot, dual and instructor splits, night, IFR and landings) with a PDF export button; a form to record a flight; an entry view that lays out the full detail of the flight (every time column, the function and operating role, crew, instructor seat, launch method and the structured attributes) alongside the change history and the sign-offs; an account page that holds the profile and certificates and enrols the second factor (a TOTP QR code); and a countersigning panel where an instructor or examiner draws their signature, presents a code, and locks the entry.
 
 The flight form follows the order of the paper logbook. The date comes first, then the aircraft, which fills itself in from the registration as the pilot types (the lookup runs in the background, with no button to press). Departure and arrival are entered as ICAO codes with the matched airport name shown beside each so a typo is obvious. Block off and block on are entered as clock times against the flight date, and the pilot chooses whether those times are UTC or local; a local entry is converted to UTC before it is stored, because the record itself is always UTC. The pilot function is a dropdown (PIC, co-pilot, dual, PICUS, SPIC and safety pilot) with the operating role kept as a separate field, since whether a pilot was flying or monitoring is independent of the capacity they logged. Instructor time has its own field, the flight rules select between VFR and IFR, and the structured FOCA attributes (skill test, proficiency check, cross country and the rest) are a grid of checkboxes so a check that needs a sign-off is recorded as a value rather than buried in the remarks. A user becomes a signer by declaring an instructor or examiner certificate on their profile, and that certificate number is recorded on every sign-off they make. The certificate is self-declared and not yet verified against the authority, which is a deliberate, documented choice; the recorded number keeps every sign-off attributable and auditable. It is web first; a React Native app for iOS and Android can later reuse the same API and the domain types.
 
@@ -395,7 +397,7 @@ Each requirement has code that implements it and tests that exercise it.
 | Second factor (TOTP) required for sign-off | `auth/totp.ts`, `api/entries/[id]/sign.ts` | `test/totp.test.ts`, `test/authFlow.integration.test.ts` |
 | Signer private keys wrapped at rest | `auth/signingKeys.ts` | `test/auth.test.ts` |
 | Security log of logins and step-ups | `db/schema.sql`, `db/authRepository.ts` | `test/authFlow.integration.test.ts` |
-| Local-time entry stored as UTC and flagged (FOCA 2.2.7) | `domain/time.ts`, `http/parseEntry.ts` | `test/time.test.ts` |
+| Local-time entry accepted, stored and shown as UTC (FOCA 2.2.7) | `domain/time.ts`, `http/parseEntry.ts` | `test/time.test.ts` |
 | Structured entry attributes and missing-signature flag (FOCA 2.2.3, 2.4.6) | `domain/attributes.ts` | `test/attributes.test.ts` |
 | Confirmed email and personal details (FOCA 2.1.3) | `db/authRepository.ts`, `api/auth/[action].ts` | `test/authFlow.integration.test.ts` |
 | Export with sign-offs and full change log (FOCA 2.4.6, 2.5) | `db/exportRepository.ts`, `pdf/logbook.ts`, `api/export/logbook.ts` | `test/export.integration.test.ts` |
@@ -417,7 +419,7 @@ Done or substantially done:
 - Flight entries and FSTD sessions (2.1.5).
 - The Part-FCL columns and values, calculated automatically (2.2.2, 2.3.4).
 - Structured entry attributes (2.2.3), with the sign-off subset flagged.
-- Local-time entry possible with UTC default, flagged on exports (2.2.7).
+- Local-time entry possible with UTC default; stored and shown as UTC (2.2.7).
 - Strong validation on entry, structured storage (2.3.1).
 - An immutable change log the user cannot edit (2.3.7).
 - Tamper-evident sign-off that locks the entry (2.4.4, 2.4.5).

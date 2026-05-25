@@ -101,7 +101,15 @@ export interface EntryColumns {
   coPilot: number;
   dual: number;
   instructor: number;
-  enteredInLocalTime: boolean;
+  isMultiFlight?: boolean;
+  crewSize?: number;
+  category?: string;
+  operatingRole?: string;
+  launchMethod?: string;
+  instructorPosition?: string;
+  attributes?: string[];
+  signatureRequired?: boolean;
+  enteredInLocalTime?: boolean;
   fstd?: { deviceType: string; qualificationNumber: string; totalMinutes: number };
 }
 

@@ -3,17 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { useAuth } from "../auth";
 import { Alert, Button, Card, Field } from "../components/ui";
+import { FUNCTION_LABELS } from "../labels";
 
 const SIGNER_ROLES = ["INSTRUCTOR", "EXAMINER", "ATO", "DTO", "HOT", "AIRPORT"];
-
-const FUNCTION_LABELS: Record<string, string> = {
-  PIC: "PIC",
-  CO_PILOT: "Co-pilot",
-  DUAL: "Dual",
-  PICUS: "PICUS",
-  SPIC: "SPIC",
-  SAFETY_PILOT: "Safety pilot",
-};
 
 function hhmm(v: number | string | null | undefined): string {
   const m = Number(v ?? 0);
@@ -22,7 +14,7 @@ function hhmm(v: number | string | null | undefined): string {
 }
 
 function clock(iso: string | undefined): string {
-  return iso ? iso.slice(11, 16) : "";
+  return iso ? `${iso.slice(11, 16)}Z` : "";
 }
 
 export function Logbook() {
@@ -116,10 +108,7 @@ export function Logbook() {
                       className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
                       onClick={() => navigate(`/entry/${e.id}`)}
                     >
-                      <td className="px-2 py-2">
-                        {c?.date}
-                        {c?.enteredInLocalTime ? <span className="ml-1 text-amber-600">L</span> : null}
-                      </td>
+                      <td className="px-2 py-2">{c?.date}</td>
                       <td className="px-2 py-2">
                         {fstd ? (
                           <span className="text-slate-500">FSTD {fstd.deviceType}</span>

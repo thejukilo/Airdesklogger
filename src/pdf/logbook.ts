@@ -30,7 +30,7 @@ interface LeafColumn {
 
 const MIN = (m: number) => (m > 0 ? formatHHMM(m) : "");
 const NUM = (n: number) => (n > 0 ? String(n) : "");
-const TIME = (d: Date) => d.toISOString().slice(11, 16); // HH:MM UTC
+const TIME = (d: Date) => d.toISOString().slice(11, 16) + "Z"; // HH:MM UTC, Z = Zulu
 
 const COLUMNS: LeafColumn[] = [
   { group: "DATE", sub: "dd/mm/yy", width: 58, value: (e) => formatLogbookDate(e.departureTime) },
@@ -209,7 +209,7 @@ function drawPage(
   p.drawText(
     `Holder: ${opts.pilotName}${opts.dateOfBirth ? `    DOB: ${opts.dateOfBirth}` : ""}` +
       `${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}` +
-      `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    All times UTC unless marked L (local)`,
+      `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    All times in UTC (Z = Zulu)`,
     { x: MARGIN, y: top - 24, size: 8, font, color: GREY },
   );
   p.drawText(`Page ${page.pageNumber} of ${totalPages}`, {
@@ -317,7 +317,7 @@ function drawGrid(
       const x = colX(idx);
       let text = "";
       if (c.group === "DATE") {
-        text = formatLogbookDate(e.departureTime) + (e.enteredInLocalTime ? " L" : "");
+        text = formatLogbookDate(e.departureTime);
       } else if (c.group === "FSTD SESSION") {
         text = c.value(row);
       } else if (c.group === "REMARKS") {
