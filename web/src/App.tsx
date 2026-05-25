@@ -7,6 +7,7 @@ import { Logbook } from "./pages/Logbook";
 import { NewEntry } from "./pages/NewEntry";
 import { EntryDetail } from "./pages/EntryDetail";
 import { Account } from "./pages/Account";
+import { Sign } from "./pages/Sign";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -43,6 +44,16 @@ function Shell({ children }: { children: ReactNode }) {
 }
 
 export function App() {
+  return (
+    <Routes>
+      {/* Public, no account: external signers reach the signing page by token. */}
+      <Route path="/sign/:token" element={<Sign />} />
+      <Route path="/*" element={<AppShell />} />
+    </Routes>
+  );
+}
+
+function AppShell() {
   return (
     <Shell>
       <Routes>

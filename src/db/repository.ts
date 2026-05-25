@@ -12,6 +12,7 @@
  * cannot produce a forked/duplicated sequence.
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool, withTransaction } from "./pool.js";
 import type { DerivedColumns, FlightEntryInput, FstdSessionInput } from "../domain/types.js";
@@ -23,10 +24,17 @@ import {
   type LedgerRecord,
 } from "../domain/hashChain.js";
 import {
+  generateSigningKeyPair,
+  signEntry as edSignEntry,
   verifySignature,
   type Signature,
+  type SignerRole,
   type SigningPayload,
 } from "../domain/signature.js";
+
+function tokenHash(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
+}
 
 const LEDGER_LOCK_KEY = 947_213_001; // arbitrary, stable advisory-lock id
 
@@ -375,4 +383,134 @@ export async function getLedger(): Promise<LedgerRecord[]> {
     recordedAt: toUtcIso(r.recorded_at),
     recordHash: r.record_hash,
   }));
+}
+
+// ---- One-time sign-off links for external signers -----------------------------
+
+export interface SignoffRequest {
+  id: string;
+  entryId: string;
+  signerName: string;
+  signerEmail: string;
+  capacity: SignerRole;
+}
+
+/** Create a single-use signing link. Returns the raw token (only stored hashed). */
+export async function createSignoffRequest(input: {
+  entryId: string;
+  signerName: string;
+  signerEmail: string;
+  capacity: SignerRole;
+  createdBy: string;
+  ttlHours?: number;
+}): Promise<{ token: string; expiresAt: string }> {
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + (input.ttlHours ?? 72) * 3_600_000).toISOString();
+  await getPool().query(
+    `INSERT INTO signoff_requests (entry_id, token_hash, signer_name, signer_email, capacity, created_by, expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [input.entryId, tokenHash(token), input.signerName, input.signerEmail, input.capacity, input.createdBy, expiresAt],
+  );
+  return { token, expiresAt };
+}
+
+/** Resolve a still-valid request from its token (for the public signing page). */
+export async function getSignoffRequestByToken(token: string): Promise<SignoffRequest | null> {
+  const { rows } = await getPool().query(
+    `SELECT id, entry_id, signer_name, signer_email, capacity
+       FROM signoff_requests
+      WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`,
+    [tokenHash(token)],
+  );
+  if (!rows[0]) return null;
+  return {
+    id: rows[0].id,
+    entryId: rows[0].entry_id,
+    signerName: rows[0].signer_name,
+    signerEmail: rows[0].signer_email,
+    capacity: rows[0].capacity,
+  };
+}
+
+/**
+ * Sign an entry through a one-time link. The external signer has no account, so
+ * a throwaway key pair signs the content hash and the signature row stores who
+ * signed (name they entered, email from the request, optional licence). Consuming
+ * the token, locking the entry and writing the ledger record happen atomically.
+ */
+export async function signEntryExternal(
+  token: string,
+  signer: { signerName: string; signerLicense?: string; signatureImage?: string },
+): Promise<{ entryId: string }> {
+  return withTransaction(async (client) => {
+    const { rows: reqRows } = await client.query(
+      "SELECT id, entry_id, signer_email, capacity, created_by FROM signoff_requests WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() FOR UPDATE",
+      [tokenHash(token)],
+    );
+    if (reqRows.length === 0) throw new Error("This signing link is invalid, already used, or expired.");
+    const reqId = reqRows[0].id as string;
+    const entryId = reqRows[0].entry_id as string;
+    const capacity = reqRows[0].capacity as SignerRole;
+    const createdBy = reqRows[0].created_by as string;
+    const signerEmail = reqRows[0].signer_email as string;
+
+    const { rows: head } = await client.query(
+      "SELECT current_version, locked FROM flight_entries WHERE id = $1 FOR UPDATE",
+      [entryId],
+    );
+    if (head.length === 0) throw new Error("Entry not found.");
+    if (head[0].locked) throw new Error("Entry is already locked.");
+    const versionNo = Number(head[0].current_version);
+
+    const { rows: ver } = await client.query(
+      "SELECT content_hash FROM flight_entry_versions WHERE entry_id = $1 AND version_no = $2",
+      [entryId, versionNo],
+    );
+    const contentHash = ver[0].content_hash as string;
+
+    const keys = generateSigningKeyPair();
+    const payload: SigningPayload = {
+      entryId,
+      contentHash,
+      signerId: `link:${reqId}`,
+      signerRole: capacity,
+      signedAt: toUtcIso(new Date()),
+    };
+    const signature: Signature = {
+      ...payload,
+      signature: edSignEntry(keys.privateKey, payload),
+      publicKey: keys.publicKey,
+    };
+    if (!verifySignature(signature)) throw new Error("Refusing to store an invalid signature");
+
+    await client.query(
+      `INSERT INTO signatures (entry_id, version_no, signer_id, signer_role, content_hash, signature, public_key, signed_at, signature_image, signer_name, signer_email, signer_license)
+       VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        entryId,
+        versionNo,
+        capacity,
+        contentHash,
+        signature.signature,
+        signature.publicKey,
+        payload.signedAt,
+        signer.signatureImage ?? null,
+        signer.signerName,
+        signerEmail,
+        signer.signerLicense ?? null,
+      ],
+    );
+    await client.query("UPDATE flight_entries SET locked = true, locked_at = $2 WHERE id = $1", [
+      entryId,
+      payload.signedAt,
+    ]);
+    await client.query("UPDATE signoff_requests SET used_at = now() WHERE id = $1", [reqId]);
+    await appendLedger(client, {
+      eventType: "SIGN",
+      entryId,
+      payloadHash: hashContent(signature),
+      actorId: createdBy,
+    });
+    return { entryId };
+  });
 }

@@ -212,6 +212,38 @@ export function signEntry(
   return request(`/entries/${id}/sign`, { method: "POST", body: JSON.stringify(body) });
 }
 
+export function requestSignoff(
+  entryId: string,
+  input: { signerName: string; signerEmail: string; capacity: string },
+): Promise<{ link: string; expiresAt: string; emailed: boolean; emailConfigured: boolean }> {
+  return request(`/entries/${entryId}/request-signoff`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface PublicSignoff {
+  capacity: string;
+  signerName: string;
+  entry: {
+    date: string | null;
+    departurePlace: string | null;
+    arrivalPlace: string | null;
+    total: number | null;
+    picName: string | null;
+    aircraft: string;
+    locked: boolean;
+  };
+}
+
+export function getSignoffPublic(token: string): Promise<PublicSignoff> {
+  return request(`/signoff/${token}`, { method: "GET" });
+}
+
+export function submitSignoffPublic(
+  token: string,
+  input: { signerName: string; signerLicense?: string; signatureImage?: string },
+): Promise<{ locked: boolean }> {
+  return request(`/signoff/${token}`, { method: "POST", body: JSON.stringify(input) });
+}
+
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
   const res = await fetch("/api/export/logbook", {

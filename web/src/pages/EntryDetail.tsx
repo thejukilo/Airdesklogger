@@ -46,6 +46,32 @@ export function EntryDetail() {
   const [signError, setSignError] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
 
+  const [req, setReq] = useState({ signerName: "", signerEmail: "", capacity: "INSTRUCTOR" });
+  const [reqResult, setReqResult] = useState<string | null>(null);
+  const [reqLink, setReqLink] = useState<string | null>(null);
+  const [requesting, setRequesting] = useState(false);
+
+  async function requestSignoff() {
+    setReqResult(null);
+    setReqLink(null);
+    setRequesting(true);
+    try {
+      const r = await api.requestSignoff(id, req);
+      setReqLink(r.link);
+      setReqResult(
+        r.emailed
+          ? `A link was emailed to ${req.signerEmail}. You can also share the link below.`
+          : r.emailConfigured
+            ? "Email could not be sent; share the link below instead."
+            : "Share this single-use link with the signer:",
+      );
+    } catch (err) {
+      setReqResult(err instanceof Error ? err.message : "Could not create the request.");
+    } finally {
+      setRequesting(false);
+    }
+  }
+
   function load() {
     setLoading(true);
     api
@@ -65,6 +91,7 @@ export function EntryDetail() {
   const locked = entry.current.locked;
   const isOwner = c.pilotId === user?.id;
   const canSign = !locked && !isOwner && capabilities.length > 0;
+  const canRequest = !locked && isOwner;
 
   async function submitSignoff() {
     setSignError(null);
@@ -165,6 +192,38 @@ export function EntryDetail() {
               </Button>
             </div>
           )}
+        </Card>
+      )}
+
+      {canRequest && (
+        <Card>
+          <h2 className="mb-2 font-medium">Request a sign-off by email</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Invite an instructor or examiner who does not have an account. They get a single-use link to sign.
+          </p>
+          <div className="space-y-3">
+            {reqResult && <p className="text-sm text-slate-600">{reqResult}</p>}
+            {reqLink && (
+              <input
+                readOnly
+                value={reqLink}
+                onFocus={(e) => e.target.select()}
+                className="w-full rounded-md border bg-slate-50 px-3 py-2 text-xs"
+              />
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Signer name" value={req.signerName} onChange={(e) => setReq((r) => ({ ...r, signerName: e.target.value }))} />
+              <Field label="Signer email" type="email" value={req.signerEmail} onChange={(e) => setReq((r) => ({ ...r, signerEmail: e.target.value }))} />
+            </div>
+            <Select label="Capacity" value={req.capacity} onChange={(e) => setReq((r) => ({ ...r, capacity: e.target.value }))}>
+              {["INSTRUCTOR", "EXAMINER", "SUPERVISING_PIC", "ATO", "DTO", "HOT", "AIRPORT", "OTHER"].map((cap) => (
+                <option key={cap} value={cap}>{ROLE_LABELS[cap] ?? cap}</option>
+              ))}
+            </Select>
+            <Button onClick={requestSignoff} disabled={requesting || !req.signerName.trim() || !req.signerEmail.trim()}>
+              {requesting ? "Creating..." : "Create signing link"}
+            </Button>
+          </div>
         </Card>
       )}
 

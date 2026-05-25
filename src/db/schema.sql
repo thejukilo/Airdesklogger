@@ -223,3 +223,23 @@ ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signature_image text;
 ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signer_name    text;
 ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signer_email   text;
 ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signer_license text;
+-- An external signer (one-time link) has no account, so the FK signer_id is null
+-- for them and the snapshot columns above carry who signed.
+ALTER TABLE signatures ALTER COLUMN signer_id DROP NOT NULL;
+
+-- One-time signing links for external instructors/examiners who do not have an
+-- account. Only the token hash is stored; the link carries the token. A request
+-- is single-use (used_at) and expires.
+CREATE TABLE IF NOT EXISTS signoff_requests (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  entry_id     uuid NOT NULL REFERENCES flight_entries(id),
+  token_hash   text NOT NULL UNIQUE,
+  signer_name  text NOT NULL,
+  signer_email text NOT NULL,
+  capacity     text NOT NULL,
+  created_by   uuid NOT NULL REFERENCES pilots(id),
+  expires_at   timestamptz NOT NULL,
+  used_at      timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_signoff_requests_entry ON signoff_requests(entry_id);
