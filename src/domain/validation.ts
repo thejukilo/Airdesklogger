@@ -1,0 +1,123 @@
+/**
+ * Derive the 12 column values from an authored entry and enforce the
+ * cross-column invariants EASA relies on:
+ *   - total time = sum of leg block times;
+ *   - single-pilot SE + single-pilot ME + multi-pilot time = total (col 5+6 = 7);
+ *   - function times PIC + co-pilot + dual = total (the primary capacity covers
+ *     the whole flight);
+ *   - night / IFR / instructor time never exceed the total;
+ *   - landing counts are non-negative integers.
+ */
+
+import type { DerivedColumns, FlightEntryInput } from "./types.js";
+import { minutesBetween, utcDateKey } from "./time.js";
+import { validateMultiFlight } from "./multiFlight.js";
+import { functionMinutes } from "./functionTime.js";
+
+export interface ValidationIssue {
+  field: string;
+  message: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  issues: ValidationIssue[];
+  derived?: DerivedColumns;
+}
+
+function isNonNegInt(n: number): boolean {
+  return Number.isInteger(n) && n >= 0;
+}
+
+export function validateEntry(input: FlightEntryInput): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  const mf = validateMultiFlight(input.legs);
+  for (const v of mf.violations) {
+    issues.push({ field: `legs[${v.legIndex ?? "*"}]`, message: v.message });
+  }
+  if (input.legs.length === 0) {
+    return { valid: false, issues };
+  }
+
+  const first = input.legs[0]!;
+  const last = input.legs[input.legs.length - 1]!;
+  const total = input.legs.reduce(
+    (acc, leg) => acc + Math.max(0, minutesBetween(leg.departureTime, leg.arrivalTime)),
+    0,
+  );
+
+  // Columns 5 & 6: single-pilot SE/ME vs multi-pilot, exhaustively from total.
+  const multiPilot = input.aircraft.multiPilot ? total : 0;
+  const singleEngine =
+    !input.aircraft.multiPilot && input.aircraft.engineClass === "SE" ? total : 0;
+  const multiEngine =
+    !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
+
+  if (singleEngine + multiEngine + multiPilot !== total) {
+    issues.push({
+      field: "totalTime",
+      message: "Single-pilot SE + ME + multi-pilot time must equal total time of flight.",
+    });
+  }
+
+  // Column 10.
+  if (!isNonNegInt(input.conditions.night) || input.conditions.night > total) {
+    issues.push({ field: "conditions.night", message: "Night time must be 0..total." });
+  }
+  if (!isNonNegInt(input.conditions.ifr) || input.conditions.ifr > total) {
+    issues.push({ field: "conditions.ifr", message: "IFR time must be 0..total." });
+  }
+
+  // Column 9.
+  if (!isNonNegInt(input.landings.day)) {
+    issues.push({ field: "landings.day", message: "Day landings must be a non-negative integer." });
+  }
+  if (!isNonNegInt(input.landings.night)) {
+    issues.push({
+      field: "landings.night",
+      message: "Night landings must be a non-negative integer.",
+    });
+  }
+
+  // Column 11.
+  const fm = functionMinutes(input.function, total);
+  if (fm.pic + fm.coPilot + fm.dual !== total) {
+    issues.push({
+      field: "function.primary",
+      message: "PIC + co-pilot + dual time must equal total time of flight.",
+    });
+  }
+  if (!isNonNegInt(input.function.instructor) || input.function.instructor > total) {
+    issues.push({ field: "function.instructor", message: "Instructor time must be 0..total." });
+  }
+
+  if (!input.picName || input.picName.trim() === "") {
+    issues.push({ field: "picName", message: "Name of PIC is required (use SELF if applicable)." });
+  }
+
+  if (issues.length > 0) return { valid: false, issues };
+
+  const derived: DerivedColumns = {
+    date: utcDateKey(first.departureTime),
+    departurePlace: first.departurePlace,
+    departureTime: first.departureTime,
+    arrivalPlace: last.arrivalPlace,
+    arrivalTime: last.arrivalTime,
+    singleEngine,
+    multiEngine,
+    multiPilot,
+    total,
+    dayLandings: input.landings.day,
+    nightLandings: input.landings.night,
+    night: input.conditions.night,
+    ifr: input.conditions.ifr,
+    pic: fm.pic,
+    coPilot: fm.coPilot,
+    dual: fm.dual,
+    instructor: fm.instructor,
+    isMultiFlight: mf.isMultiFlight,
+  };
+
+  return { valid: true, issues: [], derived };
+}
