@@ -3,6 +3,7 @@ import { parseFstdRequest } from "../../src/http/parseFstd.js";
 import { RequestError } from "../../src/http/parseEntry.js";
 import { validateFstdSession } from "../../src/domain/validation.js";
 import { createFstdEntry } from "../../src/db/repository.js";
+import { validateFstdReferences } from "../../src/http/validateReferences.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
 /**
@@ -21,6 +22,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const result = validateFstdSession(input);
     if (!result.valid || !result.derived) {
       res.status(422).json({ valid: false, issues: result.issues });
+      return;
+    }
+    const refIssues = await validateFstdReferences(input);
+    if (refIssues.length > 0) {
+      res.status(422).json({ valid: false, issues: refIssues });
       return;
     }
     const created = await createFstdEntry(input, result.derived, claims.sub);

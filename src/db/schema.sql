@@ -157,3 +157,46 @@ DROP TRIGGER IF EXISTS trg_account_events_immutable ON account_events;
 CREATE TRIGGER trg_account_events_immutable
   BEFORE UPDATE OR DELETE ON account_events
   FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+-- ---- Reference data (FOCA 2.3.2, 2.3.3) ---------------------------------------
+
+-- Airports the provider maintains. Places on an entry must be a code present
+-- here, or the no-location indicator ZZZZ. Seed with the ICAO dataset in
+-- production; the reference endpoint can load it.
+CREATE TABLE IF NOT EXISTS airports (
+  icao       char(4) PRIMARY KEY,
+  name       text NOT NULL,
+  country    text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Aircraft, with the properties FOCA asks for. A registration may appear more
+-- than once over its life (variant change, re-registration), distinguished by
+-- valid_from, so the entry refers to the record current at the flight date.
+CREATE TABLE IF NOT EXISTS aircraft (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  registration    text NOT NULL,
+  model           text NOT NULL,
+  icao_type       text,
+  variant         text,
+  category        text NOT NULL CHECK (category IN ('AEROPLANE','HELICOPTER','SAILPLANE','BALLOON')),
+  engine_type     text,
+  engine_count    integer,
+  multi_pilot     boolean NOT NULL DEFAULT false,
+  balloon_group   text,
+  valid_from      date NOT NULL DEFAULT '1970-01-01',
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (registration, valid_from)
+);
+
+CREATE INDEX IF NOT EXISTS idx_aircraft_registration ON aircraft (registration);
+
+-- Synthetic training devices, including kind and level (FNPT I/II, FTD, FFS).
+CREATE TABLE IF NOT EXISTS fstd_devices (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  qualification_number text NOT NULL UNIQUE,
+  device_kind          text NOT NULL CHECK (device_kind IN ('FNPT_I','FNPT_II','FTD','FFS','BITD','OTHER')),
+  level                text,
+  aircraft_type        text,
+  created_at           timestamptz NOT NULL DEFAULT now()
+);

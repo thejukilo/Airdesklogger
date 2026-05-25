@@ -46,6 +46,7 @@ src/
   domain/        Pure compliance logic. No database, no I/O. This is the part to read first.
     columns.ts       The twelve-column matrix, used as the single source of truth.
     attributes.ts    Structured FOCA entry attributes and the sign-off subset.
+    icao.ts          ICAO location-indicator format and the no-location indicator.
     time.ts          UTC storage, with local-time entry parsing and date handling.
     duration.ts      Integer-minute durations and HH:MM formatting.
     types.ts         Core domain types for an entry, its legs and its function time.
@@ -62,6 +63,7 @@ src/
     repository.ts    Create, amend and sign operations, each writing a ledger record.
     authRepository.ts Accounts, MFA secrets and the security log.
     exportRepository.ts Assembles entries, sign-offs and change log for an export.
+    referenceRepository.ts Airports, aircraft and FSTD devices, with lookups.
   pdf/
     logbook.ts       Renders the EASA grid, totals and signature block to PDF.
   auth/
@@ -73,6 +75,7 @@ src/
   http/
     parseEntry.ts    Turns a request body into a validated flight entry, enforcing UTC here.
     parseFstd.ts     Turns a request body into a validated FSTD session.
+    validateReferences.ts Checks places and aircraft against the reference databases.
     auth.ts          Pulls and verifies the session token off a request.
   config.ts          Reads and checks the auth secrets from the environment.
   demo.ts            An end-to-end walk through the whole lifecycle.
@@ -85,6 +88,7 @@ api/               Vercel serverless functions. Thin handlers over the domain lo
   entries/           Create, list, read, amend and sign-off endpoints.
   fstd/index.ts      Record a synthetic training session.
   export/logbook.ts  The full PDF export with sign-offs and change log.
+  reference/[kind].ts Airport, aircraft and FSTD reference lookups and maintenance.
   audit/verify.ts    Recomputes the ledger chain (admin only).
 public/            The static landing page Vercel publishes (a short description of the API).
 vercel.json        Tells Vercel how to build and what to publish.
@@ -110,6 +114,10 @@ AMC1 FCL.050(a)(3) requires simulator sessions to be recorded too, and the print
 ### Structured entry attributes
 
 FOCA 2.2.3 requires a set of attributes to be recorded as structured values rather than buried in free text, so they can be evaluated for licence and endorsement eligibility: skill test, proficiency check, operator proficiency and line checks, cross country, series of flights, towing, landing types, and others. `src/domain/attributes.ts` holds that list and validates entries against it. It also names the subset that is a check or a test and is therefore only creditable once countersigned, so that FOCA 2.4.6 ("flag an entry that needs a signature but does not have one") can be honoured. The attributes and the signature flag are shown in the remarks column of the export.
+
+### Reference databases
+
+FOCA 2.3.2 and 2.3.3 require places and aircraft to be chosen from a maintained database rather than typed freely. There are three reference tables: airports (keyed by ICAO code), aircraft (with the model, ICAO type, variant, category, engine type and count, multi-pilot certification and a valid-from date so a registration can change over its life), and FSTD devices (with kind and level). When an entry is created or amended, `validateReferences.ts` checks that each place is either an ICAO code present in the airport table or the ZZZZ no-location indicator, and that the aircraft registration exists in the reference database as of the flight date; an FSTD session checks its device the same way. The mechanism is complete; loading the full ICAO airport and aircraft-type datasets is an operational step, done through the reference endpoint, since FOCA expects the provider to maintain that data.
 
 ### Pilot function time, including PICUS and SPIC
 
@@ -232,9 +240,10 @@ Logbook endpoints (require a session):
 - `GET /api/entries/{id}` returns the current version and its full change history; `PATCH /api/entries/{id}` records a correction as a new version, and returns 409 if the entry is already locked.
 - `POST /api/entries/{id}/sign` countersigns and locks an entry. The signer must hold a permitting role, have the second factor enabled, and present a current code.
 - `GET /api/export/logbook` returns the holder's complete logbook as a PDF, including the sign-offs and the full change log appendix (FOCA 2.5).
+- `GET /api/reference/{airports|aircraft}?q=` searches the reference databases; `POST /api/reference/{airports|aircraft|fstd}` adds a record (administrator only). Places and aircraft on an entry are validated against these.
 - `GET /api/audit/verify` recomputes the whole ledger chain. Administrator only.
 
-Several of these URLs are served by a smaller number of serverless functions (for example the auth and MFA actions each share one function via a path parameter). This keeps the deployment within the Vercel Hobby plan's limit of twelve functions while leaving the public URLs unchanged.
+Several of these URLs are served by a smaller number of serverless functions (for example the auth and MFA actions each share one function via a path parameter, and the reference kinds share one). This keeps the deployment within the Vercel Hobby plan's limit of twelve functions while leaving the public URLs unchanged. With the reference function added, the deployment is now at that limit of twelve, so a further endpoint would need either the same path-parameter grouping or a paid plan.
 
 The open endpoints work on a fresh deployment before any storage is set up. The rest need a configured database and the auth secrets described below.
 
@@ -303,6 +312,7 @@ Each requirement has code that implements it and tests that exercise it.
 | Structured entry attributes and missing-signature flag (FOCA 2.2.3, 2.4.6) | `domain/attributes.ts` | `test/attributes.test.ts` |
 | Confirmed email and personal details (FOCA 2.1.3) | `db/authRepository.ts`, `api/auth/[action].ts` | `test/authFlow.integration.test.ts` |
 | Export with sign-offs and full change log (FOCA 2.4.6, 2.5) | `db/exportRepository.ts`, `pdf/logbook.ts`, `api/export/logbook.ts` | `test/export.integration.test.ts` |
+| Reference databases for places and aircraft (FOCA 2.3.2, 2.3.3) | `domain/icao.ts`, `db/referenceRepository.ts`, `http/validateReferences.ts` | `test/icao.test.ts`, `test/reference.integration.test.ts` |
 
 ## FOCA acceptance (Swiss competent authority)
 
@@ -321,9 +331,9 @@ Done or substantially done:
 - Tamper-evident sign-off that locks the entry (2.4.4, 2.4.5).
 - Account identity with a confirmed-email step, and the basic personal data the authority asks for: names, date of birth, licence number, address (2.1.3).
 - An export that carries the AMC1 FCL.050 grid, the applied attributes, the sign-offs and the complete change log, and that flags an entry that needs a signature but does not have one (2.4.6, 2.5).
+- Aircraft, airport and FSTD-device reference databases, with entries validated against them (2.3.2, 2.3.3). The mechanism and the validation are in place; loading the full ICAO airport and aircraft-type datasets is an operational step the provider performs through the reference endpoint.
 
 Still to do for route 1.3:
-- Aircraft and airport reference databases with the full property sets, and an FSTD device list with level (2.3.2, 2.3.3).
 - The remaining sailplane and balloon specifics, and TMG dual-category handling (2.2.5, 2.2.6).
 - Instructor sub-roles and the augmented-crew fraction rules from the "Logging of Flight Time" document (2.2.4).
 - A signature captured as an on-screen image (or an official Swiss e-signature), and batch signing of several entries at once (2.4.1, 2.4.2, 2.4.3).
