@@ -46,7 +46,7 @@ async function setup(userId: string, res: VercelResponse): Promise<void> {
   await logAccountEvent({ userId: user.id, eventType: "MFA_SETUP" });
   res.status(200).json({
     secret,
-    otpauthUri: otpauthUri(secret, user.email ?? user.id, "AirdeskLogger"),
+    otpauthUri: otpauthUri(secret, user.email ?? user.id, "Airdeck Logger"),
     note: "Add this to an authenticator app, then confirm a code at /api/auth/mfa/activate.",
   });
 }

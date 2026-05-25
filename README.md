@@ -1,6 +1,6 @@
-# AirdeskLogger
+# Airdeck Logger
 
-AirdeskLogger is the backend for a digital flight crew logbook that records flying time the way EASA expects it to be recorded. It is built around the logbook format described in AMC1 to FCL.050 (the Acceptable Means of Compliance for the recording of flight time under Part-FCL), and the parts of the regulation that are easy to get wrong have been written as small, testable pieces of logic rather than left to the user interface.
+Airdeck Logger is the backend for a digital flight crew logbook that records flying time the way EASA expects it to be recorded. It is built around the logbook format described in AMC1 to FCL.050 (the Acceptable Means of Compliance for the recording of flight time under Part-FCL), and the parts of the regulation that are easy to get wrong have been written as small, testable pieces of logic rather than left to the user interface.
 
 This repository contains the compliance core: the data model, the validation rules, the tamper-evident audit trail, the cryptographic sign-off, and the PDF generator that reproduces the traditional paper layout. It does not yet contain the HTTP API or the web, iOS and Android clients. Those sit on top of this core and are intentionally kept separate so the rules below can be reviewed and tested in isolation.
 

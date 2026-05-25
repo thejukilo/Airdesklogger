@@ -24,9 +24,10 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 function BrandMark() {
   return (
-    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-        <path d="M2 16l9-3V4.5a1.5 1.5 0 0 1 3 0V13l7 2.3v2.2l-7-2v3.6l2 1.4V22l-3.5-1L9 23v-1.5l2-1.4V16.3l-9 1.9z" />
+    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
+      <svg viewBox="0 0 22 22" className="h-5 w-5" fill="none" aria-hidden="true">
+        <path d="M3 11L11 3L19 11L11 19L3 11Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M7 11L11 7L15 11L11 15L7 11Z" fill="currentColor" />
       </svg>
     </span>
   );
@@ -94,7 +95,9 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-2.5">
           <Link to="/" className="flex items-center gap-2.5">
             <BrandMark />
-            <span className="text-lg font-semibold tracking-tight text-ink">AirdeskLogger</span>
+            <span className="text-lg font-semibold tracking-tight text-ink">
+              Airdeck<span className="font-normal text-slate-500"> Logger</span>
+            </span>
           </Link>
           <UserMenu />
         </div>

@@ -1,5 +1,5 @@
 /**
- * Thin client over the AirdeskLogger API. The SPA and the API share an origin in
+ * Thin client over the Airdeck Logger API. The SPA and the API share an origin in
  * production, so paths are relative. The session token is kept in localStorage
  * and attached as a bearer on every request.
  */
