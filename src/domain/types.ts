@@ -5,7 +5,7 @@
  * (see multiFlight.ts). All times are UTC instants; all durations are minutes.
  */
 
-/** EASA primary pilot capacity — mutually exclusive, covers the whole flight. */
+/** EASA primary pilot capacity. Mutually exclusive, and it covers the whole flight. */
 export type PilotFunction = "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL";
 
 /** Who must countersign, if anyone. */

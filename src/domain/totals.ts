@@ -2,9 +2,9 @@
  * Page-by-page totals with carry-over, exactly as the paper EASA logbook works.
  *
  * Each page shows three total rows for every summable column:
- *   - TOTAL THIS PAGE       — sum of the rows printed on this page;
- *   - TOTAL FROM PREVIOUS    — the grand total brought forward from earlier pages;
- *   - TOTAL TIME             — brought-forward + this-page, carried to the next page.
+ *   - TOTAL THIS PAGE: the sum of the rows printed on this page.
+ *   - TOTAL FROM PREVIOUS PAGES: the grand total brought forward from earlier pages.
+ *   - TOTAL TIME: brought-forward plus this-page, which is then carried to the next page.
  *
  * The carried-forward total of one page is the brought-forward total of the next,
  * so the running grand total threads through the whole logbook without rounding

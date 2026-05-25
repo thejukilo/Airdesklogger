@@ -1,7 +1,7 @@
 /**
  * Strict UTC enforcement.
  *
- * EASA logs must be in UTC only — there is no local-time option. We refuse to
+ * EASA logs must be in UTC only. There is no local-time option, so we refuse to
  * silently convert: any timestamp entering the domain must be expressed in UTC
  * by the caller. A string with a non-zero offset (e.g. +02:00) or no zone
  * designator at all is ambiguous local time and is rejected outright, rather
@@ -37,7 +37,7 @@ export function toUtcIso(d: Date): string {
   return d.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
-/** The UTC calendar date (yyyy-mm-dd) of an instant — the logbook DATE column. */
+/** The UTC calendar date (yyyy-mm-dd) of an instant. This is the logbook DATE column. */
 export function utcDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }

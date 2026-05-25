@@ -10,7 +10,7 @@
  *   - a signature block for the pilot to certify the page.
  *
  * Built on pdf-lib (pure JS, standard fonts) so it runs unchanged in Vercel
- * serverless functions — no runtime font-file reads or native binaries.
+ * serverless functions, with no runtime font-file reads or native binaries.
  */
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
@@ -160,8 +160,8 @@ function leftText(p: PDFPage, text: string, x: number, w: number, y: number, siz
 function clip(text: string, maxW: number, size: number, font: PDFFont): string {
   if (font.widthOfTextAtSize(text, size) <= maxW) return text;
   let s = text;
-  while (s.length > 1 && font.widthOfTextAtSize(s + "…", size) > maxW) s = s.slice(0, -1);
-  return s + "…";
+  while (s.length > 1 && font.widthOfTextAtSize(s + "...", size) > maxW) s = s.slice(0, -1);
+  return s + "...";
 }
 
 function hline(p: PDFPage, x1: number, x2: number, y: number, color = BLACK, thickness = 0.5): void {

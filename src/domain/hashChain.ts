@@ -5,7 +5,7 @@
  * record to a global ledger. Each record hashes the previous record's hash into
  * its own, forming a chain: altering or removing any past record invalidates
  * every record after it. This is the cryptographic backbone of the EASA
- * immutability requirement — history is proven, not merely "not overwritten".
+ * immutability requirement: history is proven, not merely "not overwritten".
  */
 
 import { createHash } from "node:crypto";

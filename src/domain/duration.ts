@@ -1,7 +1,7 @@
 /**
- * Durations are stored as whole minutes (integers) everywhere — never floats —
- * so totals are exact and carry-over across pages cannot accumulate rounding
- * error. Display is HH:MM as on the paper logbook.
+ * Durations are stored as whole minutes (integers) everywhere, never floats, so
+ * totals are exact and the carry-over across pages cannot accumulate rounding
+ * error. Display is HH:MM, as on the paper logbook.
  */
 
 export class DurationError extends Error {}

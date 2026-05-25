@@ -4,8 +4,8 @@
  * When an instructor or examiner certifies a training flight or skill test, they
  * sign over a canonical payload that binds: the entry id, the exact content hash
  * being attested, the signer and their role, and the UTC time of signing. A valid
- * signature locks the entry — the persistence layer refuses any further version
- * once a lock exists, satisfying "permanently locked from future editing".
+ * signature locks the entry: once a lock exists the persistence layer refuses
+ * any further version, which satisfies "permanently locked from future editing".
  *
  * Keys are never generated or held here implicitly: callers pass keys in, so the
  * deployment can source the private key from a KMS / env and store only public
@@ -49,7 +49,7 @@ export function generateSigningKeyPair(): { publicKey: string; privateKey: strin
 }
 
 function canonicalPayload(p: SigningPayload): Buffer {
-  // Fixed field order — both signer and verifier must serialize identically.
+  // Fixed field order, because both signer and verifier must serialize identically.
   return Buffer.from(
     JSON.stringify([p.entryId, p.contentHash, p.signerId, p.signerRole, p.signedAt]),
     "utf8",

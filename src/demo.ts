@@ -69,13 +69,13 @@ async function main(): Promise<void> {
     landings: { day: 1, night: 0 },
     conditions: { night: 0, ifr: 25 },
     function: { primary: "SPIC", instructor: 0 },
-    remarks: "SPIC — PPL skill test",
+    remarks: "SPIC: PPL skill test",
   };
   const sv = validateEntry(spic);
   const created = await createEntry(spic, sv.derived!, student);
 
   // Correct a typo: a new immutable version, history preserved.
-  const fixed = { ...spic, remarks: "SPIC — PPL skill test (pass)" };
+  const fixed = { ...spic, remarks: "SPIC: PPL skill test (pass)" };
   await amendEntry(created.entryId, fixed, validateEntry(fixed).derived!, student, "record result");
   console.log("history versions:", (await getHistory(created.entryId)).map((h) => h.version_no));
 
@@ -83,7 +83,7 @@ async function main(): Promise<void> {
   const keys = generateSigningKeyPair();
   const instructor = await createPilot("Sam Examiner", "UK.FE.0099", keys.publicKey);
   const sig = await signCurrentVersion(created.entryId, keys, { signerId: instructor, signerRole: "EXAMINER" }, signEntry);
-  console.log("signed off by examiner, content hash:", sig.contentHash.slice(0, 16), "…");
+  console.log("signed off by examiner, content hash:", sig.contentHash.slice(0, 16));
 
   try {
     await amendEntry(created.entryId, fixed, validateEntry(fixed).derived!, student, "tamper");

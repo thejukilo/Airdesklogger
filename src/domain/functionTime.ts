@@ -6,7 +6,7 @@
  * the entire flight; instructor time is an independent annotation (a flight
  * instructor is normally also PIC, so logs both for the same flight).
  *
- * Two capacities count as PIC time but are NOT free-standing — they require a
+ * Two capacities count as PIC time but are not free-standing. They require a
  * countersignature before they are creditable:
  *   - PICUS (Pilot-in-Command Under Supervision): credited as PIC; the
  *     supervising PIC must countersign that the flight was conducted as PICUS.
