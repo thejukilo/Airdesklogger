@@ -78,6 +78,7 @@ const empty = {
   nightLandings: 0,
   picName: "SELF",
   remarks: "",
+  extraLegs: [] as Array<{ departurePlace: string; arrivalPlace: string; blockStart: string; blockEnd: string }>,
   attributes: [] as string[],
   hesloLevel: "",
   hecLevel: "",
@@ -107,6 +108,19 @@ export function NewEntry() {
         ? prev.attributes.filter((a) => a !== key)
         : [...prev.attributes, key],
     }));
+  }
+
+  function addLeg() {
+    setF((p) => ({
+      ...p,
+      extraLegs: [...p.extraLegs, { departurePlace: p.departurePlace, arrivalPlace: p.departurePlace, blockStart: "", blockEnd: "" }],
+    }));
+  }
+  function removeLeg(i: number) {
+    setF((p) => ({ ...p, extraLegs: p.extraLegs.filter((_, j) => j !== i) }));
+  }
+  function setLeg(i: number, k: "departurePlace" | "arrivalPlace" | "blockStart" | "blockEnd", v: string) {
+    setF((p) => ({ ...p, extraLegs: p.extraLegs.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
   }
 
   const has = (key: string) => f.attributes.includes(key);
@@ -197,6 +211,12 @@ export function NewEntry() {
               ? { arrivalPlaceName: f.arrivalPlaceName }
               : {}),
           },
+          ...f.extraLegs.map((l) => ({
+            departurePlace: l.departurePlace.toUpperCase(),
+            departureTime: toIso(`${f.date}T${l.blockStart}`, timeMode),
+            arrivalPlace: l.arrivalPlace.toUpperCase(),
+            arrivalTime: toIso(`${l.blockEnd > l.blockStart ? f.date : nextDay(f.date)}T${l.blockEnd}`, timeMode),
+          })),
         ],
         picName: f.picName,
         landings: { day: Number(f.dayLandings), night: Number(f.nightLandings) },
@@ -284,6 +304,38 @@ export function NewEntry() {
               <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} required />
             </div>
             <p className="mt-1 text-xs text-slate-500">Stored as UTC; an entry made in local time is noted on the export.</p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-700">Additional legs (same-day series)</span>
+              <button type="button" onClick={addLeg} className="text-xs text-slate-600 underline">
+                Add leg
+              </button>
+            </div>
+            <p className="mb-2 text-xs text-slate-500">
+              For a series of flights on the same day that each return to the departure point with under 30
+              minutes between them, recorded as one entry (AMC1 FCL.050).
+            </p>
+            {f.extraLegs.map((l, i) => (
+              <div key={i} className="mb-2 grid grid-cols-9 items-end gap-2">
+                <div className="col-span-2">
+                  <Field label="From" value={l.departurePlace} onChange={(e) => setLeg(i, "departurePlace", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <Field label="To" value={l.arrivalPlace} onChange={(e) => setLeg(i, "arrivalPlace", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <Field label={timeLabels.off} type="time" value={l.blockStart} onChange={(e) => setLeg(i, "blockStart", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <Field label={timeLabels.on} type="time" value={l.blockEnd} onChange={(e) => setLeg(i, "blockEnd", e.target.value)} />
+                </div>
+                <button type="button" onClick={() => removeLeg(i)} className="pb-2 text-xs text-slate-500 underline">
+                  Remove
+                </button>
+              </div>
+            ))}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
