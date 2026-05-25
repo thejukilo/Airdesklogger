@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { useAuth } from "../auth";
@@ -17,6 +17,48 @@ function clock(iso: string | undefined): string {
   return iso ? `${iso.slice(11, 16)}Z` : "";
 }
 
+const ICON = "h-6 w-6";
+const iconProps = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, viewBox: "0 0 24 24" };
+
+function PlusIcon() {
+  return (
+    <svg className={ICON} {...iconProps}><path d="M12 5v14M5 12h14" /></svg>
+  );
+}
+function DownloadIcon() {
+  return (
+    <svg className={ICON} {...iconProps}><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
+  );
+}
+function LogIcon() {
+  return (
+    <svg className={ICON} {...iconProps}><path d="M4 5h16M4 12h16M4 19h10" /></svg>
+  );
+}
+function GearIcon() {
+  return (
+    <svg className={ICON} {...iconProps}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+    </svg>
+  );
+}
+
+/** An app-style quick-action button used on the mobile home screen. */
+function Tile({ icon, label, onClick, disabled }: { icon: ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex flex-col items-center justify-center gap-2 rounded-xl border bg-white p-4 text-slate-700 active:bg-slate-50 disabled:opacity-50"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-ink">{icon}</span>
+      <span className="text-sm font-medium">{label}</span>
+    </button>
+  );
+}
+
 export function Logbook() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -26,6 +68,13 @@ export function Logbook() {
   const [exporting, setExporting] = useState(false);
   const [openId, setOpenId] = useState("");
   const isSigner = (user?.roles ?? []).some((r) => SIGNER_ROLES.includes(r));
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const totalMinutes = entries.reduce((sum, e) => sum + (Number(e.content.columns?.total) || 0), 0);
+  const totalLandings = entries.reduce(
+    (sum, e) => sum + (Number(e.content.columns?.dayLandings) || 0) + (Number(e.content.columns?.nightLandings) || 0),
+    0,
+  );
 
   useEffect(() => {
     api
@@ -57,7 +106,7 @@ export function Logbook() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Logbook</h1>
-        <div className="flex gap-2">
+        <div className="hidden gap-2 md:flex">
           <Button variant="ghost" onClick={exportPdf} disabled={exporting || entries.length === 0}>
             {exporting ? "Preparing..." : "Export PDF"}
           </Button>
@@ -70,8 +119,31 @@ export function Logbook() {
         </div>
       </div>
 
+      {/* Mobile home screen: a status widget and app-style quick actions. */}
+      <div className="space-y-4 md:hidden">
+        <Card>
+          <div className="grid grid-cols-2 divide-x">
+            <div className="px-2 text-center">
+              <div className="text-2xl font-semibold tabular-nums">{hhmm(totalMinutes) || "00:00"}</div>
+              <div className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Total time</div>
+            </div>
+            <div className="px-2 text-center">
+              <div className="text-2xl font-semibold tabular-nums">{totalLandings}</div>
+              <div className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Landings</div>
+            </div>
+          </div>
+        </Card>
+        <div className="grid grid-cols-2 gap-3">
+          <Tile icon={<PlusIcon />} label="New flight" onClick={() => navigate("/new")} />
+          <Tile icon={<DownloadIcon />} label="Download report" onClick={exportPdf} disabled={exporting || entries.length === 0} />
+          <Tile icon={<LogIcon />} label="Flight log" onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })} />
+          <Tile icon={<GearIcon />} label="Settings" onClick={() => navigate("/account")} />
+        </div>
+      </div>
+
       {error && <Alert>{error}</Alert>}
 
+      <div ref={listRef} className="scroll-mt-4" />
       <Card>
         {loading ? (
           <p className="text-sm text-slate-500">Loading...</p>
