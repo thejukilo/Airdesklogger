@@ -60,6 +60,8 @@ src/
     pool.ts          PostgreSQL connection pool, sized for serverless.
     migrate.ts       Applies the schema.
     repository.ts    Create, amend and sign operations, each writing a ledger record.
+    authRepository.ts Accounts, MFA secrets and the security log.
+    exportRepository.ts Assembles entries, sign-offs and change log for an export.
   pdf/
     logbook.ts       Renders the EASA grid, totals and signature block to PDF.
   auth/
@@ -78,8 +80,11 @@ api/               Vercel serverless functions. Thin handlers over the domain lo
   health.ts          Liveness check.
   validate.ts        Validates one entry and returns the derived columns.
   logbook-pdf.ts     Renders entries to a PDF.
-  auth/              Register, login and the two MFA endpoints.
+  auth/[action].ts   Register, login and verify-email (one function, path-dispatched).
+  auth/mfa/[action].ts  MFA setup and activate (one function).
   entries/           Create, list, read, amend and sign-off endpoints.
+  fstd/index.ts      Record a synthetic training session.
+  export/logbook.ts  The full PDF export with sign-offs and change log.
   audit/verify.ts    Recomputes the ledger chain (admin only).
 public/            The static landing page Vercel publishes (a short description of the API).
 vercel.json        Tells Vercel how to build and what to publish.
@@ -226,7 +231,10 @@ Logbook endpoints (require a session):
 - `POST /api/fstd` records a synthetic training (simulator) session for the signed-in holder.
 - `GET /api/entries/{id}` returns the current version and its full change history; `PATCH /api/entries/{id}` records a correction as a new version, and returns 409 if the entry is already locked.
 - `POST /api/entries/{id}/sign` countersigns and locks an entry. The signer must hold a permitting role, have the second factor enabled, and present a current code.
+- `GET /api/export/logbook` returns the holder's complete logbook as a PDF, including the sign-offs and the full change log appendix (FOCA 2.5).
 - `GET /api/audit/verify` recomputes the whole ledger chain. Administrator only.
+
+Several of these URLs are served by a smaller number of serverless functions (for example the auth and MFA actions each share one function via a path parameter). This keeps the deployment within the Vercel Hobby plan's limit of twelve functions while leaving the public URLs unchanged.
 
 The open endpoints work on a fresh deployment before any storage is set up. The rest need a configured database and the auth secrets described below.
 
@@ -256,6 +264,8 @@ Three things are worth knowing for a serverless deployment.
 Use a pooled database connection. Set `DATABASE_URL` to a pooled endpoint such as Vercel Postgres, the Neon pooler, or Supabase with pgbouncer, so that a burst of function invocations does not exhaust direct connections. The pool size is read from `PGPOOL_MAX` and defaults to one, because each warm function instance keeps its own pool. The validate and PDF endpoints work without any of this; only the storage endpoints need it.
 
 The PDF generator is already serverless-safe. It is pure JavaScript and uses the standard fonts, so there are no font files to include in the deployment and nothing native to compile.
+
+Mind the function count. The Vercel Hobby plan allows at most twelve serverless functions per deployment, and every file under `api/` is one function. To stay within that, related actions share a function through a path parameter (the auth actions in `api/auth/[action].ts`, the MFA steps in `api/auth/mfa/[action].ts`), which keeps the public URLs unchanged. If more endpoints are added and the limit is reached again, either group more actions this way or move to a paid plan.
 
 Set the auth secrets. Two environment variables are required for anything beyond the open endpoints, and the service refuses to use weak values: `AUTH_JWT_SECRET` (at least 32 characters, signs session tokens) and `AUTH_SIGNING_MASTER_KEY` (exactly 64 hex characters, wraps each signer's private key). An optional `ADMIN_BOOTSTRAP_TOKEN` lets a registration request grant elevated roles. The `.env.example` file shows how to generate each one. These come from the environment, never the database.
 
@@ -291,7 +301,8 @@ Each requirement has code that implements it and tests that exercise it.
 | Security log of logins and step-ups | `db/schema.sql`, `db/authRepository.ts` | `test/authFlow.integration.test.ts` |
 | Local-time entry stored as UTC and flagged (FOCA 2.2.7) | `domain/time.ts`, `http/parseEntry.ts` | `test/time.test.ts` |
 | Structured entry attributes and missing-signature flag (FOCA 2.2.3, 2.4.6) | `domain/attributes.ts` | `test/attributes.test.ts` |
-| Confirmed email and personal details (FOCA 2.1.3) | `db/authRepository.ts`, `api/auth/verify-email.ts` | `test/authFlow.integration.test.ts` |
+| Confirmed email and personal details (FOCA 2.1.3) | `db/authRepository.ts`, `api/auth/[action].ts` | `test/authFlow.integration.test.ts` |
+| Export with sign-offs and full change log (FOCA 2.4.6, 2.5) | `db/exportRepository.ts`, `pdf/logbook.ts`, `api/export/logbook.ts` | `test/export.integration.test.ts` |
 
 ## FOCA acceptance (Swiss competent authority)
 
@@ -309,13 +320,14 @@ Done or substantially done:
 - An immutable change log the user cannot edit (2.3.7).
 - Tamper-evident sign-off that locks the entry (2.4.4, 2.4.5).
 - Account identity with a confirmed-email step, and the basic personal data the authority asks for: names, date of birth, licence number, address (2.1.3).
+- An export that carries the AMC1 FCL.050 grid, the applied attributes, the sign-offs and the complete change log, and that flags an entry that needs a signature but does not have one (2.4.6, 2.5).
 
 Still to do for route 1.3:
 - Aircraft and airport reference databases with the full property sets, and an FSTD device list with level (2.3.2, 2.3.3).
 - The remaining sailplane and balloon specifics, and TMG dual-category handling (2.2.5, 2.2.6).
 - Instructor sub-roles and the augmented-crew fraction rules from the "Logging of Flight Time" document (2.2.4).
 - A signature captured as an on-screen image (or an official Swiss e-signature), and batch signing of several entries at once (2.4.1, 2.4.2, 2.4.3).
-- A richer export that carries the applied attributes, the signatures, and the complete change log, and that flags entries missing a required signature (2.4.6, 2.5).
+- A date-range export for a specific revalidation period (2.5.1).
 - The 48-hour grace window before edits become tracked changes (2.3.7).
 
 And the part that is not code: route 1.3 finishes with a FOCA process, a declaration of conformity, testing against a FOCA test account, the dLIS data format which FOCA releases only after acceptance, an acceptance letter, and fees. The software can be built to meet the conditions, but the acceptance decision is FOCA's.

@@ -69,7 +69,8 @@ function remarksText(e: LogbookEntryForPdf): string {
   const parts: string[] = [];
   if (e.remarks) parts.push(e.remarks);
   if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
-  if (e.signatureRequired) parts.push("(signature required)");
+  if (e.signatureRequired && !e.signed) parts.push("(signature required)");
+  else if (e.signed) parts.push("(signed off)");
   return parts.join(" ");
 }
 
@@ -89,6 +90,8 @@ export interface LogbookEntryForPdf extends DerivedColumns {
   aircraftReg: string;
   picName: string;
   remarks: string;
+  /** Whether a valid sign-off exists; used to flag a missing required signature. */
+  signed?: boolean;
 }
 
 export interface PdfOptions {
@@ -98,9 +101,16 @@ export interface PdfOptions {
   rowsPerPage?: number;
 }
 
+/** Appendix content for a FOCA-style export (sign-offs and the change log). */
+export interface AuditAppendix {
+  signoffs: Array<{ entry: string; text: string }>;
+  changeLog: Array<{ entry: string; text: string }>;
+}
+
 export async function generateLogbookPdf(
   entries: readonly LogbookEntryForPdf[],
   opts: PdfOptions,
+  audit?: AuditAppendix,
 ): Promise<Uint8Array> {
   const rowsPerPage = opts.rowsPerPage ?? 12;
   const doc = await PDFDocument.create();
@@ -114,7 +124,58 @@ export async function generateLogbookPdf(
     drawPage(doc, font, bold, page, pages.length, opts, entries);
   }
 
+  if (audit) {
+    if (audit.signoffs.length > 0) {
+      drawAppendix(doc, font, bold, "SIGN-OFFS", audit.signoffs, opts.pilotName);
+    }
+    // The change log is a mandatory part of the export (FOCA 2.3.7).
+    drawAppendix(doc, font, bold, "CHANGE LOG", audit.changeLog, opts.pilotName);
+  }
+
   return doc.save();
+}
+
+const A4 = { w: 595.28, h: 841.89 };
+
+function drawAppendix(
+  doc: PDFDocument,
+  font: PDFFont,
+  bold: PDFFont,
+  title: string,
+  rows: ReadonlyArray<{ entry: string; text: string }>,
+  pilotName: string,
+): void {
+  const lineH = 13;
+  const top = A4.h - MARGIN;
+  const bottom = MARGIN + 20;
+  const usable = top - 40 - bottom;
+  const perPage = Math.max(1, Math.floor(usable / lineH));
+  const lines = rows.length > 0 ? rows : [{ entry: "", text: "None recorded." }];
+  const pageCount = Math.ceil(lines.length / perPage);
+
+  for (let pageNo = 0; pageNo < pageCount; pageNo++) {
+    const p = doc.addPage([A4.w, A4.h]);
+    p.drawText(title, { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
+    p.drawText(`Holder: ${pilotName}    All times UTC`, {
+      x: MARGIN,
+      y: top - 26,
+      size: 8,
+      font,
+      color: GREY,
+    });
+    let y = top - 48;
+    for (const row of lines.slice(pageNo * perPage, (pageNo + 1) * perPage)) {
+      if (row.entry) p.drawText(clip(row.entry, 130, 8, bold), { x: MARGIN, y, size: 8, font: bold, color: BLACK });
+      p.drawText(clip(row.text, A4.w - MARGIN * 2 - 140, 8, font), {
+        x: MARGIN + 140,
+        y,
+        size: 8,
+        font,
+        color: BLACK,
+      });
+      y -= lineH;
+    }
+  }
 }
 
 function emptyPage(): LogbookPage {
