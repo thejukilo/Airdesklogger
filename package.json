@@ -4,11 +4,13 @@
   "private": true,
   "description": "EASA-compliant digital flight logbook backend (AMC1 FCL.050)",
   "type": "module",
+  "workspaces": ["web"],
   "engines": {
     "node": "22.x"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:web": "npm run build -w airdesklogger-web",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.api.json",
     "test": "vitest run",
     "test:watch": "vitest",

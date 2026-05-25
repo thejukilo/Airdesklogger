@@ -92,8 +92,14 @@ api/               Vercel serverless functions. Thin handlers over the domain lo
   export/logbook.ts  The full PDF export with sign-offs and change log.
   reference/[kind].ts Airport, aircraft and FSTD reference lookups and maintenance.
   audit/verify.ts    Recomputes the ledger chain (admin only).
-public/            The static landing page Vercel publishes (a short description of the API).
-vercel.json        Tells Vercel how to build and what to publish.
+web/               The web frontend (Vite + React + Tailwind), a separate workspace.
+  src/
+    api.ts           Typed client over the API; keeps the session token.
+    auth.tsx         Session context (login, logout, restore).
+    App.tsx          Routes and the app shell.
+    pages/           Login, Register, Logbook, NewEntry.
+    components/ui.tsx Small Tailwind-styled building blocks.
+vercel.json        Builds the web app, publishes web/dist, deploys the api functions.
 test/              One test file per domain module, plus database and PDF tests.
 ```
 
@@ -237,6 +243,24 @@ There is also a type check:
 npm run typecheck
 ```
 
+## The web frontend
+
+The `web` folder is a Vite + React single-page app, styled with Tailwind, kept as a separate workspace so the audited backend and the user interface stay cleanly apart. It talks to the same API over relative `/api` paths and keeps the session token in the browser. The first screens are sign-in and registration, the logbook list with a PDF export button, and a form to record a flight. It is web first; a React Native app for iOS and Android can later reuse the same API and the domain types.
+
+Run it in development against a running API by pointing the dev proxy at that API:
+
+```
+VITE_API_PROXY=https://your-deployment npm run dev -w airdesklogger-web
+```
+
+Build it (this is what the deployment runs):
+
+```
+npm run build:web
+```
+
+In production the SPA and the API are served from the same origin, so no proxy or API base URL is needed.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every push and pull request. It starts a
@@ -300,7 +324,7 @@ Logbook endpoints (require a session):
 - `GET /api/reference/{airports|aircraft}?q=` searches the reference databases; `POST /api/reference/{airports|aircraft|fstd}` adds a record (administrator only). Places and aircraft on an entry are validated against these.
 - `GET /api/audit/verify` recomputes the whole ledger chain. Administrator only.
 
-Several of these URLs are served by a smaller number of serverless functions (for example the auth and MFA actions each share one function via a path parameter, and the reference kinds share one). This keeps the deployment within the Vercel Hobby plan's limit of twelve functions while leaving the public URLs unchanged. With the reference function added, the deployment is now at that limit of twelve, so a further endpoint would need either the same path-parameter grouping or a paid plan.
+Several of these URLs are served by a smaller number of serverless functions (the auth and MFA actions each share one function via a path parameter, the reference kinds share one, and batch signing reuses the sign function). This keeps the public URLs unchanged and the function count low.
 
 The open endpoints work on a fresh deployment before any storage is set up. The rest need a configured database and the auth secrets described below.
 
@@ -323,7 +347,7 @@ A request to `POST /api/validate` looks like this:
 
 ## Deploying on Vercel
 
-The project is configured for Vercel in `vercel.json`. There is no application framework involved, so the build step runs the type check, the static landing page in `public` is published, and the files in `api` are deployed as serverless functions. This is also why a plain build without that configuration failed earlier with a message about a missing output directory: Vercel expected a static site to publish and there was none, because this is an API rather than a website.
+The project is configured for Vercel in `vercel.json`. The build type checks the backend and builds the web app, the built SPA in `web/dist` is published, and the files in `api` are deployed as serverless functions. A rewrite sends every path that is not under `/api` to the SPA's `index.html`, so client-side routes such as `/new` resolve on a direct visit while the API keeps its own paths.
 
 Three things are worth knowing for a serverless deployment.
 
@@ -331,7 +355,7 @@ Use a pooled database connection. Set `DATABASE_URL` to a pooled endpoint such a
 
 The PDF generator is already serverless-safe. It is pure JavaScript and uses the standard fonts, so there are no font files to include in the deployment and nothing native to compile.
 
-Mind the function count. The Vercel Hobby plan allows at most twelve serverless functions per deployment, and every file under `api/` is one function. To stay within that, related actions share a function through a path parameter (the auth actions in `api/auth/[action].ts`, the MFA steps in `api/auth/mfa/[action].ts`), which keeps the public URLs unchanged. If more endpoints are added and the limit is reached again, either group more actions this way or move to a paid plan.
+A note on the function count. Every file under `api/` is one serverless function. Several related actions share a function through a path parameter (the auth actions in `api/auth/[action].ts`, the MFA steps in `api/auth/mfa/[action].ts`, the reference kinds in `api/reference/[kind].ts`, and batch signing through the `batch` route on the sign function). That keeps the function count low and the public URLs unchanged; it was originally needed for the Hobby plan's limit of twelve and remains a tidy arrangement on the Pro plan.
 
 Set the auth secrets. Two environment variables are required for anything beyond the open endpoints, and the service refuses to use weak values: `AUTH_JWT_SECRET` (at least 32 characters, signs session tokens) and `AUTH_SIGNING_MASTER_KEY` (exactly 64 hex characters, wraps each signer's private key). An optional `ADMIN_BOOTSTRAP_TOKEN` lets a registration request grant elevated roles. The `.env.example` file shows how to generate each one. These come from the environment, never the database.
 
