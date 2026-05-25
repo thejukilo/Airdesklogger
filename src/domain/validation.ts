@@ -9,7 +9,7 @@
  *   - landing counts are non-negative integers.
  */
 
-import type { DerivedColumns, FlightEntryInput } from "./types.js";
+import type { DerivedColumns, FlightEntryInput, FstdSessionInput } from "./types.js";
 import { minutesBetween, utcDateKey } from "./time.js";
 import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
@@ -99,6 +99,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   if (issues.length > 0) return { valid: false, issues };
 
   const derived: DerivedColumns = {
+    kind: "FLIGHT",
     date: utcDateKey(first.departureTime),
     departurePlace: first.departurePlace,
     departureTime: first.departureTime,
@@ -119,5 +120,57 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     isMultiFlight: mf.isMultiFlight,
   };
 
+  return { valid: true, issues: [], derived };
+}
+
+/**
+ * Validate a synthetic training session. An FSTD row carries no flight time; the
+ * flight columns are all zero and only the FSTD column and remarks are filled.
+ */
+export function validateFstdSession(input: FstdSessionInput): ValidationResult {
+  const issues: ValidationIssue[] = [];
+  if (!input.deviceType.trim()) {
+    issues.push({ field: "deviceType", message: "Device type is required (aircraft type, or FNPT I/II)." });
+  }
+  if (!input.qualificationNumber.trim()) {
+    issues.push({ field: "qualificationNumber", message: "Device qualification number is required." });
+  }
+  if (!isNonNegInt(input.totalMinutes) || input.totalMinutes === 0) {
+    issues.push({ field: "totalMinutes", message: "Total time of session must be a positive whole number of minutes." });
+  }
+  if (Number.isNaN(input.date.getTime())) {
+    issues.push({ field: "date", message: "A valid session date is required." });
+  }
+  if (issues.length > 0) return { valid: false, issues };
+
+  const date = utcDateKey(input.date);
+  const derived: DerivedColumns = {
+    kind: "FSTD",
+    date,
+    departurePlace: "",
+    departureTime: input.date,
+    arrivalPlace: "",
+    arrivalTime: input.date,
+    singleEngine: 0,
+    multiEngine: 0,
+    multiPilot: 0,
+    total: 0,
+    dayLandings: 0,
+    nightLandings: 0,
+    night: 0,
+    ifr: 0,
+    pic: 0,
+    coPilot: 0,
+    dual: 0,
+    instructor: 0,
+    isMultiFlight: false,
+    fstd: {
+      date,
+      deviceType: input.deviceType,
+      qualificationNumber: input.qualificationNumber,
+      instruction: input.instruction,
+      totalMinutes: input.totalMinutes,
+    },
+  };
   return { valid: true, issues: [], derived };
 }

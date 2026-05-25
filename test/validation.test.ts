@@ -51,18 +51,18 @@ describe("entry validation & column derivation", () => {
     expect(r.derived!.coPilot).toBe(90);
   });
 
-  it("sums leg block times for a multi-flight entry", () => {
+  it("sums leg block times for a multi-flight entry of local flights", () => {
     const r = validateEntry(
       baseEntry({
         legs: [
           {
             departurePlace: "EGKB",
             departureTime: new Date("2026-05-25T09:00:00Z"),
-            arrivalPlace: "EGMC",
+            arrivalPlace: "EGKB",
             arrivalTime: new Date("2026-05-25T09:40:00Z"),
           },
           {
-            departurePlace: "EGMC",
+            departurePlace: "EGKB",
             departureTime: new Date("2026-05-25T10:00:00Z"),
             arrivalPlace: "EGKB",
             arrivalTime: new Date("2026-05-25T10:45:00Z"),

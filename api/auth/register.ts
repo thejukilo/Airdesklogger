@@ -21,6 +21,7 @@ const Body = z.object({
   password: z.string().min(12),
   name: z.string().min(1),
   licenseNumber: z.string().optional(),
+  address: z.string().optional(),
   roles: z.array(z.string()).optional(),
 });
 
@@ -34,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request." });
     return;
   }
-  const { email, password, name, licenseNumber } = parsed.data;
+  const { email, password, name, licenseNumber, address } = parsed.data;
 
   let roles: Role[] = ["PILOT"];
   if (parsed.data.roles && parsed.data.roles.length > 0) {
@@ -62,6 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     name,
     roles,
     ...(licenseNumber !== undefined ? { licenseNumber } : {}),
+    ...(address !== undefined ? { address } : {}),
     signingPublicKey: publicKey,
     signingKeyWrapped: wrappedPrivateKey,
   });

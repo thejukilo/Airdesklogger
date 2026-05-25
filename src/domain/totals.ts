@@ -34,6 +34,7 @@ function rowValues(e: DerivedColumns): ColumnTotals {
     coPilot: e.coPilot,
     dual: e.dual,
     instructor: e.instructor,
+    fstdTotal: e.fstd?.totalMinutes ?? 0,
   };
 }
 

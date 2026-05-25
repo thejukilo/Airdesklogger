@@ -118,6 +118,7 @@ CREATE TRIGGER trg_no_edit_when_locked
 -- examiner all authenticate as a row here. These columns are added with IF NOT
 -- EXISTS so the migration stays idempotent on an existing database.
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email              text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS address            text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_hash      text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS roles              text[] NOT NULL DEFAULT '{PILOT}';
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_secret_wrapped text;

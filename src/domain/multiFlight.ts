@@ -1,15 +1,24 @@
 /**
- * The EASA "multi-flight" rule.
+ * The EASA "multi-flight" rule, per AMC1 FCL.050(b)(1)(vi) and the Instructions
+ * for Use point (f):
  *
- * Several flights may be combined into a SINGLE logbook entry only when ALL of:
- *   1. they occur on the same (UTC) calendar day;
- *   2. the sequence returns to its original departure point;
- *   3. the ground gap between consecutive flights is under 30 minutes.
+ *   "if the holder of a licence carries out a number of flights upon the same day
+ *    returning on each occasion to the same place of departure and the interval
+ *    between successive flights does not exceed 30 minutes, such series of flights
+ *    may be recorded as a single entry."
  *
- * We also enforce two physical preconditions that the rule presumes: legs are
- * chronologically ordered, and each leg departs from where the previous one
- * landed (continuity). A single-leg entry is always valid as an entry; the
- * multi-flight conditions only bind when there is more than one leg.
+ * Read carefully, this is the local-flying case: a series of flights from one
+ * base, each one returning to that same base (circuits, training details), with
+ * short turnarounds. It is NOT an out-and-back to a different airfield. So for a
+ * combined entry every leg must depart from and return to the one common place.
+ *
+ * Conditions for combining into a single entry:
+ *   1. all flights on the same UTC calendar day;
+ *   2. every flight departs from and returns to the same place (the base);
+ *   3. the ground gap between successive flights is under 30 minutes.
+ *
+ * Legs must also be chronologically ordered. A single-leg entry is always a
+ * valid entry on its own; the combining conditions only bind with more than one.
  */
 
 import type { FlightLeg } from "./types.js";
@@ -21,10 +30,9 @@ export type MultiFlightViolationCode =
   | "EMPTY"
   | "LEG_NOT_POSITIVE_DURATION"
   | "LEGS_NOT_CHRONOLOGICAL"
-  | "PLACE_DISCONTINUITY"
   | "NOT_SAME_DAY"
   | "GAP_TOO_LARGE"
-  | "NOT_RETURN_TO_ORIGIN";
+  | "NOT_RETURNING_TO_DEPARTURE_POINT";
 
 export interface MultiFlightViolation {
   code: MultiFlightViolationCode;
@@ -64,6 +72,7 @@ export function validateMultiFlight(legs: readonly FlightLeg[]): MultiFlightResu
   // Conditions below only constrain a genuine multi-flight grouping.
   if (isMultiFlight) {
     const day0 = utcDateKey(legs[0]!.departureTime);
+    const base = legs[0]!.departurePlace;
 
     for (let i = 0; i < legs.length; i++) {
       const leg = legs[i]!;
@@ -77,47 +86,33 @@ export function validateMultiFlight(legs: readonly FlightLeg[]): MultiFlightResu
         });
       }
 
+      // Every flight must depart from and return to the same place of departure.
+      if (leg.departurePlace !== base || leg.arrivalPlace !== base) {
+        violations.push({
+          code: "NOT_RETURNING_TO_DEPARTURE_POINT",
+          legIndex: i,
+          message: `Leg ${i + 1} (${leg.departurePlace} to ${leg.arrivalPlace}) must depart from and return to the base ${base} to be combined into one entry.`,
+        });
+      }
+
       if (i > 0) {
         const prev = legs[i - 1]!;
+        const gap = minutesBetween(prev.arrivalTime, leg.departureTime);
 
-        // Chronological ordering.
-        if (minutesBetween(prev.arrivalTime, leg.departureTime) < 0) {
+        if (gap < 0) {
           violations.push({
             code: "LEGS_NOT_CHRONOLOGICAL",
             legIndex: i,
             message: `Leg ${i + 1} departs before leg ${i} arrives.`,
           });
-        } else {
-          // Ground gap under the limit.
-          const gap = minutesBetween(prev.arrivalTime, leg.departureTime);
-          if (gap >= MAX_GROUND_GAP_MINUTES) {
-            violations.push({
-              code: "GAP_TOO_LARGE",
-              legIndex: i,
-              message: `Gap before leg ${i + 1} is ${gap} min; must be under ${MAX_GROUND_GAP_MINUTES} min to combine.`,
-            });
-          }
-        }
-
-        // Continuity of place.
-        if (prev.arrivalPlace !== leg.departurePlace) {
+        } else if (gap >= MAX_GROUND_GAP_MINUTES) {
           violations.push({
-            code: "PLACE_DISCONTINUITY",
+            code: "GAP_TOO_LARGE",
             legIndex: i,
-            message: `Leg ${i + 1} departs ${leg.departurePlace} but previous leg landed at ${prev.arrivalPlace}.`,
+            message: `Gap before leg ${i + 1} is ${gap} min; must be under ${MAX_GROUND_GAP_MINUTES} min to combine.`,
           });
         }
       }
-    }
-
-    // Return to origin.
-    const first = legs[0]!;
-    const last = legs[legs.length - 1]!;
-    if (first.departurePlace !== last.arrivalPlace) {
-      violations.push({
-        code: "NOT_RETURN_TO_ORIGIN",
-        message: `Combined entry must return to origin: started at ${first.departurePlace}, ended at ${last.arrivalPlace}.`,
-      });
     }
   }
 

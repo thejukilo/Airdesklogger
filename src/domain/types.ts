@@ -5,6 +5,9 @@
  * (see multiFlight.ts). All times are UTC instants; all durations are minutes.
  */
 
+/** A logbook record is either a flown flight or a synthetic training session. */
+export type EntryKind = "FLIGHT" | "FSTD";
+
 /** EASA primary pilot capacity. Mutually exclusive, and it covers the whole flight. */
 export type PilotFunction = "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL";
 
@@ -63,8 +66,37 @@ export interface FlightEntryInput {
   remarks: string; // column 12
 }
 
+/**
+ * A synthetic training (FSTD) session, recorded on its own logbook row with the
+ * flight columns left blank. Column 11 of AMC1 FCL.050. Total time of the
+ * session includes pre- and after-flight checks. The exercise (for example a
+ * proficiency check) goes in the remarks.
+ */
+export interface FstdSessionInput {
+  pilotId: string;
+  /** Aircraft type for a full simulator, or "FNPT I" / "FNPT II" for other devices. */
+  deviceType: string;
+  /** Qualification number of the device. */
+  qualificationNumber: string;
+  /** Whether the session was instruction received, and a short description. */
+  instruction: string;
+  date: Date; // UTC
+  totalMinutes: number;
+  remarks: string;
+}
+
+/** Derived FSTD column values (column 11). */
+export interface FstdColumns {
+  date: string; // yyyy-mm-dd UTC
+  deviceType: string;
+  qualificationNumber: string;
+  instruction: string;
+  totalMinutes: number;
+}
+
 /** Fully derived column values, ready for storage / totals / PDF. */
 export interface DerivedColumns {
+  kind: EntryKind;
   date: string; // yyyy-mm-dd UTC (column 1)
   departurePlace: string;
   departureTime: Date;
@@ -83,4 +115,6 @@ export interface DerivedColumns {
   dual: number; // column 11c
   instructor: number; // column 11d
   isMultiFlight: boolean;
+  /** Present only when kind is FSTD (column 11 of the layout). */
+  fstd?: FstdColumns;
 }

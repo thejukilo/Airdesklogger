@@ -14,7 +14,7 @@
 
 import type { PoolClient } from "pg";
 import { getPool, withTransaction } from "./pool.js";
-import type { DerivedColumns, FlightEntryInput } from "../domain/types.js";
+import type { DerivedColumns, FlightEntryInput, FstdSessionInput } from "../domain/types.js";
 import { toUtcIso } from "../domain/time.js";
 import {
   appendRecord,
@@ -115,6 +115,49 @@ export async function createEntry(
 ): Promise<CreatedEntry> {
   return withTransaction(async (client) => {
     const content = buildVersionContent(input, derived);
+    const contentHash = hashContent(content);
+
+    const { rows } = await client.query(
+      "INSERT INTO flight_entries (pilot_id, current_version) VALUES ($1, 0) RETURNING id",
+      [input.pilotId],
+    );
+    const entryId = rows[0].id as string;
+
+    await client.query(
+      `INSERT INTO flight_entry_versions (entry_id, version_no, content, content_hash, change_reason, created_by)
+       VALUES ($1, 0, $2, $3, $4, $5)`,
+      [entryId, content, contentHash, reason, actorId],
+    );
+
+    await appendLedger(client, { eventType: "CREATE", entryId, payloadHash: contentHash, actorId });
+    return { entryId, versionNo: 0, contentHash };
+  });
+}
+
+/** Canonical, hashable content for an FSTD session row. */
+export function buildFstdContent(input: FstdSessionInput, derived: DerivedColumns) {
+  return {
+    kind: "FSTD" as const,
+    pilotId: input.pilotId,
+    deviceType: input.deviceType,
+    qualificationNumber: input.qualificationNumber,
+    instruction: input.instruction,
+    date: toUtcIso(input.date),
+    totalMinutes: input.totalMinutes,
+    remarks: input.remarks,
+    columns: { ...derived, departureTime: toUtcIso(derived.departureTime), arrivalTime: toUtcIso(derived.arrivalTime) },
+  };
+}
+
+/** Record a synthetic training session. Shares the audit trail with flights. */
+export async function createFstdEntry(
+  input: FstdSessionInput,
+  derived: DerivedColumns,
+  actorId: string,
+  reason = "fstd session",
+): Promise<CreatedEntry> {
+  return withTransaction(async (client) => {
+    const content = buildFstdContent(input, derived);
     const contentHash = hashContent(content);
 
     const { rows } = await client.query(

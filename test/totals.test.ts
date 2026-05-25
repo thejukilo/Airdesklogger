@@ -4,6 +4,7 @@ import type { DerivedColumns } from "../src/domain/types.js";
 
 function row(total: number, pic: number): DerivedColumns {
   return {
+    kind: "FLIGHT",
     date: "2026-05-25",
     departurePlace: "EGKB",
     departureTime: new Date("2026-05-25T08:00:00Z"),

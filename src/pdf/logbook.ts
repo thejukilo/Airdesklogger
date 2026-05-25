@@ -53,8 +53,16 @@ const COLUMNS: LeafColumn[] = [
   { group: "FUNCTION TIME", sub: "Co", width: 40, value: (e) => MIN(e.coPilot), totalKey: "coPilot" },
   { group: "FUNCTION TIME", sub: "Dual", width: 40, value: (e) => MIN(e.dual), totalKey: "dual" },
   { group: "FUNCTION TIME", sub: "Instr", width: 40, value: (e) => MIN(e.instructor), totalKey: "instructor" },
+  { group: "FSTD SESSION", sub: "Date", width: 44, value: (e) => (e.fstd ? fmtIsoDate(e.fstd.date) : "") },
+  { group: "FSTD SESSION", sub: "Type", width: 78, value: (e) => (e.fstd ? `${e.fstd.deviceType} (${e.fstd.qualificationNumber})` : "") },
+  { group: "FSTD SESSION", sub: "Total", width: 42, value: (e) => (e.fstd ? MIN(e.fstd.totalMinutes) : ""), totalKey: "fstdTotal" },
   { group: "REMARKS", sub: "& endorsements", width: 150, value: () => "" },
 ];
+
+function fmtIsoDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${(y ?? "").slice(2)}`;
+}
 
 const MARGIN = 28;
 const HEADER_H = 30; // two-row column header
@@ -77,6 +85,7 @@ export interface LogbookEntryForPdf extends DerivedColumns {
 export interface PdfOptions {
   pilotName: string;
   licenseNumber?: string;
+  holderAddress?: string;
   rowsPerPage?: number;
 }
 
@@ -123,7 +132,8 @@ function drawPage(
   let top = pageH - MARGIN;
   p.drawText("EASA FLIGHT CREW LOGBOOK  -  AMC1 FCL.050", { x: MARGIN, y: top - 10, size: 11, font: bold, color: BLACK });
   p.drawText(
-    `Holder: ${opts.pilotName}${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}    All times UTC`,
+    `Holder: ${opts.pilotName}${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}` +
+      `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    All times UTC`,
     { x: MARGIN, y: top - 24, size: 8, font, color: GREY },
   );
   p.drawText(`Page ${page.pageNumber} of ${totalPages}`, {
@@ -220,22 +230,36 @@ function drawGrid(
   hline(p, MARGIN, MARGIN + GRID_W, bodyTop);
   for (let r = 0; r <= rowsPerPage; r++) hline(p, MARGIN, MARGIN + GRID_W, bodyTop - r * ROW_H);
 
-  // Entry rows.
+  // Entry rows. An FSTD row leaves the flight columns blank and fills only the
+  // date, the FSTD column and the remarks; a flight row leaves the FSTD column
+  // blank. This mirrors how the paper logbook records a simulator session.
   page.rows.forEach((row, r) => {
     const y = bodyTop - (r + 1) * ROW_H + 5;
     const e = row as LogbookEntryForPdf;
+    const isFstd = e.kind === "FSTD";
     COLUMNS.forEach((c, idx) => {
       const x = colX(idx);
-      let text = c.value(row);
-      if (c.group === "AIRCRAFT" && c.sub === "Type") text = e.aircraftType ?? "";
-      else if (c.group === "AIRCRAFT" && c.sub === "Reg") text = e.aircraftReg ?? "";
-      else if (c.group === "NAME PIC") text = e.picName ?? "";
-      else if (c.group === "REMARKS") text = e.remarks ?? "";
-      if (c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "DATE") {
-        leftText(p, text, x, c.width, y, 6.5, font);
-      } else {
-        centeredText(p, text, x, c.width, y, 6.5, font);
+      let text = "";
+      if (c.group === "DATE") {
+        text = formatLogbookDate(e.departureTime);
+      } else if (c.group === "FSTD SESSION") {
+        text = c.value(row);
+      } else if (c.group === "REMARKS") {
+        text = e.remarks ?? "";
+      } else if (!isFstd) {
+        if (c.group === "AIRCRAFT" && c.sub === "Type") text = e.aircraftType ?? "";
+        else if (c.group === "AIRCRAFT" && c.sub === "Reg") text = e.aircraftReg ?? "";
+        else if (c.group === "NAME PIC") text = e.picName ?? "";
+        else text = c.value(row);
       }
+      const leftAligned =
+        c.group === "REMARKS" ||
+        c.group === "NAME PIC" ||
+        c.group === "AIRCRAFT" ||
+        c.group === "DATE" ||
+        (c.group === "FSTD SESSION" && c.sub === "Type");
+      if (leftAligned) leftText(p, text, x, c.width, y, 6.5, font);
+      else centeredText(p, text, x, c.width, y, 6.5, font);
     });
   });
 

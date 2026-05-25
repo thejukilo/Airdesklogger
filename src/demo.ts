@@ -14,12 +14,13 @@ import { closePool } from "./db/pool.js";
 import {
   createPilot,
   createEntry,
+  createFstdEntry,
   amendEntry,
   signCurrentVersion,
   getHistory,
   getLedger,
 } from "./db/repository.js";
-import { validateEntry } from "./domain/validation.js";
+import { validateEntry, validateFstdSession } from "./domain/validation.js";
 import { verifyChain } from "./domain/hashChain.js";
 import { generateSigningKeyPair, signEntry } from "./domain/signature.js";
 import { generateLogbookPdf, type LogbookEntryForPdf } from "./pdf/logbook.js";
@@ -40,19 +41,20 @@ async function main(): Promise<void> {
   await migrate();
   const student = await createPilot("Jordan Student", "UK.FCL.SPL.5521");
 
-  // A valid multi-flight day: out and back, sub-30-min turnaround.
+  // A valid multi-flight day: a series of local flights from one base, each
+  // returning to that base, with a sub-30-min turnaround (AMC1 FCL.050).
   const multi: FlightEntryInput = {
     pilotId: student,
     aircraft: { makeModelVariant: "Cessna 172S", registration: "G-ABCD", engineClass: "SE", multiPilot: false },
     legs: [
-      { departurePlace: "EGKB", departureTime: new Date("2026-05-25T09:00:00Z"), arrivalPlace: "EGMC", arrivalTime: new Date("2026-05-25T09:40:00Z") },
-      { departurePlace: "EGMC", departureTime: new Date("2026-05-25T10:00:00Z"), arrivalPlace: "EGKB", arrivalTime: new Date("2026-05-25T10:45:00Z") },
+      { departurePlace: "EGKB", departureTime: new Date("2026-05-25T09:00:00Z"), arrivalPlace: "EGKB", arrivalTime: new Date("2026-05-25T09:40:00Z") },
+      { departurePlace: "EGKB", departureTime: new Date("2026-05-25T10:00:00Z"), arrivalPlace: "EGKB", arrivalTime: new Date("2026-05-25T10:45:00Z") },
     ],
     picName: "SELF",
     landings: { day: 2, night: 0 },
     conditions: { night: 0, ifr: 0 },
     function: { primary: "PIC", instructor: 0 },
-    remarks: "Local nav, out-and-back",
+    remarks: "Local circuits",
   };
   const mv = validateEntry(multi);
   console.log("multi-flight valid:", mv.valid, "total min:", mv.derived?.total, "isMultiFlight:", mv.derived?.isMultiFlight);
@@ -92,12 +94,34 @@ async function main(): Promise<void> {
     console.log("locked entry correctly rejected edit:", (e as Error).message);
   }
 
+  // A synthetic training session (column 11), recorded on its own row.
+  const fstd = {
+    pilotId: student,
+    deviceType: "B737-800",
+    qualificationNumber: "Q-1234",
+    instruction: "Operator proficiency check",
+    date: new Date("2026-05-25T16:00:00Z"),
+    totalMinutes: 230,
+    remarks: "OPC / revalidation",
+  };
+  const fv = validateFstdSession(fstd);
+  await createFstdEntry(fstd, fv.derived!, student);
+  console.log("fstd session valid:", fv.valid, "session min:", fv.derived?.fstd?.totalMinutes);
+
   const ledger = await getLedger();
   console.log("ledger length:", ledger.length, "chain valid:", verifyChain(ledger).valid);
 
-  const pdf = await generateLogbookPdf([pdfRow(fixed), pdfRow(multi)], {
+  const fstdRow = {
+    ...fv.derived!,
+    aircraftType: "",
+    aircraftReg: "",
+    picName: "",
+    remarks: fstd.remarks,
+  };
+  const pdf = await generateLogbookPdf([pdfRow(fixed), pdfRow(multi), fstdRow], {
     pilotName: "Jordan Student",
     licenseNumber: "UK.FCL.SPL.5521",
+    holderAddress: "1 Aerodrome Road, London",
     rowsPerPage: 12,
   });
   writeFileSync("logbook-sample.pdf", pdf);

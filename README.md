@@ -68,7 +68,8 @@ src/
     roles.ts         Roles and the authorisation rules.
     signingKeys.ts   Per-signer key pairs, with the private key wrapped at rest.
   http/
-    parseEntry.ts    Turns a request body into a validated entry, enforcing UTC here.
+    parseEntry.ts    Turns a request body into a validated flight entry, enforcing UTC here.
+    parseFstd.ts     Turns a request body into a validated FSTD session.
     auth.ts          Pulls and verifies the session token off a request.
   config.ts          Reads and checks the auth secrets from the environment.
   demo.ts            An end-to-end walk through the whole lifecycle.
@@ -92,9 +93,13 @@ test/              One test file per domain module, plus database and PDF tests.
 
 ### The multi-flight rule
 
-EASA permits several flights to be recorded as a single line only when they happened on the same day, returned to the original point of departure, and the gap on the ground between consecutive flights was under thirty minutes. `validateMultiFlight` in `src/domain/multiFlight.ts` checks all three, and adds two physical preconditions that the rule takes for granted: the legs must be in chronological order, and each leg must depart from where the previous one landed.
+AMC1 FCL.050(b)(1)(vi) reads: "if the holder of a licence carries out a number of flights upon the same day returning on each occasion to the same place of departure and the interval between successive flights does not exceed 30 minutes, such series of flights may be recorded as a single entry." Read carefully, this is the local-flying case: several flights from one base, each returning to that base (circuits, training details), with short turnarounds. It is deliberately not an out-and-back to a different airfield, because in an out-and-back the first flight does not return to its place of departure.
 
-A single-leg entry is always a valid entry; the combining conditions only bind when there is more than one leg. The function returns a list of specific violations with codes (`GAP_TOO_LARGE`, `NOT_RETURN_TO_ORIGIN`, `NOT_SAME_DAY`, and so on) so the interface can tell the pilot exactly why a grouping was refused rather than just failing. The thirty minute limit is treated as strict: a gap of exactly thirty minutes is too long, twenty-nine is fine, and there are tests for both sides of that boundary.
+`validateMultiFlight` in `src/domain/multiFlight.ts` enforces exactly that: same UTC day, every leg departing from and returning to the one common base, gaps under thirty minutes, and legs in chronological order. A single-leg entry is always a valid entry; the combining conditions only bind when there is more than one leg. The function returns specific violation codes (`GAP_TOO_LARGE`, `NOT_RETURNING_TO_DEPARTURE_POINT`, `NOT_SAME_DAY`, and so on) so the interface can say precisely why a grouping was refused. The thirty minute limit is strict: a gap of exactly thirty minutes is too long, twenty-nine is fine, and there are tests for both sides of that boundary.
+
+### Synthetic training (FSTD) sessions
+
+AMC1 FCL.050(a)(3) requires simulator sessions to be recorded too, and the printed layout gives them column 11. An FSTD session is its own kind of logbook record, recorded on its own row with the flight columns left blank: device type and qualification number (or FNPT I / FNPT II for other devices), the date, and the total time of the session including pre- and after-flight checks, with the exercise noted in the remarks. `validateFstdSession` produces the row, the session time accumulates in its own running total separate from flight time, and the PDF prints it in the FSTD column.
 
 ### Pilot function time, including PICUS and SPIC
 
@@ -211,7 +216,8 @@ Account endpoints:
 
 Logbook endpoints (require a session):
 
-- `GET /api/entries` lists the holder's own entries; `POST /api/entries` records a new one for the signed-in holder.
+- `GET /api/entries` lists the holder's own entries; `POST /api/entries` records a new flight for the signed-in holder.
+- `POST /api/fstd` records a synthetic training (simulator) session for the signed-in holder.
 - `GET /api/entries/{id}` returns the current version and its full change history; `PATCH /api/entries/{id}` records a correction as a new version, and returns 409 if the entry is already locked.
 - `POST /api/entries/{id}/sign` countersigns and locks an entry. The signer must hold a permitting role, have the second factor enabled, and present a current code.
 - `GET /api/audit/verify` recomputes the whole ledger chain. Administrator only.
@@ -265,7 +271,8 @@ Each requirement has code that implements it and tests that exercise it.
 | --- | --- | --- |
 | UTC only, no local time | `domain/time.ts` | `test/time.test.ts` |
 | The twelve column matrix | `domain/columns.ts`, `domain/validation.ts` | `test/validation.test.ts` |
-| Multi-flight rule (same day, return to origin, gap under 30 min) | `domain/multiFlight.ts` | `test/multiFlight.test.ts` |
+| Multi-flight rule (same day, each flight returns to base, gap under 30 min) | `domain/multiFlight.ts` | `test/multiFlight.test.ts` |
+| Synthetic training (FSTD) sessions, column 11 | `domain/validation.ts`, `pdf/logbook.ts`, `api/fstd` | `test/fstd.test.ts` |
 | PICUS and SPIC, with countersigning | `domain/functionTime.ts` | `test/functionTime.test.ts` |
 | Immutable audit trail | `domain/hashChain.ts`, `db/schema.sql`, `db/repository.ts` | `test/hashChain.test.ts`, `test/db.integration.test.ts` |
 | Cryptographic signatures and locking | `domain/signature.ts`, `db/repository.ts` | `test/signature.test.ts`, `test/db.integration.test.ts` |
@@ -279,7 +286,7 @@ Each requirement has code that implements it and tests that exercise it.
 
 ## Scope and limitations
 
-This is the backend. It now includes accounts, authentication with a second factor for sign-off, and the logbook endpoints, alongside the validation and PDF rendering. It does not yet include a client application, and a few logbook details remain to be added: synthetic training (simulator) sessions, which the EASA logbook records in a separate section, and a full data export for backup and retention beyond the PDF. It does not attempt to validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
+This is the backend. It includes accounts, authentication with a second factor for sign-off, the flight and FSTD logbook endpoints, the validation and the PDF rendering. The column layout, the multi-flight rule and the FSTD session were checked against the text of AMC1 FCL.050 (the August 2020 Easy Access Rules consolidation). What is not here yet: a client application, and a full structured data export for backup and retention beyond the PDF. National rules specific to a given competent authority are not reflected unless that authority's guidance has been read. The software does not validate a pilot's licence privileges or currency, and it does not decide whether a particular flight was lawfully conducted as PICUS or SPIC; it records the claim and the countersignature and leaves the judgement to the people responsible for it. The PDF reproduces the column layout and the totals faithfully, but the exact typography of any one published paper logbook will differ in small ways.
 
 ## Glossary
 
@@ -290,3 +297,4 @@ This is the backend. It now includes accounts, authentication with a second fact
 - Block time: from the moment the aircraft first moves under its own power for the purpose of taking off, to the moment it comes to rest at the end of the flight. Used here as the total time of flight.
 - IFR: instrument flight rules.
 - AMC1 FCL.050: the Acceptable Means of Compliance describing how flight time is recorded in a logbook under Part-FCL.
+- FSTD: flight simulation training device (a simulator). FNPT I and FNPT II are flight and navigation procedures trainers, lower-fidelity devices, recorded in the same column.

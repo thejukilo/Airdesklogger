@@ -14,6 +14,7 @@ export interface UserRow {
   email: string | null;
   name: string;
   licenseNumber: string | null;
+  address: string | null;
   roles: Role[];
   passwordHash: string | null;
   mfaSecretWrapped: string | null;
@@ -28,6 +29,7 @@ function mapUser(r: Record<string, unknown>): UserRow {
     email: (r.email as string) ?? null,
     name: r.name as string,
     licenseNumber: (r.license_number as string) ?? null,
+    address: (r.address as string) ?? null,
     roles: (r.roles as Role[]) ?? [],
     passwordHash: (r.password_hash as string) ?? null,
     mfaSecretWrapped: (r.mfa_secret_wrapped as string) ?? null,
@@ -38,7 +40,7 @@ function mapUser(r: Record<string, unknown>): UserRow {
 }
 
 const USER_COLUMNS =
-  "id, email, name, license_number, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
+  "id, email, name, license_number, address, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
 
 export interface NewUser {
   email: string;
@@ -46,20 +48,22 @@ export interface NewUser {
   name: string;
   roles: Role[];
   licenseNumber?: string;
+  address?: string;
   signingPublicKey: string;
   signingKeyWrapped: string;
 }
 
 export async function createUser(u: NewUser): Promise<UserRow> {
   const { rows } = await getPool().query(
-    `INSERT INTO pilots (email, password_hash, name, roles, license_number, signing_public_key, signing_key_wrapped)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING ${USER_COLUMNS}`,
+    `INSERT INTO pilots (email, password_hash, name, roles, license_number, address, signing_public_key, signing_key_wrapped)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING ${USER_COLUMNS}`,
     [
       u.email.toLowerCase(),
       u.passwordHash,
       u.name,
       u.roles,
       u.licenseNumber ?? null,
+      u.address ?? null,
       u.signingPublicKey,
       u.signingKeyWrapped,
     ],
