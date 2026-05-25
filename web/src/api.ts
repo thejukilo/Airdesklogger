@@ -61,15 +61,17 @@ export interface SessionUser {
 }
 
 export interface LoginResponse {
-  token: string;
-  user: SessionUser;
-  mfaEnabled: boolean;
+  token?: string;
+  user?: SessionUser;
+  mfaEnabled?: boolean;
+  /** True when the account requires a second-factor code that was not supplied. */
+  mfaRequired?: boolean;
 }
 
-export function login(email: string, password: string): Promise<LoginResponse> {
+export function login(email: string, password: string, code?: string): Promise<LoginResponse> {
   return request<LoginResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, ...(code ? { code } : {}) }),
   });
 }
 
@@ -247,6 +249,7 @@ export interface Profile {
   paperSize: "A4" | "LETTER";
   roles: string[];
   mfaEnabled: boolean;
+  mfaRequiredForLogin: boolean;
 }
 
 export function getProfile(): Promise<Profile> {
@@ -262,6 +265,7 @@ export function updateProfile(input: {
   instructorCertificate?: string;
   examinerCertificate?: string;
   paperSize?: "A4" | "LETTER";
+  mfaRequiredForLogin?: boolean;
 }): Promise<Profile> {
   return request("/account", { method: "PATCH", body: JSON.stringify(input) });
 }

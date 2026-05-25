@@ -2,6 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { hashPassword, verifyPassword } from "../../src/auth/passwords.js";
+import { verifyTotp } from "../../src/auth/totp.js";
+import { unwrapPrivateKey } from "../../src/auth/signingKeys.js";
 import { signSession } from "../../src/auth/tokens.js";
 import { provisionSigningKeypair } from "../../src/auth/signingKeys.js";
 import { isRole, type Role } from "../../src/auth/roles.js";
@@ -151,7 +153,11 @@ async function register(req: VercelRequest, res: VercelResponse): Promise<void> 
 
 // ---- login --------------------------------------------------------------------
 
-const LoginBody = z.object({ email: z.string().email(), password: z.string().min(1) });
+const LoginBody = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  code: z.string().optional(),
+});
 
 async function login(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== "POST") {
@@ -179,6 +185,22 @@ async function login(req: VercelRequest, res: VercelResponse): Promise<void> {
     await logAccountEvent({ userId: user.id, email: user.email ?? "", eventType: "LOGIN_FAILED", ...ipField });
     res.status(403).json({ error: "Please verify your email address before signing in." });
     return;
+  }
+
+  // Optional two-factor at sign-in: when the holder has turned it on, the
+  // password alone is not enough. The first request (no code) is answered with a
+  // challenge; the client then resubmits with the current authenticator code.
+  if (user.mfaEnabled && user.mfaRequiredForLogin) {
+    const code = parsed.data.code?.trim();
+    if (!code) {
+      res.status(200).json({ mfaRequired: true });
+      return;
+    }
+    if (!user.mfaSecretWrapped || !verifyTotp(code, unwrapPrivateKey(user.mfaSecretWrapped, getSigningMasterKey()))) {
+      await logAccountEvent({ userId: user.id, email: user.email ?? "", eventType: "LOGIN_FAILED", ...ipField });
+      res.status(401).json({ error: "That second-factor code did not match." });
+      return;
+    }
   }
 
   const token = await signSession(

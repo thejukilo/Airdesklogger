@@ -13,6 +13,8 @@ export function Login() {
   const [busy, setBusy] = useState(false);
   const [needsVerify, setNeedsVerify] = useState(false);
   const [resendMsg, setResendMsg] = useState<string | null>(null);
+  const [mfaStep, setMfaStep] = useState(false);
+  const [code, setCode] = useState("");
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -21,7 +23,11 @@ export function Login() {
     setNeedsVerify(false);
     setBusy(true);
     try {
-      await login(email, password);
+      const res = await login(email, password, mfaStep ? code.trim() : undefined);
+      if (res.mfaRequired) {
+        setMfaStep(true);
+        return;
+      }
       navigate("/");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not sign in.";
@@ -56,10 +62,21 @@ export function Login() {
               {resendMsg && <p className="mt-2 text-xs text-slate-500">{resendMsg}</p>}
             </div>
           )}
-          <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <Button type="submit" disabled={busy} className="w-full">
-            {busy ? "Signing in..." : "Sign in"}
+          <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={mfaStep} required />
+          <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={mfaStep} required />
+          {mfaStep && (
+            <Field
+              label="Authenticator code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              inputMode="numeric"
+              hint="Enter the 6-digit code from your authenticator app."
+              autoFocus
+              required
+            />
+          )}
+          <Button type="submit" disabled={busy || (mfaStep && !code.trim())} className="w-full">
+            {busy ? "Signing in..." : mfaStep ? "Verify and sign in" : "Sign in"}
           </Button>
         </form>
       </Card>

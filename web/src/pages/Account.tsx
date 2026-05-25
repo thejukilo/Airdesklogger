@@ -27,10 +27,13 @@ export function Account() {
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
+  const [mfaLogin, setMfaLogin] = useState(false);
+  const [savingMfaLogin, setSavingMfaLogin] = useState(false);
+
   useEffect(() => {
     api
       .getProfile()
-      .then((p) =>
+      .then((p) => {
         setProfile({
           firstName: p.firstName ?? "",
           lastName: p.lastName ?? "",
@@ -40,10 +43,23 @@ export function Account() {
           instructorCertificate: p.instructorCertificate ?? "",
           examinerCertificate: p.examinerCertificate ?? "",
           paperSize: p.paperSize ?? "A4",
-        }),
-      )
+        });
+        setMfaLogin(p.mfaRequiredForLogin);
+      })
       .catch(() => {});
   }, []);
+
+  async function toggleMfaLogin(required: boolean) {
+    setMfaLogin(required);
+    setSavingMfaLogin(true);
+    try {
+      await api.updateProfile({ mfaRequiredForLogin: required });
+    } catch {
+      setMfaLogin(!required); // revert on failure
+    } finally {
+      setSavingMfaLogin(false);
+    }
+  }
 
   const setP = (k: Exclude<keyof typeof profile, "paperSize">) => (e: { target: { value: string } }) =>
     setProfile((p) => ({ ...p, [k]: e.target.value }));
@@ -172,7 +188,18 @@ export function Account() {
         {error && <Alert>{error}</Alert>}
 
         {mfaEnabled ? (
-          <p className="text-sm text-emerald-700">Two-factor authentication is enabled.</p>
+          <div className="space-y-3">
+            <p className="text-sm text-emerald-700">Two-factor authentication is enabled.</p>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={mfaLogin}
+                disabled={savingMfaLogin}
+                onChange={(e) => toggleMfaLogin(e.target.checked)}
+              />
+              Also require a code when I sign in (not just when signing entries)
+            </label>
+          </div>
         ) : !secret ? (
           <Button onClick={startSetup} disabled={busy}>
             {busy ? "Starting..." : "Set up MFA"}

@@ -5,7 +5,7 @@ interface AuthState {
   user: api.SessionUser | null;
   mfaEnabled: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, code?: string) => Promise<{ mfaRequired: boolean }>;
   logout: () => void;
   setMfaEnabled: (enabled: boolean) => void;
   refreshUser: (user: api.SessionUser) => void;
@@ -38,13 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       mfaEnabled,
       loading,
-      async login(email, password) {
-        const res = await api.login(email, password);
-        api.setToken(res.token);
+      async login(email, password, code) {
+        const res = await api.login(email, password, code);
+        if (res.mfaRequired && !res.token) return { mfaRequired: true };
+        api.setToken(res.token ?? null);
         localStorage.setItem(USER_KEY, JSON.stringify(res.user));
         localStorage.setItem(MFA_KEY, String(res.mfaEnabled));
-        setUser(res.user);
-        setMfaEnabled(res.mfaEnabled);
+        setUser(res.user ?? null);
+        setMfaEnabled(Boolean(res.mfaEnabled));
+        return { mfaRequired: false };
       },
       logout() {
         api.setToken(null);

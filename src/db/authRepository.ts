@@ -27,6 +27,7 @@ export interface UserRow {
   passwordHash: string | null;
   mfaSecretWrapped: string | null;
   mfaEnabled: boolean;
+  mfaRequiredForLogin: boolean;
   signingPublicKey: string | null;
   signingKeyWrapped: string | null;
 }
@@ -49,13 +50,14 @@ function mapUser(r: Record<string, unknown>): UserRow {
     passwordHash: (r.password_hash as string) ?? null,
     mfaSecretWrapped: (r.mfa_secret_wrapped as string) ?? null,
     mfaEnabled: Boolean(r.mfa_enabled),
+    mfaRequiredForLogin: Boolean(r.mfa_required_for_login),
     signingPublicKey: (r.signing_public_key as string) ?? null,
     signingKeyWrapped: (r.signing_key_wrapped as string) ?? null,
   };
 }
 
 const USER_COLUMNS =
-  "id, email, name, first_name, last_name, date_of_birth, license_number, address, instructor_certificate, examiner_certificate, export_paper_size, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, signing_public_key, signing_key_wrapped";
+  "id, email, name, first_name, last_name, date_of_birth, license_number, address, instructor_certificate, examiner_certificate, export_paper_size, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, mfa_required_for_login, signing_public_key, signing_key_wrapped";
 
 export interface NewUser {
   email: string;
@@ -106,36 +108,40 @@ export interface ProfileUpdate {
   instructorCertificate?: string | undefined;
   examinerCertificate?: string | undefined;
   paperSize?: "A4" | "LETTER" | undefined;
+  mfaRequiredForLogin?: boolean | undefined;
 }
 
 /**
  * Update a user's profile and recompute the signer roles from the certificates
  * they declare: holding an instructor certificate grants INSTRUCTOR, an examiner
  * certificate grants EXAMINER. Other roles (PILOT, ADMIN, ATO and so on) are left
- * as they are. Empty strings clear a field.
+ * as they are. This is a partial update: only the fields present in the input
+ * are written, so saving one setting never clears another. An empty string in a
+ * provided field clears that field.
  */
 export async function updateProfile(userId: string, p: ProfileUpdate): Promise<UserRow> {
   const blank = (s: string | undefined) => (s && s.trim() !== "" ? s.trim() : null);
-  const paperSize = p.paperSize === "LETTER" || p.paperSize === "A4" ? p.paperSize : null;
-  await getPool().query(
-    `UPDATE pilots SET
-       first_name = $2, last_name = $3, date_of_birth = $4::date, address = $5,
-       license_number = $6, instructor_certificate = $7, examiner_certificate = $8,
-       export_paper_size = COALESCE($9, export_paper_size),
-       updated_at = now()
-     WHERE id = $1`,
-    [
-      userId,
-      blank(p.firstName),
-      blank(p.lastName),
-      blank(p.dateOfBirth),
-      blank(p.address),
-      blank(p.licenseNumber),
-      blank(p.instructorCertificate),
-      blank(p.examinerCertificate),
-      paperSize,
-    ],
-  );
+  const sets: string[] = [];
+  const params: unknown[] = [userId];
+  const add = (column: string, value: unknown, cast = "") => {
+    params.push(value);
+    sets.push(`${column} = $${params.length}${cast}`);
+  };
+
+  if (p.firstName !== undefined) add("first_name", blank(p.firstName));
+  if (p.lastName !== undefined) add("last_name", blank(p.lastName));
+  if (p.dateOfBirth !== undefined) add("date_of_birth", blank(p.dateOfBirth), "::date");
+  if (p.address !== undefined) add("address", blank(p.address));
+  if (p.licenseNumber !== undefined) add("license_number", blank(p.licenseNumber));
+  if (p.instructorCertificate !== undefined) add("instructor_certificate", blank(p.instructorCertificate));
+  if (p.examinerCertificate !== undefined) add("examiner_certificate", blank(p.examinerCertificate));
+  if (p.paperSize === "A4" || p.paperSize === "LETTER") add("export_paper_size", p.paperSize);
+  if (p.mfaRequiredForLogin !== undefined) add("mfa_required_for_login", p.mfaRequiredForLogin);
+
+  if (sets.length > 0) {
+    sets.push("updated_at = now()");
+    await getPool().query(`UPDATE pilots SET ${sets.join(", ")} WHERE id = $1`, params);
+  }
 
   const user = (await getUserById(userId))!;
   const kept = user.roles.filter((r) => r !== "INSTRUCTOR" && r !== "EXAMINER");

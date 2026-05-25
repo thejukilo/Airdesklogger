@@ -134,6 +134,8 @@ ALTER TABLE pilots ADD COLUMN IF NOT EXISTS roles              text[] NOT NULL D
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_secret_wrapped text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_enabled        boolean NOT NULL DEFAULT false;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_activated_at   timestamptz;
+-- When true, the second factor is also required at sign-in, not only for signing.
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_required_for_login boolean NOT NULL DEFAULT false;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_public_key text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_key_wrapped text;
 -- Password reset: a hashed, single-use, time-limited token (FOCA-agnostic, a
