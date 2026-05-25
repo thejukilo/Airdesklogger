@@ -37,9 +37,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // secret lands here.
     console.error("auth handler error:", err);
     if (!res.headersSent) {
-      res.status(500).json({
-        error: "Server error. The deployment may be missing its database connection or auth secrets.",
-      });
+      // Temporary: include the underlying reason to diagnose the deployment.
+      const detail = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: `Server error: ${detail}` });
     }
   }
 }
