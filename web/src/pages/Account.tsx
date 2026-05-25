@@ -141,10 +141,12 @@ export function Account() {
         </div>
         <form onSubmit={saveProfile} className="space-y-4">
           {profileMsg && <p className="text-sm text-slate-600">{profileMsg}</p>}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="First name" value={profile.firstName} onChange={setP("firstName")} />
             <Field label="Last name" value={profile.lastName} onChange={setP("lastName")} />
-            <Field label="Date of birth" type="date" value={profile.dateOfBirth} onChange={setP("dateOfBirth")} />
+            <div className="max-w-[14rem]">
+              <Field label="Date of birth" type="date" value={profile.dateOfBirth} onChange={setP("dateOfBirth")} />
+            </div>
             <Field label="Pilot licence number" value={profile.licenseNumber} onChange={setP("licenseNumber")} />
           </div>
           <Field label="Address" value={profile.address} onChange={setP("address")} />
@@ -153,7 +155,7 @@ export function Account() {
               Enter a certificate number to be able to countersign in that capacity. The number is
               recorded on every sign-off you make.
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Instructor certificate (FI, CRI, ...)" value={profile.instructorCertificate} onChange={setP("instructorCertificate")} />
               <Field label="Examiner certificate (FE, ...)" value={profile.examinerCertificate} onChange={setP("examinerCertificate")} />
             </div>

@@ -36,7 +36,7 @@ export function Field({
       <span className="mb-1 block font-medium text-slate-700">{label}</span>
       <input
         {...props}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+        className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
       />
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>

@@ -244,7 +244,9 @@ export function NewEntry() {
         {error && <Alert>{error}</Alert>}
 
         <Section title="Aircraft and date">
-          <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} required />
+          <div className="max-w-[14rem]">
+            <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} required />
+          </div>
           <div>
             <Field
               label="Aircraft registration"
