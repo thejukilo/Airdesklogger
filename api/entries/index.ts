@@ -123,7 +123,7 @@ async function legsLocalToUtc(raw: unknown): Promise<RawLeg[]> {
       const arrTz = await timezoneForPlace(String(leg.arrivalPlace).toUpperCase());
       if (!depTz || !arrTz) {
         throw new RequestError(
-          "Local time needs a known aerodrome timezone at both ends. Use coded aerodromes, or switch the entry to UTC.",
+          "Local time could not be converted because an aerodrome has no position on file yet. Switch this entry to UTC, or ask an administrator to refresh the airport data.",
         );
       }
       try {
