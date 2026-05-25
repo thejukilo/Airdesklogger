@@ -159,6 +159,14 @@ function AppShell() {
           }
         />
         <Route
+          path="/entry/:id/edit"
+          element={
+            <RequireAuth>
+              <NewEntry />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/account"
           element={
             <RequireAuth>

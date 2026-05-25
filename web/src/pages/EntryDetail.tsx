@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
@@ -48,10 +48,24 @@ function capabilitiesFor(roles: string[]): string[] {
 
 export function EntryDetail() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const { user, mfaEnabled } = useAuth();
   const [entry, setEntry] = useState<api.EntryDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteEntry() {
+    if (!window.confirm("Delete this entry? It will be removed from your logbook.")) return;
+    setDeleting(true);
+    try {
+      await api.deleteEntry(id);
+      navigate("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete the entry.");
+      setDeleting(false);
+    }
+  }
 
   const pad = useRef<SignaturePadHandle>(null);
   const capabilities = capabilitiesFor(user?.roles ?? []);
@@ -129,7 +143,17 @@ export function EntryDetail() {
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Flight entry</h1>
-        <Link to="/" className="text-sm text-slate-600 hover:text-ink">Back to logbook</Link>
+        <div className="flex items-center gap-4 text-sm">
+          {!locked && isOwner && (
+            <>
+              <Link to={`/entry/${id}/edit`} className="font-medium text-brand-700 hover:underline">Edit</Link>
+              <button type="button" onClick={deleteEntry} disabled={deleting} className="font-medium text-red-600 hover:underline disabled:opacity-50">
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </>
+          )}
+          <Link to="/" className="text-slate-600 hover:text-ink">Back to logbook</Link>
+        </div>
       </div>
 
       <Card>

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
 import { ATTRIBUTES } from "../labels";
@@ -92,15 +92,64 @@ const empty = {
   lowVisibilityLandingType: "",
 };
 
+/** Reverse-map a stored entry's content into the form fields, for editing. */
+function fromContent(c: api.EntryContent): typeof empty {
+  const cols = c.columns;
+  const t = (iso: string | undefined) => (iso && iso.length >= 16 ? iso.slice(11, 16) : "");
+  return {
+    date: cols?.date ?? "",
+    blockStart: t(cols?.departureTime),
+    blockEnd: t(cols?.arrivalTime),
+    registration: c.aircraft?.registration ?? "",
+    makeModelVariant: c.aircraft?.makeModelVariant ?? "",
+    engineClass: c.aircraft?.engineClass ?? ((cols?.multiEngine ?? 0) > 0 ? "ME" : "SE"),
+    category: c.aircraft?.category ?? cols?.category ?? "AEROPLANE",
+    multiPilot: c.aircraft?.multiPilot ?? ((cols?.multiPilot ?? 0) > 0),
+    departurePlace: cols?.departurePlace ?? "",
+    arrivalPlace: cols?.arrivalPlace ?? "",
+    departurePlaceName: cols?.departurePlaceName ?? "",
+    arrivalPlaceName: cols?.arrivalPlaceName ?? "",
+    primary: c.function?.primary ?? "PIC",
+    tookControl: c.function?.tookControl ?? false,
+    operatingRole: cols?.operatingRole ?? "",
+    flightRules: (cols?.ifr ?? 0) > 0 ? "IFR" : "VFR",
+    instructor: c.function?.instructor ?? 0,
+    landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
+    picName: c.picName ?? "SELF",
+    remarks: c.remarks ?? "",
+    attributes: cols?.attributes ?? [],
+    hesloLevel: cols?.attributeDetails?.hesloLevel ? String(cols.attributeDetails.hesloLevel) : "",
+    hecLevel: cols?.attributeDetails?.hecLevel ? String(cols.attributeDetails.hecLevel) : "",
+    hoistCycles: cols?.attributeDetails?.hoistCycles ?? 0,
+    mountainLandingGear: cols?.attributeDetails?.mountainLandingGear ?? "",
+    lowVisibilityLandingType: cols?.attributeDetails?.lowVisibilityLandingType ?? "",
+  };
+}
+
 export function NewEntry() {
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const editing = Boolean(editId);
   const [f, setF] = useState(empty);
   const [timeMode, setTimeMode] = useState<TimeMode>("utc");
+  const [reason, setReason] = useState("");
+  const [loadingEntry, setLoadingEntry] = useState(editing);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aircraftMsg, setAircraftMsg] = useState<string | null>(null);
   const [depName, setDepName] = useState<string | null>(null);
   const [arrName, setArrName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editId) return;
+    api
+      .getEntry(editId)
+      .then((e) => {
+        if (e.current?.content) setF(fromContent(e.current.content));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load the entry."))
+      .finally(() => setLoadingEntry(false));
+  }, [editId]);
 
   function set<K extends keyof typeof f>(k: K, v: (typeof f)[K]) {
     setF((prev) => ({ ...prev, [k]: v }));
@@ -193,7 +242,7 @@ export function NewEntry() {
     try {
       const arrivalDate = f.blockEnd > f.blockStart ? f.date : nextDay(f.date);
       const ifr = f.flightRules === "IFR" ? blockMinutes(f.date, f.blockStart, f.blockEnd) : 0;
-      await api.createEntry({
+      const payload = {
         timeZone: timeMode === "local" ? "LOCAL" : "UTC",
         aircraft: {
           makeModelVariant: f.makeModelVariant,
@@ -228,8 +277,15 @@ export function NewEntry() {
         ...(f.attributes.length ? { attributes: f.attributes } : {}),
         ...(buildAttributeDetails() ? { attributeDetails: buildAttributeDetails() } : {}),
         remarks: f.remarks,
-      } as never);
-      navigate("/");
+      };
+      if (editing && editId) {
+        const amendPayload = reason.trim() ? { ...payload, reason: reason.trim() } : payload;
+        await api.amendEntry(editId, amendPayload as never);
+        navigate(`/entry/${editId}`);
+      } else {
+        await api.createEntry(payload as never);
+        navigate("/");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the entry.");
     } finally {
@@ -237,11 +293,26 @@ export function NewEntry() {
     }
   }
 
+  if (loadingEntry) {
+    return <p className="text-sm text-slate-500">Loading entry...</p>;
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-xl font-semibold">New flight entry</h1>
+      <h1 className="text-xl font-semibold">{editing ? "Edit flight entry" : "New flight entry"}</h1>
       <form onSubmit={onSubmit} className="space-y-4">
         {error && <Alert>{error}</Alert>}
+
+        {editing && (
+          <Section title="Change">
+            <Field
+              label="Reason for change (optional)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              hint="Recorded in the entry's change history."
+            />
+          </Section>
+        )}
 
         <Section title="Aircraft and date">
           <div className="max-w-[14rem]">
@@ -420,8 +491,8 @@ export function NewEntry() {
         {/* Sticky action bar on mobile so Save is always within reach. The extra
             bottom padding clears the iOS home indicator / browser bar. */}
         <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none">
-          <Button type="submit" disabled={busy} className="flex-1 py-2.5 md:flex-none md:py-2">{busy ? "Saving..." : "Save entry"}</Button>
-          <Button type="button" variant="ghost" onClick={() => navigate("/")} className="py-2.5 md:py-2">Cancel</Button>
+          <Button type="submit" disabled={busy} className="flex-1 py-2.5 md:flex-none md:py-2">{busy ? "Saving..." : editing ? "Save changes" : "Save entry"}</Button>
+          <Button type="button" variant="ghost" onClick={() => navigate(editing && editId ? `/entry/${editId}` : "/")} className="py-2.5 md:py-2">Cancel</Button>
         </div>
       </form>
     </div>

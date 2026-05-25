@@ -16,6 +16,9 @@ import {
   getHistory,
   getLedger,
   findOverlappingFlight,
+  voidEntry,
+  listEntriesForPilot,
+  getEntryMeta,
 } from "../src/db/repository.js";
 import { validateEntry } from "../src/domain/validation.js";
 import { verifyChain } from "../src/domain/hashChain.js";
@@ -140,6 +143,20 @@ describe.skipIf(!hasDb)("repository (integration)", () => {
     // A different holder is unaffected.
     const other = await createPilot("Other Pilot");
     expect(await findOverlappingFlight(other, "2026-06-20T16:00:00Z", "2026-06-20T17:00:00Z")).toBeNull();
+  });
+
+  it("voids an unsigned entry: it leaves the logbook but the ledger keeps a record", async () => {
+    const pilot = await createPilot("Void Pilot");
+    const input = entryFor(pilot);
+    const created = await createEntry(input, validateEntry(input).derived!, pilot);
+
+    await voidEntry(created.entryId, pilot);
+
+    const list = await listEntriesForPilot(pilot);
+    expect(list.find((e) => (e as { id: string }).id === created.entryId)).toBeUndefined();
+    expect((await getEntryMeta(created.entryId))?.voided).toBe(true);
+    const ledger = await getLedger();
+    expect(ledger.some((r) => r.entryId === created.entryId && r.eventType === "VOID")).toBe(true);
   });
 
   it("keeps the global ledger chain valid across all operations", async () => {

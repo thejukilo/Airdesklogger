@@ -78,7 +78,7 @@ export async function loadLogbookForExport(
             v.content
        FROM flight_entries e
        JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
-      WHERE e.pilot_id = $1
+      WHERE e.pilot_id = $1 AND e.voided = false
         AND v.content->'columns'->>'date' >= COALESCE($2, '0000-01-01')
         AND v.content->'columns'->>'date' <= COALESCE($3, '9999-12-31')
       ORDER BY v.content->'columns'->>'date' ASC, e.created_at ASC`,

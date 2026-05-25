@@ -23,8 +23,12 @@ CREATE TABLE IF NOT EXISTS flight_entries (
   current_version integer NOT NULL DEFAULT 0,
   locked          boolean NOT NULL DEFAULT false,
   locked_at       timestamptz,
+  voided          boolean NOT NULL DEFAULT false,
   created_at      timestamptz NOT NULL DEFAULT now()
 );
+-- An unsigned entry can be removed from the logbook by voiding it: the row and
+-- its history stay for the audit trail, but it no longer appears or counts.
+ALTER TABLE flight_entries ADD COLUMN IF NOT EXISTS voided boolean NOT NULL DEFAULT false;
 
 -- Append-only snapshots. A modification is a NEW row, never an UPDATE. The full
 -- 12-column payload is stored as jsonb (times as UTC ISO strings) alongside its

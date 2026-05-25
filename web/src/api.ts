@@ -147,7 +147,7 @@ export interface EntryContent {
   picName?: string;
   remarks?: string;
   operatingRole?: string;
-  aircraft?: { makeModelVariant?: string; registration?: string };
+  aircraft?: { makeModelVariant?: string; registration?: string; engineClass?: "SE" | "ME"; multiPilot?: boolean; category?: string };
   function?: { primary?: string; instructor?: number; tookControl?: boolean };
   columns?: EntryColumns;
 }
@@ -190,6 +190,14 @@ export interface NewEntryRequest {
 
 export function createEntry(input: NewEntryRequest): Promise<{ entryId: string }> {
   return request("/entries", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function amendEntry(id: string, input: NewEntryRequest & { reason?: string }): Promise<{ entryId: string }> {
+  return request(`/entries/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function deleteEntry(id: string): Promise<{ deleted: boolean }> {
+  return request(`/entries/${id}`, { method: "DELETE" });
 }
 
 export interface NewFstdRequest {

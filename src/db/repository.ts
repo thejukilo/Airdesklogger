@@ -316,17 +316,43 @@ export async function getCurrentVersion(entryId: string) {
 /** Ownership and lock state, without loading the full content. */
 export async function getEntryMeta(
   entryId: string,
-): Promise<{ pilotId: string; locked: boolean; currentVersion: number } | null> {
+): Promise<{ pilotId: string; locked: boolean; voided: boolean; currentVersion: number } | null> {
   const { rows } = await getPool().query(
-    "SELECT pilot_id, locked, current_version FROM flight_entries WHERE id = $1",
+    "SELECT pilot_id, locked, voided, current_version FROM flight_entries WHERE id = $1",
     [entryId],
   );
   if (!rows[0]) return null;
   return {
     pilotId: rows[0].pilot_id as string,
     locked: Boolean(rows[0].locked),
+    voided: Boolean(rows[0].voided),
     currentVersion: Number(rows[0].current_version),
   };
+}
+
+/**
+ * Void (remove from the logbook) an unsigned entry. The row, its versions and the
+ * ledger are kept for the audit trail, but the entry no longer appears in the
+ * logbook, exports or overlap checks. A signed (locked) entry cannot be voided.
+ */
+export async function voidEntry(entryId: string, actorId: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      "SELECT current_version, locked, voided FROM flight_entries WHERE id = $1 FOR UPDATE",
+      [entryId],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("Entry not found.");
+    if (row.locked) throw new Error("Entry is locked by sign-off and cannot be deleted.");
+    if (row.voided) return;
+    const { rows: vrows } = await client.query(
+      "SELECT content_hash FROM flight_entry_versions WHERE entry_id = $1 AND version_no = $2",
+      [entryId, row.current_version],
+    );
+    const payloadHash = (vrows[0]?.content_hash as string) ?? "void";
+    await client.query("UPDATE flight_entries SET voided = true WHERE id = $1", [entryId]);
+    await appendLedger(client, { eventType: "VOID", entryId, payloadHash, actorId });
+  });
 }
 
 /** Entries belonging to one holder, newest first, with the full content for display. */
@@ -335,7 +361,7 @@ export async function listEntriesForPilot(pilotId: string) {
     `SELECT e.id, e.locked, v.content
        FROM flight_entries e
        JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
-      WHERE e.pilot_id = $1
+      WHERE e.pilot_id = $1 AND e.voided = false
       ORDER BY v.content->'columns'->>'date' DESC, e.created_at DESC`,
     [pilotId],
   );
@@ -359,7 +385,7 @@ export async function findOverlappingFlight(
     `SELECT v.content->'columns'->>'date' AS date
        FROM flight_entries e
        JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
-      WHERE e.pilot_id = $1
+      WHERE e.pilot_id = $1 AND e.voided = false
         AND ($4::uuid IS NULL OR e.id <> $4::uuid)
         AND COALESCE(v.content->'columns'->>'kind', 'FLIGHT') = 'FLIGHT'
         AND (v.content->'columns'->>'departureTime')::timestamptz < $3::timestamptz
