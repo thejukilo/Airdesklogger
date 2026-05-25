@@ -20,15 +20,27 @@ import { clientIp } from "../../src/http/auth.js";
  * are unchanged: /api/auth/register, /api/auth/login, /api/auth/verify-email.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  switch (String(req.query.action)) {
-    case "register":
-      return register(req, res);
-    case "login":
-      return login(req, res);
-    case "verify-email":
-      return verifyEmail(req, res);
-    default:
-      res.status(404).json({ error: "Unknown auth action." });
+  try {
+    switch (String(req.query.action)) {
+      case "register":
+        return await register(req, res);
+      case "login":
+        return await login(req, res);
+      case "verify-email":
+        return await verifyEmail(req, res);
+      default:
+        res.status(404).json({ error: "Unknown auth action." });
+    }
+  } catch (err) {
+    // Always answer with JSON, even on an unexpected failure, so the client never
+    // has to parse a platform error page. A missing database or missing auth
+    // secret lands here.
+    console.error("auth handler error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: "Server error. The deployment may be missing its database connection or auth secrets.",
+      });
+    }
   }
 }
 

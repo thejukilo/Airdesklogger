@@ -30,7 +30,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`/api${path}`, { ...init, headers });
   const text = await res.text();
-  const body = text ? JSON.parse(text) : {};
+
+  let body: { error?: string; issues?: Array<{ message?: string }> } = {};
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // The body was not JSON. This usually means a platform error page rather
+      // than one of our handlers (for example a 500 before the function ran).
+      // Surface something the user can act on instead of a parse error.
+      const message =
+        res.status >= 500
+          ? "The server had an error. The deployment may be missing its database connection or auth secrets."
+          : `Unexpected response from the server (${res.status}).`;
+      throw new ApiError(res.status, message);
+    }
+  }
   if (!res.ok) {
     const message = body?.error ?? body?.issues?.[0]?.message ?? `Request failed (${res.status})`;
     throw new ApiError(res.status, message);
