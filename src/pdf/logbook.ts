@@ -81,6 +81,9 @@ function remarksText(e: LogbookEntryForPdf): string {
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
   if (e.launchMethod) parts.push(`(launch: ${e.launchMethod})`);
   if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
+  // The time face is always UTC (Z); this records that the pilot keyed the entry
+  // in local time, which FOCA 2.2.7 requires the export to indicate.
+  if (e.enteredInLocalTime) parts.push("(entered in local time)");
   if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
   if (e.signatureRequired && !e.signed) parts.push("(signature required)");
   else if (e.signed) parts.push("(signed off)");
