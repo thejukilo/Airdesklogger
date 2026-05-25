@@ -8,6 +8,7 @@ import { NewEntry } from "./pages/NewEntry";
 import { NewFstd } from "./pages/NewFstd";
 import { EntryDetail } from "./pages/EntryDetail";
 import { Account } from "./pages/Account";
+import { Admin } from "./pages/Admin";
 import { Sign } from "./pages/Sign";
 import { Verify } from "./pages/Verify";
 import { ForgotPassword } from "./pages/ForgotPassword";
@@ -32,6 +33,11 @@ function Shell({ children }: { children: ReactNode }) {
           </Link>
           {user && (
             <div className="flex items-center gap-4 text-sm">
+              {user.roles.includes("ADMIN") && (
+                <Link to="/admin" className="text-slate-600 hover:text-ink">
+                  Admin
+                </Link>
+              )}
               <Link to="/account" className="text-slate-600 hover:text-ink">
                 {user.name}
               </Link>
@@ -103,6 +109,14 @@ function AppShell() {
           element={
             <RequireAuth>
               <Account />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <Admin />
             </RequireAuth>
           }
         />

@@ -157,6 +157,45 @@ export async function updateProfile(userId: string, p: ProfileUpdate): Promise<U
   return (await getUserById(userId))!;
 }
 
+/** Add a role to a user (idempotent), returning the new role set. */
+export async function addRole(userId: string, role: Role): Promise<Role[]> {
+  const user = await getUserById(userId);
+  if (!user) return [];
+  const roles = Array.from(new Set<Role>([...user.roles, role]));
+  await getPool().query("UPDATE pilots SET roles = $2, updated_at = now() WHERE id = $1", [userId, roles]);
+  return roles;
+}
+
+/** Counts and on-disk size for the admin dashboard. */
+export async function databaseStats(): Promise<{
+  databaseSize: string;
+  databaseSizeBytes: number;
+  entries: number;
+  users: number;
+  aircraft: number;
+  airports: number;
+}> {
+  const pool = getPool();
+  const size = await pool.query(
+    "SELECT pg_size_pretty(pg_database_size(current_database())) AS pretty, pg_database_size(current_database())::bigint AS bytes",
+  );
+  const counts = await pool.query(
+    `SELECT
+       (SELECT count(*) FROM flight_entries)::int AS entries,
+       (SELECT count(*) FROM pilots)::int        AS users,
+       (SELECT count(*) FROM aircraft)::int       AS aircraft,
+       (SELECT count(*) FROM airports)::int       AS airports`,
+  );
+  return {
+    databaseSize: String(size.rows[0].pretty),
+    databaseSizeBytes: Number(size.rows[0].bytes),
+    entries: Number(counts.rows[0].entries),
+    users: Number(counts.rows[0].users),
+    aircraft: Number(counts.rows[0].aircraft),
+    airports: Number(counts.rows[0].airports),
+  };
+}
+
 /** Store a fresh verification token for a user (used when resending the email). */
 export async function setEmailVerificationToken(userId: string, token: string): Promise<void> {
   await getPool().query(

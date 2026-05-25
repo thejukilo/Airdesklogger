@@ -52,7 +52,7 @@ const BUILTIN: SeedAirport[] = [
 ];
 
 /** Minimal CSV reader that handles quoted fields and escaped quotes. */
-function parseCsv(text: string): string[][] {
+export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";

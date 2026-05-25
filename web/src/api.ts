@@ -338,6 +338,31 @@ export function submitSignoffPublic(
   return request(`/signoff/${token}`, { method: "POST", body: JSON.stringify(input) });
 }
 
+export interface AdminStats {
+  databaseSize: string;
+  databaseSizeBytes: number;
+  entries: number;
+  users: number;
+  aircraft: number;
+  airports: number;
+}
+
+export function adminStats(): Promise<AdminStats> {
+  return request("/admin/stats", { method: "GET" });
+}
+
+export function adminBootstrap(token: string): Promise<{ token: string; user: SessionUser }> {
+  return request("/admin/bootstrap", { method: "POST", body: JSON.stringify({ token }) });
+}
+
+export function adminImportAirports(): Promise<{ imported: number; source: string }> {
+  return request("/admin/import-airports", { method: "GET" });
+}
+
+export function adminImportAircraft(): Promise<{ imported: number; configured: boolean; message?: string; source?: string }> {
+  return request("/admin/import-aircraft", { method: "POST" });
+}
+
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
   const res = await fetch("/api/export/logbook", {
