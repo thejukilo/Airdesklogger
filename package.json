@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate": "tsx src/db/migrate.ts",
+    "seed:airports": "tsx src/db/seedAirports.ts",
     "demo": "tsx src/demo.ts"
   },
   "dependencies": {

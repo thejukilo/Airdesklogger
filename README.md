@@ -61,6 +61,7 @@ src/
     schema.sql       Tables, constraints and the immutability triggers.
     pool.ts          PostgreSQL connection pool, sized for serverless.
     migrate.ts       Applies the schema.
+    seedAirports.ts  Loads the airport reference data (built-in set or OurAirports CSV).
     repository.ts    Create, amend and sign operations, each writing a ledger record.
     authRepository.ts Accounts, MFA secrets and the security log.
     exportRepository.ts Assembles entries, sign-offs and change log for an export.
@@ -205,6 +206,13 @@ Point the application at your database. Either set `DATABASE_URL`, or use the st
 npm run migrate
 ```
 
+Load the airport reference data. With no argument a small built-in starter set is loaded so the app is usable straight away; pass the OurAirports CSV to load the full ICAO set:
+
+```
+npm run seed:airports                 # built-in starter set
+npm run seed:airports -- ./airports.csv   # full set from ourairports.com/data/airports.csv
+```
+
 Run the test suite. The pure domain tests run with no database. The integration test runs only when a connection is configured, and skips itself otherwise.
 
 ```
@@ -223,11 +231,47 @@ For a local database during development you can run a throwaway PostgreSQL on a 
 PGHOST=/tmp PGUSER=postgres PGDATABASE=airdesklogger npm test
 ```
 
-There is also a type check, which the continuous integration should run:
+There is also a type check:
 
 ```
 npm run typecheck
 ```
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request. It starts a
+throwaway PostgreSQL service container, installs dependencies, runs the type
+check for both `src` and `api`, applies the schema, and runs the full test
+suite. Because a database is present, the integration tests run for real rather
+than skipping, so the append-only triggers, the sign-off locking and the export
+are all exercised in CI.
+
+## Provisioning the database in production
+
+The application needs a PostgreSQL database and, in serverless, a pooled
+connection. Any of these work; pick one and set `DATABASE_URL` to the pooled
+connection string it gives you.
+
+- Vercel Postgres: create it from the project's Storage tab. Vercel adds the
+  connection environment variables to the project automatically; use the pooled
+  one.
+- Neon: create a project, then use the connection string from the pooler
+  endpoint (the host contains `-pooler`).
+- Supabase: create a project, then take the connection string from the
+  connection pooler (Transaction mode), not the direct connection.
+
+Once `DATABASE_URL` is set in the Vercel project, apply the schema and load the
+airports once, either from a machine that can reach the database or from a
+one-off job:
+
+```
+DATABASE_URL=... npm run migrate
+DATABASE_URL=... npm run seed:airports -- ./airports.csv
+```
+
+Keep `PGPOOL_MAX` at 1 in serverless, and set `AUTH_JWT_SECRET` and
+`AUTH_SIGNING_MASTER_KEY` as described above before the account and logbook
+endpoints will work.
 
 ## The HTTP API
 
