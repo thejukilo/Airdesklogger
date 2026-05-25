@@ -33,13 +33,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
   } catch (err) {
     // Always answer with JSON, even on an unexpected failure, so the client never
-    // has to parse a platform error page. A missing database or missing auth
-    // secret lands here.
+    // has to parse a platform error page. The detail goes to the server log, not
+    // the response.
     console.error("auth handler error:", err);
     if (!res.headersSent) {
-      // Temporary: include the underlying reason to diagnose the deployment.
-      const detail = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: `Server error: ${detail}` });
+      res.status(500).json({ error: "Server error. Please try again." });
     }
   }
 }
