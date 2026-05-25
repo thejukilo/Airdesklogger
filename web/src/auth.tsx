@@ -7,11 +7,13 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  setMfaEnabled: (enabled: boolean) => void;
 }
 
 const Ctx = createContext<AuthState | null>(null);
 
 const USER_KEY = "airdesk.user";
+const MFA_KEY = "airdesk.mfa";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<api.SessionUser | null>(null);
@@ -23,7 +25,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = api.getToken();
     const cached = localStorage.getItem(USER_KEY);
-    if (token && cached) setUser(JSON.parse(cached) as api.SessionUser);
+    if (token && cached) {
+      setUser(JSON.parse(cached) as api.SessionUser);
+      setMfaEnabled(localStorage.getItem(MFA_KEY) === "true");
+    }
     setLoading(false);
   }, []);
 
@@ -36,13 +41,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const res = await api.login(email, password);
         api.setToken(res.token);
         localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+        localStorage.setItem(MFA_KEY, String(res.mfaEnabled));
         setUser(res.user);
         setMfaEnabled(res.mfaEnabled);
       },
       logout() {
         api.setToken(null);
         localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(MFA_KEY);
         setUser(null);
+        setMfaEnabled(false);
+      },
+      setMfaEnabled(enabled: boolean) {
+        localStorage.setItem(MFA_KEY, String(enabled));
+        setMfaEnabled(enabled);
       },
     }),
     [user, mfaEnabled, loading],

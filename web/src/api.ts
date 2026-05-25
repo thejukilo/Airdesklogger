@@ -137,6 +137,49 @@ export function lookupAircraft(
   });
 }
 
+export function mfaSetup(): Promise<{ secret: string; otpauthUri: string }> {
+  return request("/auth/mfa/setup", { method: "POST" });
+}
+
+export function mfaActivate(code: string): Promise<{ mfaEnabled: boolean }> {
+  return request("/auth/mfa/activate", { method: "POST", body: JSON.stringify({ code }) });
+}
+
+export interface EntryDetail {
+  current: { version_no: number; content: EntryContent; content_hash: string; locked: boolean } | null;
+  history: Array<{
+    version_no: number;
+    content_hash: string;
+    change_reason: string | null;
+    created_at: string;
+  }>;
+  signatures: Array<{
+    signerName: string;
+    signerRole: string;
+    signedAt: string;
+    signatureImage: string | null;
+  }>;
+}
+
+export interface EntryContent {
+  pilotId: string;
+  picName?: string;
+  remarks?: string;
+  aircraft?: { makeModelVariant?: string; registration?: string };
+  columns?: Record<string, unknown>;
+}
+
+export function getEntry(id: string): Promise<EntryDetail> {
+  return request(`/entries/${id}`, { method: "GET" });
+}
+
+export function signEntry(
+  id: string,
+  body: { code: string; role: string; signatureImage?: string },
+): Promise<{ locked: boolean }> {
+  return request(`/entries/${id}/sign`, { method: "POST", body: JSON.stringify(body) });
+}
+
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
   const res = await fetch("/api/export/logbook", {

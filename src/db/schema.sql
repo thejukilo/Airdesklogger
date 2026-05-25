@@ -207,3 +207,9 @@ ALTER TABLE signatures DROP CONSTRAINT IF EXISTS signatures_signer_role_check;
 ALTER TABLE signatures DROP CONSTRAINT IF EXISTS signatures_signer_role_ck;
 ALTER TABLE signatures ADD CONSTRAINT signatures_signer_role_ck
   CHECK (signer_role IN ('INSTRUCTOR','EXAMINER','SUPERVISING_PIC','ATO','DTO','HOT','AIRPORT','OTHER'));
+
+-- The handwritten signature image FOCA 2.4.3 accepts (a PNG data URL drawn on a
+-- device screen). The signatures table is append-only, so once stored it cannot
+-- be altered. The Ed25519 signature remains the integrity proof; the image is
+-- the human-facing signature.
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signature_image text;

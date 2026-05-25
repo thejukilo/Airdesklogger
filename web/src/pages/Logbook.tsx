@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
-import { Alert, Button, Card } from "../components/ui";
+import { useAuth } from "../auth";
+import { Alert, Button, Card, Field } from "../components/ui";
+
+const SIGNER_ROLES = ["INSTRUCTOR", "EXAMINER", "ATO", "DTO", "HOT", "AIRPORT"];
 
 function hhmm(minutes: string | null): string {
   const m = Number(minutes ?? 0);
@@ -10,10 +13,14 @@ function hhmm(minutes: string | null): string {
 }
 
 export function Logbook() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [entries, setEntries] = useState<api.EntrySummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [openId, setOpenId] = useState("");
+  const isSigner = (user?.roles ?? []).some((r) => SIGNER_ROLES.includes(r));
 
   useEffect(() => {
     api
@@ -73,7 +80,11 @@ export function Logbook() {
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-b last:border-0">
+                <tr
+                  key={e.id}
+                  className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
+                  onClick={() => navigate(`/entry/${e.id}`)}
+                >
                   <td className="py-2">{e.date}</td>
                   <td className="py-2">{hhmm(e.total_minutes)}</td>
                   <td className="py-2">
@@ -89,6 +100,29 @@ export function Logbook() {
           </table>
         )}
       </Card>
+
+      {isSigner && (
+        <Card>
+          <h2 className="mb-1 font-medium">Open an entry to sign</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Paste the entry ID a pilot shared with you to review and countersign it.
+          </p>
+          <form
+            className="flex items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (openId.trim()) navigate(`/entry/${openId.trim()}`);
+            }}
+          >
+            <div className="flex-1">
+              <Field label="Entry ID" value={openId} onChange={(e) => setOpenId(e.target.value)} />
+            </div>
+            <Button type="submit" variant="ghost" disabled={!openId.trim()}>
+              Open
+            </Button>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

@@ -97,8 +97,8 @@ web/               The web frontend (Vite + React + Tailwind), a separate worksp
     api.ts           Typed client over the API; keeps the session token.
     auth.tsx         Session context (login, logout, restore).
     App.tsx          Routes and the app shell.
-    pages/           Login, Register, Logbook, NewEntry.
-    components/ui.tsx Small Tailwind-styled building blocks.
+    pages/           Login, Register, Logbook, NewEntry, EntryDetail, Account.
+    components/      Tailwind building blocks and the signature pad.
 vercel.json        Builds the web app, publishes web/dist, deploys the api functions.
 test/              One test file per domain module, plus database and PDF tests.
 ```
@@ -247,7 +247,7 @@ npm run typecheck
 
 ## The web frontend
 
-The `web` folder is a Vite + React single-page app, styled with Tailwind, kept as a separate workspace so the audited backend and the user interface stay cleanly apart. It talks to the same API over relative `/api` paths and keeps the session token in the browser. The first screens are sign-in and registration, the logbook list with a PDF export button, and a form to record a flight. It is web first; a React Native app for iOS and Android can later reuse the same API and the domain types.
+The `web` folder is a Vite + React single-page app, styled with Tailwind, kept as a separate workspace so the audited backend and the user interface stay cleanly apart. It talks to the same API over relative `/api` paths and keeps the session token in the browser. The screens are sign-in and registration; the logbook list with a PDF export button; a form to record a flight, with aircraft lookup by registration; an entry view showing the change history and the sign-offs; an account page that enrols the second factor (a TOTP QR code); and a countersigning panel where an instructor or examiner draws their signature, presents a code, and locks the entry. It is web first; a React Native app for iOS and Android can later reuse the same API and the domain types.
 
 Run it in development against a running API by pointing the dev proxy at that API:
 
@@ -430,7 +430,7 @@ Two deliberate choices worth noting for a reviewer:
 - The change log records every correction. FOCA 2.3.7 allows an exception, a 48-hour window in which edits need not be tracked, but recording everything is stronger rather than weaker, so that window is intentionally not used.
 - The full sailplane and balloon column layout, which differs from the aeroplane logbook, is not reproduced as a separate printed layout yet. The category-specific data is captured, and the aeroplane-format export carries it.
 
-The remaining items are not backend code. Route 1.3 finishes with a FOCA process: a declaration of conformity, testing against a FOCA test account, the dLIS data format which FOCA releases only after acceptance, an acceptance letter, and fees; the acceptance decision is FOCA's. And the one technical item that needs a frontend is the on-screen signature image (2.4.3): the signing and locking are done, but capturing a drawn signature needs a user interface.
+The handwritten signature image (2.4.3) is now captured in the web app: an instructor or examiner draws their signature on a canvas when they countersign, and it is stored on the (append-only) signature record. What remains is not backend code. Route 1.3 finishes with a FOCA process: a declaration of conformity, testing against a FOCA test account, the dLIS data format which FOCA releases only after acceptance, an acceptance letter, and fees; the acceptance decision is FOCA's. A small follow-up is embedding that signature image into the printed PDF export (it is stored and shown in the app today).
 
 ## Scope and limitations
 

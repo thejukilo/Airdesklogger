@@ -25,6 +25,8 @@ const Body = z.object({
   code: z.string().min(6).max(8),
   role: z.enum(["INSTRUCTOR", "EXAMINER", "SUPERVISING_PIC", "ATO", "DTO", "HOT", "AIRPORT", "OTHER"]),
   entryIds: z.array(z.string()).optional(),
+  // Optional drawn signature image (PNG data URL). Capped so a request stays small.
+  signatureImage: z.string().startsWith("data:image/").max(300_000).optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -84,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const results = [];
     for (const entryId of targets) {
-      results.push(await signOne(entryId, user, role as SignerCapacity, keys));
+      results.push(await signOne(entryId, user, role as SignerCapacity, keys, parsed.data.signatureImage));
     }
 
     const allOk = results.every((r) => r.ok);
@@ -117,6 +119,7 @@ async function signOne(
   user: UserRow,
   role: SignerCapacity,
   keys: { privateKey: string; publicKey: string },
+  signatureImage?: string,
 ): Promise<SignResult> {
   const meta = await getEntryMeta(entryId);
   if (!meta) return { entryId, ok: false, status: 404, error: "Entry not found." };
@@ -125,7 +128,12 @@ async function signOne(
   }
   if (meta.locked) return { entryId, ok: false, status: 409, error: "Entry is already locked." };
 
-  const signature = await signCurrentVersion(entryId, keys, { signerId: user.id, signerRole: role }, signEntry);
+  const signature = await signCurrentVersion(
+    entryId,
+    keys,
+    { signerId: user.id, signerRole: role, ...(signatureImage ? { signatureImage } : {}) },
+    signEntry,
+  );
   return {
     entryId,
     ok: true,

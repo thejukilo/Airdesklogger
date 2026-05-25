@@ -1,14 +1,24 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { parseEntryRequest, RequestError } from "../../src/http/parseEntry.js";
 import { validateEntry } from "../../src/domain/validation.js";
-import { amendEntry, getCurrentVersion, getEntryMeta, getHistory } from "../../src/db/repository.js";
+import {
+  amendEntry,
+  getCurrentVersion,
+  getEntryMeta,
+  getHistory,
+  getEntrySignatures,
+} from "../../src/db/repository.js";
 import { validateFlightReferences } from "../../src/http/validateReferences.js";
 import { canEditOwnLogbook } from "../../src/auth/roles.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
+const SIGNER_ROLES = ["INSTRUCTOR", "EXAMINER", "ATO", "DTO", "HOT", "AIRPORT"];
+
 /**
  * A single entry.
- *   GET   returns the current version and its change history (owner or admin).
+ *   GET   returns the current version, its change history and its sign-offs. The
+ *         holder and admins can always view; a signer role may also view so they
+ *         can review an entry before countersigning it.
  *   PATCH records a correction as a new immutable version. Only the holder may
  *         amend, and only while the entry is unlocked; a locked (signed) entry
  *         returns 409.
@@ -25,14 +35,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const isOwner = canEditOwnLogbook(claims.sub, meta.pilotId);
     const isAdmin = claims.roles.includes("ADMIN");
 
+    const isSigner = claims.roles.some((r) => SIGNER_ROLES.includes(r));
+
     if (req.method === "GET") {
-      if (!isOwner && !isAdmin) {
+      if (!isOwner && !isAdmin && !isSigner) {
         res.status(403).json({ error: "Not your logbook." });
         return;
       }
       res.status(200).json({
         current: await getCurrentVersion(entryId),
         history: await getHistory(entryId),
+        signatures: await getEntrySignatures(entryId),
       });
       return;
     }
