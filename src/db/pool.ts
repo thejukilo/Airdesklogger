@@ -15,9 +15,22 @@ let pool: Pool | undefined;
 export function getPool(): Pool {
   if (!pool) {
     const max = Number(process.env.PGPOOL_MAX ?? "1") || 1;
-    pool = process.env.DATABASE_URL
-      ? new Pool({ connectionString: process.env.DATABASE_URL, max })
-      : new Pool({ max }); // falls back to PGHOST/PGUSER/PGDATABASE/...
+    const connectionString = process.env.DATABASE_URL;
+    if (connectionString) {
+      // Managed Postgres (Supabase, Neon, Vercel Postgres) requires TLS. We
+      // enable it for any non-local connection string. The provider CA is not
+      // pinned here, so the certificate is not verified; that is the common
+      // setup for these services. A deployment that needs strict verification
+      // can pin the CA later.
+      const isLocal = /@(localhost|127\.0\.0\.1)[:/]/.test(connectionString);
+      pool = new Pool({
+        connectionString,
+        max,
+        ...(isLocal ? {} : { ssl: { rejectUnauthorized: false } }),
+      });
+    } else {
+      pool = new Pool({ max }); // falls back to PGHOST/PGUSER/PGDATABASE/...
+    }
   }
   return pool;
 }
