@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
-import { ATTRIBUTES } from "../labels";
+import { ATTRIBUTES, CATEGORY_LABELS } from "../labels";
 
 /** A titled card that groups related fields, so the form reads as sections. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -144,6 +144,7 @@ export function NewEntry() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aircraftMsg, setAircraftMsg] = useState<string | null>(null);
+  const [regCategory, setRegCategory] = useState<string | null>(null);
   const [depName, setDepName] = useState<string | null>(null);
   const [arrName, setArrName] = useState<string | null>(null);
 
@@ -194,30 +195,47 @@ export function NewEntry() {
   useEffect(() => {
     if (reg.length < 2) {
       setAircraftMsg(null);
+      setRegCategory(null);
       return;
     }
     const t = setTimeout(async () => {
       try {
         const { match } = await api.lookupAircraft(reg);
         if (match) {
-          setF((prev) => ({
-            ...prev,
-            makeModelVariant: match.model || prev.makeModelVariant,
-            category: ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"].includes(match.category)
-              ? match.category
-              : prev.category,
-            multiPilot: match.multiPilot ?? prev.multiPilot,
-          }));
-          setAircraftMsg(`Found: ${match.model}`);
+          const known = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"].includes(match.category)
+            ? match.category
+            : null;
+          setRegCategory(known);
+          setF((prev) => {
+            const corrected = known && known !== prev.category;
+            setAircraftMsg(
+              corrected
+                ? `${reg} is registered as a ${CATEGORY_LABELS[known]}; category set to match.`
+                : `Found: ${match.model}`,
+            );
+            return {
+              ...prev,
+              makeModelVariant: match.model || prev.makeModelVariant,
+              category: known ?? prev.category,
+              multiPilot: match.multiPilot ?? prev.multiPilot,
+            };
+          });
         } else {
+          setRegCategory(null);
           setAircraftMsg("Not found; enter the type manually.");
         }
       } catch {
         setAircraftMsg(null);
+        setRegCategory(null);
       }
     }, 600);
     return () => clearTimeout(t);
   }, [reg]);
+
+  // If the registration is known and the chosen category no longer matches it
+  // (the pilot changed it after the lookup), warn and block: the registration is
+  // authoritative for the category.
+  const categoryMismatch = regCategory && regCategory !== f.category;
 
   // EASA times the flight from first movement (block) for aeroplanes, but from
   // rotor start to rotor stop for helicopters (AMC1 FCL.050 (g)). Balloons log
@@ -268,6 +286,10 @@ export function NewEntry() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (categoryMismatch) {
+      setError(`${reg} is registered as a ${CATEGORY_LABELS[regCategory!]}, not a ${CATEGORY_LABELS[f.category]}. Correct the category or the registration.`);
+      return;
+    }
     setBusy(true);
     try {
       const arrivalDate = f.blockEnd > f.blockStart ? f.date : nextDay(f.date);
@@ -372,12 +394,19 @@ export function NewEntry() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
-            <Select label="Category" value={f.category} onChange={(e) => set("category", e.target.value)}>
-              <option value="AEROPLANE">Aeroplane</option>
-              <option value="HELICOPTER">Helicopter</option>
-              <option value="SAILPLANE">Sailplane</option>
-              <option value="BALLOON">Balloon</option>
-            </Select>
+            <div>
+              <Select label="Category" value={f.category} onChange={(e) => set("category", e.target.value)}>
+                <option value="AEROPLANE">Aeroplane</option>
+                <option value="HELICOPTER">Helicopter</option>
+                <option value="SAILPLANE">Sailplane</option>
+                <option value="BALLOON">Balloon</option>
+              </Select>
+              {categoryMismatch && (
+                <p className="mt-1 text-xs text-red-600">
+                  {reg} is registered as a {CATEGORY_LABELS[regCategory!]}, not a {CATEGORY_LABELS[f.category]}.
+                </p>
+              )}
+            </div>
             {isPowered && (
               <Select label="Engine" value={f.engineClass} onChange={(e) => set("engineClass", e.target.value)}>
                 <option value="SE">Single-engine</option>

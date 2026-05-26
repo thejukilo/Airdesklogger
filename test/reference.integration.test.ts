@@ -80,6 +80,16 @@ describe.skipIf(!hasDb)("reference data and validation (integration)", () => {
     expect(fields).toContain("aircraft.registration"); // not registered
   });
 
+  it("rejects a flight logged under the wrong category for its registration", async () => {
+    const registration = reg();
+    await upsertAirport({ icao: "EGKB", name: "Biggin Hill" });
+    await upsertAircraft({ registration, model: "Cessna 172S", category: "AEROPLANE" });
+    const asBalloon = flight(registration, "EGKB", "EGKB");
+    asBalloon.aircraft.category = "BALLOON";
+    const issues = await validateFlightReferences(asBalloon);
+    expect(issues.map((i) => i.field)).toContain("aircraft.category");
+  });
+
   it("validates FSTD devices against the reference database", async () => {
     const qual = `Q-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     const fstd: FstdSessionInput = {

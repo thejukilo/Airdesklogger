@@ -15,6 +15,13 @@ export interface ReferenceIssue {
   message: string;
 }
 
+const CATEGORY_NAMES: Record<string, string> = {
+  AEROPLANE: "aeroplane",
+  HELICOPTER: "helicopter",
+  SAILPLANE: "sailplane",
+  BALLOON: "balloon",
+};
+
 export async function validateFlightReferences(input: FlightEntryInput): Promise<ReferenceIssue[]> {
   const issues: ReferenceIssue[] = [];
 
@@ -40,11 +47,23 @@ export async function validateFlightReferences(input: FlightEntryInput): Promise
   }
 
   const onDate = (input.legs[0]?.departureTime ?? new Date()).toISOString().slice(0, 10);
-  if (!(await getAircraftForFlight(input.aircraft.registration, onDate))) {
+  const aircraft = await getAircraftForFlight(input.aircraft.registration, onDate);
+  if (!aircraft) {
     issues.push({
       field: "aircraft.registration",
       message: `Aircraft ${input.aircraft.registration} is not in the reference database as of ${onDate}; add it first.`,
     });
+  } else {
+    // The registration is authoritative for the category. A flight may not be
+    // logged under a category the aircraft does not belong to (for example a
+    // single-engine aeroplane logged as a balloon).
+    const selected = input.aircraft.category ?? "AEROPLANE";
+    if (aircraft.category && aircraft.category !== selected) {
+      issues.push({
+        field: "aircraft.category",
+        message: `${input.aircraft.registration} is registered as a ${CATEGORY_NAMES[aircraft.category]}, not a ${CATEGORY_NAMES[selected]}.`,
+      });
+    }
   }
 
   return issues;
