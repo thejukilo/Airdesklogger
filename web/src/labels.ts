@@ -11,6 +11,8 @@ export interface AttributeDef {
   key: string;
   label: string;
   categories?: string[];
+  /** Optional explanatory note shown on hover. */
+  note?: string;
 }
 
 export const ATTRIBUTE_GROUPS: Array<{ title: string; items: AttributeDef[] }> = [
@@ -37,7 +39,11 @@ export const ATTRIBUTE_GROUPS: Array<{ title: string; items: AttributeDef[] }> =
       { key: "demonstration_of_ability_to_instruct", label: "Demo of ability to instruct" },
       { key: "solo", label: "Solo" },
       { key: "cross_country", label: "Cross country" },
-      { key: "series_of_flights", label: "Series of flights" },
+      {
+        key: "series_of_flights",
+        label: "Series of flights",
+        note: "Lets you record several short flights of the same day as one entry with a reduced total time. It applies when an aircraft makes repeated flights that each return to the same departure point and no more than 30 minutes elapses between them. The 30-minute gap limit does not apply to sailplane (SPL) licence holders.",
+      },
       { key: "towing", label: "Towing" },
       { key: "heslo", label: "HESLO", categories: ["HELICOPTER"] },
       { key: "hec", label: "HEC", categories: ["HELICOPTER"] },

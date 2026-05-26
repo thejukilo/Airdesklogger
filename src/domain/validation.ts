@@ -187,6 +187,23 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
 
   const attributes = validateAttributes(input.attributes, issues, category);
   const attributeDetails = cleanAttributeDetails(input.attributeDetails, issues);
+
+  // A series of flights may be recorded as one entry with a reduced total: the
+  // pilot may lower the calculated block time but never raise it, and only when
+  // the entry is marked as a series of flights.
+  let effectiveBlock = blockTime;
+  if (input.flightTimeMinutes !== undefined) {
+    if (!attributes.includes("series_of_flights")) {
+      issues.push({ field: "flightTimeMinutes", message: "A reduced flight time can only be entered for a series of flights." });
+    } else if (!isNonNegInt(input.flightTimeMinutes) || input.flightTimeMinutes < 1) {
+      issues.push({ field: "flightTimeMinutes", message: "Flight time must be a positive whole number of minutes." });
+    } else if (input.flightTimeMinutes > blockTime) {
+      issues.push({ field: "flightTimeMinutes", message: "The flight time of a series may only be reduced, not raised above the calculated time." });
+    } else {
+      effectiveBlock = input.flightTimeMinutes;
+    }
+  }
+
   if (issues.length > 0) return { valid: false, issues };
 
   // Apply the crew share to every category of time (FOCA 2.3.4). Landings are
@@ -204,7 +221,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
       : "SAFETY_PILOT"
     : input.function.primary;
 
-  const total = safetyNoControl ? 0 : loggedMinutes(blockTime, safeCrew);
+  const total = safetyNoControl ? 0 : loggedMinutes(effectiveBlock, safeCrew);
 
   // Columns 5 & 6: single-pilot SE/ME vs multi-pilot, exhaustively from the
   // logged total. These aeroplane/helicopter columns are left blank for balloons
@@ -216,12 +233,15 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const multiEngine =
     poweredAircraft && !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
 
-  const night = safetyNoControl ? 0 : loggedMinutes(input.conditions.night, safeCrew);
-  const ifr = safetyNoControl ? 0 : loggedMinutes(input.conditions.ifr, safeCrew);
+  // Night, IFR and instructor time are portions of the flight, so a reduced
+  // series total caps them too (they are computed against the full block).
+  const night = safetyNoControl ? 0 : loggedMinutes(Math.min(input.conditions.night, effectiveBlock), safeCrew);
+  const ifr = safetyNoControl ? 0 : loggedMinutes(Math.min(input.conditions.ifr, effectiveBlock), safeCrew);
 
   // Column 11.
-  const fm = functionMinutes({ primary: effectivePrimary, instructor: input.function.instructor }, total);
-  const instructor = safetyNoControl ? 0 : loggedMinutes(input.function.instructor, safeCrew);
+  const instructorMinutes = Math.min(input.function.instructor, effectiveBlock);
+  const fm = functionMinutes({ primary: effectivePrimary, instructor: instructorMinutes }, total);
+  const instructor = safetyNoControl ? 0 : loggedMinutes(instructorMinutes, safeCrew);
 
   const derived: DerivedColumns = {
     kind: "FLIGHT",
@@ -235,6 +255,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     ...(input.launchMethod !== undefined ? { launchMethod: input.launchMethod } : {}),
     ...(input.balloonFlightType !== undefined ? { balloonFlightType: input.balloonFlightType } : {}),
     ...(input.inflations !== undefined ? { inflations: input.inflations } : {}),
+    ...(input.flightTimeMinutes !== undefined ? { flightTimeMinutes: input.flightTimeMinutes } : {}),
     ...(input.function.instructorPosition !== undefined ? { instructorPosition: input.function.instructorPosition } : {}),
     ...(input.operatingRole !== undefined ? { operatingRole: input.operatingRole } : {}),
     date: utcDateKey(first.departureTime),

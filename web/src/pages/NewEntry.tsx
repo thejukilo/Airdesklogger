@@ -128,6 +128,7 @@ const empty = {
   balloonFlightType: "",
   inflations: 1,
   instructor: 0,
+  seriesMinutes: 0,
   landings: 1,
   picName: "SELF",
   remarks: "",
@@ -164,6 +165,7 @@ function fromContent(c: api.EntryContent): typeof empty {
     balloonFlightType: cols?.balloonFlightType ?? "",
     inflations: cols?.inflations ?? 1,
     instructor: c.function?.instructor ?? 0,
+    seriesMinutes: cols?.flightTimeMinutes ?? 0,
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
     picName: c.picName ?? "SELF",
     remarks: c.remarks ?? "",
@@ -221,7 +223,19 @@ export function NewEntry() {
   }
 
   const has = (key: string) => f.attributes.includes(key);
-  const showDetails = has("heslo") || has("hec") || has("mountain_landings") || has("low_visibility_landing");
+  const isSeries = has("series_of_flights");
+  const showDetails =
+    has("heslo") || has("hec") || has("mountain_landings") || has("low_visibility_landing") || isSeries;
+
+  // Calculated flight time from the block times, used as the ceiling for a
+  // series of flights (which may only be logged with a reduced time).
+  const computedBlock = f.blockStart && f.blockEnd ? blockMinutes(f.date || "1970-01-01", f.blockStart, f.blockEnd) : 0;
+  // Prefill the editable series time with the calculated time, and clamp it so it
+  // can never exceed it (reduce only).
+  useEffect(() => {
+    if (!isSeries) return;
+    if (f.seriesMinutes === 0 || f.seriesMinutes > computedBlock) set("seriesMinutes", computedBlock);
+  }, [isSeries, computedBlock]);
 
   // Only the attributes that apply to the chosen category (launch is
   // sailplane-only; HESLO/HEC are helicopter-only).
@@ -423,6 +437,11 @@ export function NewEntry() {
         ...(isSailplane && f.launchMethod ? { launchMethod: f.launchMethod } : {}),
         ...(isBalloon && f.balloonFlightType ? { balloonFlightType: f.balloonFlightType } : {}),
         ...(isBalloon ? { inflations: Number(f.inflations) } : {}),
+        // Only send the reduced time when the pilot has lowered it below the
+        // calculated block time for a series of flights.
+        ...(isSeries && f.seriesMinutes > 0 && f.seriesMinutes < computedBlock
+          ? { flightTimeMinutes: f.seriesMinutes }
+          : {}),
         ...(f.attributes.length ? { attributes: f.attributes } : {}),
         ...(buildAttributeDetails() ? { attributeDetails: buildAttributeDetails() } : {}),
         remarks: f.remarks,
@@ -655,9 +674,11 @@ export function NewEntry() {
                   <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">{g.title}</div>
                   <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3">
                     {g.items.map((a) => (
-                      <label key={a.key} className="flex items-center gap-2 py-1 text-sm">
+                      <label key={a.key} className="flex items-center gap-2 py-1 text-sm" title={a.note}>
                         <input type="checkbox" checked={has(a.key)} onChange={() => toggleAttr(a.key)} />
-                        {a.label}
+                        <span className={a.note ? "underline decoration-dotted decoration-slate-400 underline-offset-2" : undefined}>
+                          {a.label}
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -671,6 +692,18 @@ export function NewEntry() {
 
           {showDetails && (
             <div className="grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
+              {isSeries && (
+                <Field
+                  label="Flight time (min)"
+                  type="number"
+                  min={1}
+                  max={computedBlock}
+                  inputMode="numeric"
+                  value={f.seriesMinutes}
+                  onChange={(e) => set("seriesMinutes", Math.min(Math.max(0, Number(e.target.value)), computedBlock))}
+                  hint={`Calculated ${Math.floor(computedBlock / 60)}h ${String(computedBlock % 60).padStart(2, "0")}m. You may only reduce it.`}
+                />
+              )}
               {has("heslo") && (
                 <Select label="HESLO level" value={f.hesloLevel} onChange={(e) => set("hesloLevel", e.target.value)}>
                   <option value="">Not set</option>

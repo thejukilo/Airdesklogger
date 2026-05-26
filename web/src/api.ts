@@ -141,6 +141,7 @@ export interface EntryColumns {
   launchMethod?: string;
   balloonFlightType?: "FREE" | "TETHERED";
   inflations?: number;
+  flightTimeMinutes?: number;
   instructorPosition?: string;
   attributes?: string[];
   attributeDetails?: AttributeDetails;
@@ -196,6 +197,7 @@ export interface NewEntryRequest {
   launchMethod?: string;
   balloonFlightType?: "FREE" | "TETHERED";
   inflations?: number;
+  flightTimeMinutes?: number;
   attributes?: string[];
   attributeDetails?: AttributeDetails;
 }

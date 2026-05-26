@@ -118,6 +118,12 @@ export interface FlightEntryInput {
   inflations?: number | undefined;
   /** Operating crew size: 2 (normal), or 3/4 for augmented operation (FOCA 2.3.4). */
   crewSize?: number;
+  /**
+   * Reduced loggable flight time, in minutes, for a series of flights recorded as
+   * one entry. It may only lower the calculated block time, never raise it, and
+   * is accepted only when the entry carries the series-of-flights attribute.
+   */
+  flightTimeMinutes?: number | undefined;
   /** Structured FOCA attributes (skill test, cross country, etc.). */
   attributes?: EntryAttribute[];
   /** Refinements for some attributes (HESLO/HEC level and cycles, etc.). */
@@ -184,6 +190,8 @@ export interface DerivedColumns {
   isMultiFlight: boolean;
   /** Operating crew size; 3 or 4 means the logged times are a share (FOCA 2.3.4). */
   crewSize: number;
+  /** Reduced flight time entered for a series of flights, when the pilot lowered it. */
+  flightTimeMinutes?: number | undefined;
   /** Aircraft category for the entry (defaults to aeroplane). */
   category: AircraftCategory;
   /** Sailplane launch method, if recorded. */

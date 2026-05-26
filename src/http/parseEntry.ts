@@ -60,6 +60,7 @@ const EntryShape = z.object({
   balloonFlightType: z.enum(["FREE", "TETHERED"]).optional(),
   inflations: z.number().int().nonnegative().optional(),
   crewSize: z.number().int().optional(),
+  flightTimeMinutes: z.number().int().positive().optional(),
   attributes: z.array(z.string()).optional(),
   attributeDetails: z
     .object({
@@ -122,6 +123,7 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
       ...(data.balloonFlightType !== undefined ? { balloonFlightType: data.balloonFlightType } : {}),
       ...(data.inflations !== undefined ? { inflations: data.inflations } : {}),
       ...(data.crewSize !== undefined ? { crewSize: data.crewSize } : {}),
+      ...(data.flightTimeMinutes !== undefined ? { flightTimeMinutes: data.flightTimeMinutes } : {}),
       attributes: (data.attributes ?? []) as EntryAttribute[],
       ...(data.attributeDetails !== undefined ? { attributeDetails: data.attributeDetails } : {}),
       enteredInLocalTime: enteredLocal,

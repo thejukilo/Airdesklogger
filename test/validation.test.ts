@@ -203,4 +203,27 @@ describe("entry validation & column derivation", () => {
     expect(onSailplane.derived!.launchMethod).toBe("WINCH");
     expect(onSailplane.derived!.category).toBe("SAILPLANE");
   });
+
+  it("logs a reduced flight time for a series of flights and caps the portions", () => {
+    // 90-minute block (08:00-09:30); a series logged as 60 minutes.
+    const r = validateEntry(baseEntry({ attributes: ["series_of_flights"], flightTimeMinutes: 60 }));
+    expect(r.valid).toBe(true);
+    expect(r.derived!.total).toBe(60);
+    expect(r.derived!.singleEngine).toBe(60);
+    expect(r.derived!.flightTimeMinutes).toBe(60);
+    // IFR was 30 (<= 60), so it is unaffected and still within the reduced total.
+    expect(r.derived!.ifr).toBe(30);
+  });
+
+  it("rejects a reduced flight time without the series-of-flights attribute", () => {
+    const r = validateEntry(baseEntry({ flightTimeMinutes: 60 }));
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.field === "flightTimeMinutes")).toBe(true);
+  });
+
+  it("rejects a flight time that exceeds the calculated block time", () => {
+    const r = validateEntry(baseEntry({ attributes: ["series_of_flights"], flightTimeMinutes: 120 }));
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.field === "flightTimeMinutes")).toBe(true);
+  });
 });
