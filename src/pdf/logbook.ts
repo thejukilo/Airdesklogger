@@ -170,6 +170,35 @@ export interface AuditAppendix {
   changeLog: Array<{ entry: string; text: string }>;
 }
 
+/** Aircraft categories print on their own pages, since the columns differ. */
+const CATEGORY_ORDER = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"] as const;
+const CATEGORY_LABEL: Record<string, string> = {
+  AEROPLANE: "Aeroplane",
+  HELICOPTER: "Helicopter",
+  SAILPLANE: "Sailplane",
+  BALLOON: "Balloon",
+};
+
+function groupByCategory(
+  entries: readonly LogbookEntryForPdf[],
+): Array<{ label: string; entries: LogbookEntryForPdf[] }> {
+  const byCat = new Map<string, LogbookEntryForPdf[]>();
+  for (const e of entries) {
+    const cat = e.category && CATEGORY_LABEL[e.category] ? e.category : "AEROPLANE";
+    const list = byCat.get(cat) ?? [];
+    list.push(e);
+    byCat.set(cat, list);
+  }
+  const groups: Array<{ label: string; entries: LogbookEntryForPdf[] }> = [];
+  for (const cat of CATEGORY_ORDER) {
+    if (byCat.has(cat)) groups.push({ label: CATEGORY_LABEL[cat]!, entries: byCat.get(cat)! });
+  }
+  for (const [cat, list] of byCat) {
+    if (!CATEGORY_ORDER.includes(cat as (typeof CATEGORY_ORDER)[number])) groups.push({ label: cat, entries: list });
+  }
+  return groups;
+}
+
 export async function generateLogbookPdf(
   entries: readonly LogbookEntryForPdf[],
   opts: PdfOptions,
@@ -182,11 +211,19 @@ export async function generateLogbookPdf(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  const paginated = paginate(entries, rowsPerPage);
-  const pages = paginated.pages.length > 0 ? paginated.pages : [emptyPage()];
-
-  for (const page of pages) {
-    drawPage(doc, font, bold, page, pages.length, resolved, entries);
+  // Each aircraft category prints as its own run of pages, with its own
+  // page-by-page totals, since their columns and rules differ.
+  const groups = groupByCategory(entries);
+  if (groups.length === 0) {
+    drawPage(doc, font, bold, emptyPage(), 1, resolved, [], "");
+  } else {
+    for (const group of groups) {
+      const pages = paginate(group.entries, rowsPerPage).pages;
+      const list = pages.length > 0 ? pages : [emptyPage()];
+      for (const page of list) {
+        drawPage(doc, font, bold, page, list.length, resolved, group.entries, group.label);
+      }
+    }
   }
 
   if (audit) {
@@ -256,6 +293,7 @@ function drawPage(
   totalPages: number,
   opts: PdfOptions,
   allEntries: readonly LogbookEntryForPdf[],
+  categoryLabel = "",
 ): void {
   const paper = opts.paperSize ?? "A4";
   const rowsPerPage = opts.rowsPerPage ?? rowsToFillPage(paper);
@@ -275,7 +313,7 @@ function drawPage(
 
   // Title / identity strip, in natural (pre-scale) coordinates.
   const top = contentH - MARGIN;
-  p.drawText("EASA FLIGHT CREW LOGBOOK  -  AMC1 FCL.050", { x: MARGIN, y: top - 10, size: 11, font: bold, color: BLACK });
+  p.drawText(`EASA FLIGHT CREW LOGBOOK  -  AMC1 FCL.050${categoryLabel ? `  -  ${categoryLabel}` : ""}`, { x: MARGIN, y: top - 10, size: 11, font: bold, color: BLACK });
   p.drawText(
     `Holder: ${opts.pilotName}${opts.dateOfBirth ? `    DOB: ${opts.dateOfBirth}` : ""}` +
       `${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}` +
