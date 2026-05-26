@@ -38,6 +38,16 @@ function nextDay(date: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** "H:MM"/"HH:MM" to minutes, or 0 when not a valid duration. */
+function parseHHMM(s: string): number {
+  const m = /^(\d{1,2}):([0-5]?\d)$/.exec(s.trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+function fmtHHMM(min: number): string {
+  const n = Math.max(0, Math.round(min));
+  return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+}
+
 function blockMinutes(date: string, start: string, end: string): number {
   const s = new Date(`${date}T${start}:00Z`).getTime();
   let e = new Date(`${date}T${end}:00Z`).getTime();
@@ -128,7 +138,7 @@ const empty = {
   balloonFlightType: "",
   inflations: 1,
   instructor: 0,
-  seriesMinutes: 0,
+  seriesTime: "",
   landings: 1,
   picName: "SELF",
   remarks: "",
@@ -165,7 +175,7 @@ function fromContent(c: api.EntryContent): typeof empty {
     balloonFlightType: cols?.balloonFlightType ?? "",
     inflations: cols?.inflations ?? 1,
     instructor: c.function?.instructor ?? 0,
-    seriesMinutes: cols?.flightTimeMinutes ?? 0,
+    seriesTime: cols?.flightTimeMinutes ? fmtHHMM(cols.flightTimeMinutes) : "",
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
     picName: c.picName ?? "SELF",
     remarks: c.remarks ?? "",
@@ -230,11 +240,13 @@ export function NewEntry() {
   // Calculated flight time from the block times, used as the ceiling for a
   // series of flights (which may only be logged with a reduced time).
   const computedBlock = f.blockStart && f.blockEnd ? blockMinutes(f.date || "1970-01-01", f.blockStart, f.blockEnd) : 0;
-  // Prefill the editable series time with the calculated time, and clamp it so it
-  // can never exceed it (reduce only).
+  // The entered series time in minutes, never above the calculated block time.
+  const seriesMinutes = Math.min(parseHHMM(f.seriesTime), computedBlock);
+  // Prefill the editable series time (HH:MM) with the calculated time, and clamp
+  // it down whenever it would exceed it (reduce only).
   useEffect(() => {
     if (!isSeries) return;
-    if (f.seriesMinutes === 0 || f.seriesMinutes > computedBlock) set("seriesMinutes", computedBlock);
+    if (f.seriesTime === "" || parseHHMM(f.seriesTime) > computedBlock) set("seriesTime", fmtHHMM(computedBlock));
   }, [isSeries, computedBlock]);
 
   // Only the attributes that apply to the chosen category (launch is
@@ -439,8 +451,8 @@ export function NewEntry() {
         ...(isBalloon ? { inflations: Number(f.inflations) } : {}),
         // Only send the reduced time when the pilot has lowered it below the
         // calculated block time for a series of flights.
-        ...(isSeries && f.seriesMinutes > 0 && f.seriesMinutes < computedBlock
-          ? { flightTimeMinutes: f.seriesMinutes }
+        ...(isSeries && seriesMinutes > 0 && seriesMinutes < computedBlock
+          ? { flightTimeMinutes: seriesMinutes }
           : {}),
         ...(f.attributes.length ? { attributes: f.attributes } : {}),
         ...(buildAttributeDetails() ? { attributeDetails: buildAttributeDetails() } : {}),
@@ -694,14 +706,14 @@ export function NewEntry() {
             <div className="grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
               {isSeries && (
                 <Field
-                  label="Flight time (min)"
-                  type="number"
-                  min={1}
-                  max={computedBlock}
+                  label="Flight time (HH:MM)"
+                  type="text"
                   inputMode="numeric"
-                  value={f.seriesMinutes}
-                  onChange={(e) => set("seriesMinutes", Math.min(Math.max(0, Number(e.target.value)), computedBlock))}
-                  hint={`Calculated ${Math.floor(computedBlock / 60)}h ${String(computedBlock % 60).padStart(2, "0")}m. You may only reduce it.`}
+                  placeholder="HH:MM"
+                  pattern="[0-9]{1,2}:[0-5][0-9]"
+                  value={f.seriesTime}
+                  onChange={(e) => set("seriesTime", e.target.value)}
+                  hint={`Calculated ${fmtHHMM(computedBlock)}. You may only reduce it.`}
                 />
               )}
               {has("heslo") && (
