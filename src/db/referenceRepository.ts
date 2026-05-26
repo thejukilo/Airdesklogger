@@ -10,6 +10,7 @@
 
 import { getPool } from "./pool.js";
 import { normalizeIcao } from "../domain/icao.js";
+import { categoryForDescription } from "../data/icaoTypes.js";
 
 export interface Airport {
   icao: string;
@@ -150,6 +151,63 @@ export async function listAircraft(query: string, limit = 50): Promise<AircraftR
     balloonGroup: r.balloon_group ?? undefined,
     validFrom: String(r.valid_from).slice(0, 10),
   }));
+}
+
+export interface IcaoTypeInfo {
+  /** The ICAO Doc 8643 description, shown to the pilot as the precise subtype. */
+  description: string;
+  category: AircraftRecord["category"];
+  engineType?: string | undefined;
+  engineCount?: number | undefined;
+}
+
+export interface IcaoTypeSeed {
+  code: string;
+  description: string;
+  engineType?: string | null | undefined;
+  engineCount?: number | null | undefined;
+}
+
+/** Classify an ICAO type designator from the reference table, or null if absent. */
+export async function getIcaoType(code: string): Promise<IcaoTypeInfo | null> {
+  const { rows } = await getPool().query(
+    "SELECT description, engine_type, engine_count FROM icao_types WHERE code = $1",
+    [code.trim().toUpperCase()],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    description: r.description as string,
+    category: categoryForDescription(r.description as string),
+    engineType: (r.engine_type as string) ?? undefined,
+    engineCount: r.engine_count === null ? undefined : Number(r.engine_count),
+  };
+}
+
+/** Bulk-upsert ICAO type designators. Used by the seed. */
+export async function upsertIcaoTypes(types: IcaoTypeSeed[]): Promise<number> {
+  const pool = getPool();
+  let written = 0;
+  const CHUNK = 2000; // 4 params per row, well under the parameter limit
+  for (let i = 0; i < types.length; i += CHUNK) {
+    const chunk = types.slice(i, i + CHUNK);
+    const values: string[] = [];
+    const params: unknown[] = [];
+    chunk.forEach((t, j) => {
+      const b = j * 4;
+      values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4})`);
+      params.push(t.code.toUpperCase(), t.description, t.engineType ?? null, t.engineCount ?? null);
+    });
+    await pool.query(
+      `INSERT INTO icao_types (code, description, engine_type, engine_count) VALUES ${values.join(",")}
+         ON CONFLICT (code) DO UPDATE SET
+           description = EXCLUDED.description, engine_type = EXCLUDED.engine_type,
+           engine_count = EXCLUDED.engine_count`,
+      params,
+    );
+    written += chunk.length;
+  }
+  return written;
 }
 
 export interface FstdDevice {

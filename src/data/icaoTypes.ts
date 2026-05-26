@@ -1,22 +1,20 @@
 /**
- * ICAO type designator lookup.
+ * ICAO Doc 8643 type description -> Part-FCL category.
  *
- * adsbdb tells us a registration's ICAO type designator (e.g. PC12, EC35, BALL)
- * but not which Part-FCL category it belongs to. The ICAO Doc 8643 list (loaded
- * from icaoTypes.csv into icaoTypes.generated.ts) classifies every designator
- * with a description, which maps onto our four logbook categories:
+ * The designator table itself lives in the database (table icao_types, seeded
+ * from icaoTypes.csv). This is the one business mapping that turns an ICAO
+ * description into one of our four logbook categories:
  *
- *   LandPlane / SeaPlane / Amphibian   -> aeroplane
+ *   LandPlane / SeaPlane / Amphibian    -> aeroplane
  *   Helicopter / Gyrocopter / Tiltrotor -> helicopter
  *   Balloon                             -> balloon
  *   Glider                              -> sailplane
  *
- * The description is the precise "subtype" we show the pilot; only the mapped
- * category is recorded in the log.
+ * Kept pure (no database) so both the seed and the reference repository share
+ * one definition and it can be unit tested in isolation.
  */
 
 import type { AircraftRecord } from "../db/referenceRepository.js";
-import { ICAO_TYPE_TABLE } from "./icaoTypes.generated.js";
 
 type AircraftCategory = AircraftRecord["category"];
 
@@ -31,24 +29,7 @@ const DESCRIPTION_TO_CATEGORY: Record<string, AircraftCategory> = {
   Glider: "SAILPLANE",
 };
 
-export interface IcaoTypeInfo {
-  /** The ICAO Doc 8643 description, shown as the subtype (e.g. "Helicopter"). */
-  description: string;
-  category: AircraftCategory;
-  engineType?: string;
-  engineCount?: number;
-}
-
-/** Classify an ICAO type designator, or null when it is not in the list. */
-export function lookupIcaoType(code: string | undefined | null): IcaoTypeInfo | null {
-  if (!code) return null;
-  const row = ICAO_TYPE_TABLE[code.trim().toUpperCase()];
-  if (!row) return null;
-  const info: IcaoTypeInfo = {
-    description: row.description,
-    category: DESCRIPTION_TO_CATEGORY[row.description] ?? "AEROPLANE",
-  };
-  if (row.engine) info.engineType = row.engine;
-  if (row.engineCount) info.engineCount = row.engineCount;
-  return info;
+/** Map an ICAO description to a category; an unrecognised one falls back to aeroplane. */
+export function categoryForDescription(description: string): AircraftCategory {
+  return DESCRIPTION_TO_CATEGORY[description.trim()] ?? "AEROPLANE";
 }

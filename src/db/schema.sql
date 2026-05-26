@@ -231,6 +231,19 @@ CREATE TABLE IF NOT EXISTS aircraft (
 
 CREATE INDEX IF NOT EXISTS idx_aircraft_registration ON aircraft (registration);
 
+-- ICAO Doc 8643 type designators. A registration lookup gives an aircraft's
+-- ICAO type code (e.g. EC35, PC12, BALL); this table says what that code is
+-- (LandPlane, Helicopter, Balloon, ...), which classifies the Part-FCL category
+-- and prefills the engine fields. Reference data the provider maintains: seed it
+-- from the bundled list with `npm run seed:icao-types`.
+CREATE TABLE IF NOT EXISTS icao_types (
+  code         text PRIMARY KEY,
+  description  text NOT NULL,
+  engine_type  text,
+  engine_count integer,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
 -- Synthetic training devices, including kind and level (FNPT I/II, FTD, FFS).
 CREATE TABLE IF NOT EXISTS fstd_devices (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),

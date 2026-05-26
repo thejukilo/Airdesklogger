@@ -13,6 +13,8 @@ import {
   getAircraftForFlight,
   upsertFstdDevice,
   fstdDeviceExists,
+  upsertIcaoTypes,
+  getIcaoType,
 } from "../src/db/referenceRepository.js";
 import { validateFlightReferences, validateFstdReferences } from "../src/http/validateReferences.js";
 import type { FlightEntryInput, FstdSessionInput } from "../src/domain/types.js";
@@ -88,6 +90,17 @@ describe.skipIf(!hasDb)("reference data and validation (integration)", () => {
     asBalloon.aircraft.category = "BALLOON";
     const issues = await validateFlightReferences(asBalloon);
     expect(issues.map((i) => i.field)).toContain("aircraft.category");
+  });
+
+  it("classifies an ICAO type designator and prefills engines, and is null when absent", async () => {
+    await upsertIcaoTypes([
+      { code: "EC35", description: "Helicopter", engineType: "Turboprop/Turboshaft", engineCount: 2 },
+      { code: "BALL", description: "Balloon", engineType: null, engineCount: null },
+    ]);
+    const heli = await getIcaoType("ec35"); // case-insensitive
+    expect(heli).toMatchObject({ category: "HELICOPTER", description: "Helicopter", engineCount: 2 });
+    expect((await getIcaoType("BALL"))?.category).toBe("BALLOON");
+    expect(await getIcaoType("NOPE")).toBeNull();
   });
 
   it("validates FSTD devices against the reference database", async () => {
