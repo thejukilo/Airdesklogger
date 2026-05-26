@@ -63,6 +63,50 @@ function resolveAirport(code: string, setName: (n: string | null) => void): () =
   return () => clearTimeout(t);
 }
 
+/**
+ * Pilot function as one choice. The five primary capacities map straight to the
+ * domain `primary`; the instructor/examiner choices map to `primary` plus an
+ * `instructorPosition` (Part-FCL: instructor on the pilot seat, jump seat,
+ * supervising, or as examiner). Jump-seat time is not loggable as PIC, so it
+ * maps to co-pilot. Safety pilot is kept only so an older entry still loads.
+ */
+type FnOption = {
+  key: string;
+  label: string;
+  primary: "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL" | "SAFETY_PILOT";
+  instructorPosition?: "PILOT_SEAT" | "JUMP_SEAT" | "SUPERVISING" | "EXAMINER";
+};
+
+const POWERED_FUNCTIONS: FnOption[] = [
+  { key: "PIC", label: "PIC (pilot in command)", primary: "PIC" },
+  { key: "PICUS", label: "PICUS (PIC under supervision)", primary: "PICUS" },
+  { key: "SPIC", label: "SPIC (student PIC)", primary: "SPIC" },
+  { key: "CO_PILOT", label: "Co-pilot (COPI)", primary: "CO_PILOT" },
+  { key: "DUAL", label: "Dual", primary: "DUAL" },
+  { key: "FI_PILOT_SEAT", label: "Instructor (pilot seat)", primary: "PIC", instructorPosition: "PILOT_SEAT" },
+  { key: "FI_JUMP_SEAT", label: "Instructor (jump seat)", primary: "CO_PILOT", instructorPosition: "JUMP_SEAT" },
+  { key: "FI_SUPERVISING", label: "Supervising instructor", primary: "PIC", instructorPosition: "SUPERVISING" },
+  { key: "FE_EXAMINER", label: "Examiner", primary: "PIC", instructorPosition: "EXAMINER" },
+];
+const UNPOWERED_FUNCTIONS: FnOption[] = [
+  { key: "PIC", label: "PIC (pilot in command)", primary: "PIC" },
+  { key: "DUAL", label: "Dual", primary: "DUAL" },
+];
+const LEGACY_FUNCTIONS: FnOption[] = [{ key: "SAFETY_PILOT", label: "Safety pilot", primary: "SAFETY_PILOT" }];
+const ALL_FUNCTIONS: FnOption[] = [...POWERED_FUNCTIONS, ...LEGACY_FUNCTIONS];
+
+function resolveFunction(key: string): FnOption {
+  return ALL_FUNCTIONS.find((o) => o.key === key) ?? POWERED_FUNCTIONS[0]!;
+}
+/** Reverse-map a stored entry (primary + instructor position) to a single key. */
+function functionKey(primary?: string, instructorPosition?: string): string {
+  if (instructorPosition) {
+    const m = ALL_FUNCTIONS.find((o) => o.instructorPosition === instructorPosition);
+    if (m) return m.key;
+  }
+  return ALL_FUNCTIONS.find((o) => !o.instructorPosition && o.primary === primary)?.key ?? "PIC";
+}
+
 const empty = {
   date: "",
   blockStart: "",
@@ -76,7 +120,7 @@ const empty = {
   arrivalPlace: "",
   departurePlaceName: "",
   arrivalPlaceName: "",
-  primary: "PIC",
+  pilotFunction: "PIC",
   tookControl: false,
   operatingRole: "",
   flightRules: "VFR",
@@ -112,7 +156,7 @@ function fromContent(c: api.EntryContent): typeof empty {
     arrivalPlace: cols?.arrivalPlace ?? "",
     departurePlaceName: cols?.departurePlaceName ?? "",
     arrivalPlaceName: cols?.arrivalPlaceName ?? "",
-    primary: c.function?.primary ?? "PIC",
+    pilotFunction: functionKey(c.function?.primary, c.columns?.instructorPosition),
     tookControl: c.function?.tookControl ?? false,
     operatingRole: cols?.operatingRole ?? "",
     flightRules: (cols?.ifr ?? 0) > 0 ? "IFR" : "VFR",
@@ -273,12 +317,23 @@ export function NewEntry() {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
+  // The selected pilot function resolves to a primary capacity plus, for the
+  // instructor/examiner choices, a seat position.
+  const fn = resolveFunction(f.pilotFunction);
+  const isDual = fn.primary === "DUAL";
+  const isSafety = fn.primary === "SAFETY_PILOT";
+  const isJumpSeat = fn.instructorPosition === "JUMP_SEAT";
+
   // On a dual flight the PIC is the instructor, so SELF is not valid: clear it
   // when the function switches to dual so the pilot must type the instructor.
-  const isDual = f.primary === "DUAL";
   useEffect(() => {
     if (isDual && f.picName.trim().toUpperCase() === "SELF") set("picName", "");
   }, [isDual]);
+
+  // Jump-seat time cannot be logged as instructor time (FOCA 2.2.4), so zero it.
+  useEffect(() => {
+    if (isJumpSeat && Number(f.instructor) !== 0) set("instructor", 0);
+  }, [f.pilotFunction]);
 
   // Balloons and sailplanes are not aeroplane/helicopter: they have no SE/ME or
   // multi-pilot columns and no IFR, but carry their own conditions (launch
@@ -286,8 +341,14 @@ export function NewEntry() {
   const isSailplane = f.category === "SAILPLANE";
   const isBalloon = f.category === "BALLOON";
   const isPowered = !isSailplane && !isBalloon;
+  // Functions offered for the category; keep the current value if it is not in
+  // the list (e.g. a legacy safety-pilot entry, or after switching category).
+  const baseFunctions = isPowered ? POWERED_FUNCTIONS : UNPOWERED_FUNCTIONS;
+  const functionOptions = baseFunctions.some((o) => o.key === f.pilotFunction)
+    ? baseFunctions
+    : [...baseFunctions, resolveFunction(f.pilotFunction)];
   useEffect(() => {
-    if (!isPowered && f.primary !== "PIC" && f.primary !== "DUAL") set("primary", "PIC");
+    if (!isPowered && !UNPOWERED_FUNCTIONS.some((o) => o.key === f.pilotFunction)) set("pilotFunction", "PIC");
     // Balloon places are free text with no aerodrome timezone, so times are UTC.
     if (isBalloon && timeMode === "local") setTimeMode("utc");
   }, [f.category]);
@@ -330,9 +391,10 @@ export function NewEntry() {
         landings: { day: Number(f.landings), night: 0 },
         conditions: { night: 0, ifr },
         function: {
-          primary: f.primary,
-          instructor: Number(f.instructor),
-          ...(f.primary === "SAFETY_PILOT" ? { tookControl: f.tookControl } : {}),
+          primary: fn.primary,
+          instructor: isJumpSeat ? 0 : Number(f.instructor),
+          ...(fn.instructorPosition ? { instructorPosition: fn.instructorPosition } : {}),
+          ...(isSafety ? { tookControl: f.tookControl } : {}),
         },
         ...(isPowered && f.operatingRole ? { operatingRole: f.operatingRole } : {}),
         ...(isSailplane && f.launchMethod ? { launchMethod: f.launchMethod } : {}),
@@ -485,17 +547,16 @@ export function NewEntry() {
               hint={isDual ? "On a dual flight enter the instructor's name, not SELF." : undefined}
               required
             />
-            <Select label="Pilot function" value={f.primary} onChange={(e) => set("primary", e.target.value)}>
-              <option value="PIC">Pilot in command</option>
-              <option value="DUAL">Dual (student / trainee)</option>
-              {isPowered && <option value="CO_PILOT">Second in command (co-pilot)</option>}
-              {isPowered && <option value="PICUS">PIC under supervision (PICUS)</option>}
-              {isPowered && <option value="SPIC">Student PIC (SPIC)</option>}
-              {isPowered && <option value="SAFETY_PILOT">Safety pilot</option>}
+            <Select label="Pilot function" value={f.pilotFunction} onChange={(e) => set("pilotFunction", e.target.value)}>
+              {functionOptions.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
             </Select>
           </div>
 
-          {f.primary === "SAFETY_PILOT" && (
+          {isSafety && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={f.tookControl} onChange={(e) => set("tookControl", e.target.checked)} />
               I took control (a safety pilot logs time only if they took control)
@@ -542,7 +603,7 @@ export function NewEntry() {
             {isBalloon && (
               <Field label="Inflations" type="number" min={0} inputMode="numeric" value={f.inflations} onChange={(e) => set("inflations", Number(e.target.value))} />
             )}
-            <Field label="Instructor (min)" type="number" min={0} inputMode="numeric" value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} />
+            <Field label="Instructor (min)" type="number" min={0} inputMode="numeric" value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} disabled={isJumpSeat} hint={isJumpSeat ? "Not loggable from the jump seat." : undefined} />
           </div>
           <p className="text-xs text-slate-500">
             Night time, and whether the landings count as day or night, are worked out automatically from the

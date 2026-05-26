@@ -190,7 +190,7 @@ export interface NewEntryRequest {
   picName: string;
   landings: { day: number; night: number };
   conditions: { night: number; ifr: number };
-  function: { primary: string; instructor: number };
+  function: { primary: string; instructor: number; instructorPosition?: string; tookControl?: boolean };
   remarks: string;
   operatingRole?: string;
   launchMethod?: string;
