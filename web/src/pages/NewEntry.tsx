@@ -80,6 +80,8 @@ const empty = {
   tookControl: false,
   operatingRole: "",
   flightRules: "VFR",
+  launchMethod: "",
+  balloonFlightType: "",
   instructor: 0,
   landings: 1,
   picName: "SELF",
@@ -113,6 +115,8 @@ function fromContent(c: api.EntryContent): typeof empty {
     tookControl: c.function?.tookControl ?? false,
     operatingRole: cols?.operatingRole ?? "",
     flightRules: (cols?.ifr ?? 0) > 0 ? "IFR" : "VFR",
+    launchMethod: cols?.launchMethod ?? "",
+    balloonFlightType: cols?.balloonFlightType ?? "",
     instructor: c.function?.instructor ?? 0,
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
     picName: c.picName ?? "SELF",
@@ -237,13 +241,23 @@ export function NewEntry() {
     if (isDual && f.picName.trim().toUpperCase() === "SELF") set("picName", "");
   }, [isDual]);
 
+  // Balloons and sailplanes are not aeroplane/helicopter: they have no SE/ME or
+  // multi-pilot columns and no IFR, but carry their own conditions (launch
+  // method for sailplanes, free/tethered for balloons).
+  const isSailplane = f.category === "SAILPLANE";
+  const isBalloon = f.category === "BALLOON";
+  const isPowered = !isSailplane && !isBalloon;
+  useEffect(() => {
+    if (!isPowered && f.primary !== "PIC" && f.primary !== "DUAL") set("primary", "PIC");
+  }, [f.category]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
       const arrivalDate = f.blockEnd > f.blockStart ? f.date : nextDay(f.date);
-      const ifr = f.flightRules === "IFR" ? blockMinutes(f.date, f.blockStart, f.blockEnd) : 0;
+      const ifr = isPowered && f.flightRules === "IFR" ? blockMinutes(f.date, f.blockStart, f.blockEnd) : 0;
       const payload = {
         timeZone: timeMode === "local" ? "LOCAL" : "UTC",
         aircraft: {
@@ -275,7 +289,9 @@ export function NewEntry() {
           instructor: Number(f.instructor),
           ...(f.primary === "SAFETY_PILOT" ? { tookControl: f.tookControl } : {}),
         },
-        ...(f.operatingRole ? { operatingRole: f.operatingRole } : {}),
+        ...(isPowered && f.operatingRole ? { operatingRole: f.operatingRole } : {}),
+        ...(isSailplane && f.launchMethod ? { launchMethod: f.launchMethod } : {}),
+        ...(isBalloon && f.balloonFlightType ? { balloonFlightType: f.balloonFlightType } : {}),
         ...(f.attributes.length ? { attributes: f.attributes } : {}),
         ...(buildAttributeDetails() ? { attributeDetails: buildAttributeDetails() } : {}),
         remarks: f.remarks,
@@ -347,14 +363,18 @@ export function NewEntry() {
               <option value="SAILPLANE">Sailplane</option>
               <option value="BALLOON">Balloon</option>
             </Select>
-            <Select label="Engine" value={f.engineClass} onChange={(e) => set("engineClass", e.target.value)}>
-              <option value="SE">Single-engine</option>
-              <option value="ME">Multi-engine</option>
-            </Select>
-            <label className="flex items-end gap-2 pb-2 text-sm">
-              <input type="checkbox" checked={f.multiPilot} onChange={(e) => set("multiPilot", e.target.checked)} />
-              Multi-pilot operation
-            </label>
+            {isPowered && (
+              <Select label="Engine" value={f.engineClass} onChange={(e) => set("engineClass", e.target.value)}>
+                <option value="SE">Single-engine</option>
+                <option value="ME">Multi-engine</option>
+              </Select>
+            )}
+            {isPowered && (
+              <label className="flex items-end gap-2 pb-2 text-sm">
+                <input type="checkbox" checked={f.multiPilot} onChange={(e) => set("multiPilot", e.target.checked)} />
+                Multi-pilot operation
+              </label>
+            )}
           </div>
         </Section>
 
@@ -402,11 +422,11 @@ export function NewEntry() {
             />
             <Select label="Pilot function" value={f.primary} onChange={(e) => set("primary", e.target.value)}>
               <option value="PIC">Pilot in command</option>
-              <option value="CO_PILOT">Second in command (co-pilot)</option>
               <option value="DUAL">Dual (student / trainee)</option>
-              <option value="PICUS">PIC under supervision (PICUS)</option>
-              <option value="SPIC">Student PIC (SPIC)</option>
-              <option value="SAFETY_PILOT">Safety pilot</option>
+              {isPowered && <option value="CO_PILOT">Second in command (co-pilot)</option>}
+              {isPowered && <option value="PICUS">PIC under supervision (PICUS)</option>}
+              {isPowered && <option value="SPIC">Student PIC (SPIC)</option>}
+              {isPowered && <option value="SAFETY_PILOT">Safety pilot</option>}
             </Select>
           </div>
 
@@ -418,15 +438,36 @@ export function NewEntry() {
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Select label="Operating role (optional)" value={f.operatingRole} onChange={(e) => set("operatingRole", e.target.value)}>
-              <option value="">Not recorded</option>
-              <option value="PILOT_FLYING">Pilot flying</option>
-              <option value="PILOT_MONITORING">Pilot monitoring</option>
-            </Select>
-            <Select label="Flight rules" value={f.flightRules} onChange={(e) => set("flightRules", e.target.value)}>
-              <option value="VFR">VFR</option>
-              <option value="IFR">IFR</option>
-            </Select>
+            {isPowered && (
+              <Select label="Operating role (optional)" value={f.operatingRole} onChange={(e) => set("operatingRole", e.target.value)}>
+                <option value="">Not recorded</option>
+                <option value="PILOT_FLYING">Pilot flying</option>
+                <option value="PILOT_MONITORING">Pilot monitoring</option>
+              </Select>
+            )}
+            {isPowered && (
+              <Select label="Flight rules" value={f.flightRules} onChange={(e) => set("flightRules", e.target.value)}>
+                <option value="VFR">VFR</option>
+                <option value="IFR">IFR</option>
+              </Select>
+            )}
+            {isSailplane && (
+              <Select label="Launch method" value={f.launchMethod} onChange={(e) => set("launchMethod", e.target.value)}>
+                <option value="">Not recorded</option>
+                <option value="WINCH">Winch</option>
+                <option value="AEROTOW">Aerotow</option>
+                <option value="SELF_LAUNCH">Self-launch</option>
+                <option value="BUNGEE">Bungee</option>
+                <option value="CAR_TOW">Car tow</option>
+              </Select>
+            )}
+            {isBalloon && (
+              <Select label="Flight type" value={f.balloonFlightType} onChange={(e) => set("balloonFlightType", e.target.value)}>
+                <option value="">Not recorded</option>
+                <option value="FREE">Free flight</option>
+                <option value="TETHERED">Tethered flight</option>
+              </Select>
+            )}
           </div>
         </Section>
 

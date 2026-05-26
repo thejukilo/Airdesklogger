@@ -123,6 +123,10 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   if (input.launchMethod !== undefined && category !== "SAILPLANE") {
     issues.push({ field: "launchMethod", message: "Launch method applies only to sailplanes." });
   }
+  // Free/tethered is a balloon operational condition (BFCL.050).
+  if (input.balloonFlightType !== undefined && category !== "BALLOON") {
+    issues.push({ field: "balloonFlightType", message: "Free/tethered applies only to balloons." });
+  }
 
   // Column 9.
   if (!isNonNegInt(input.landings.day)) {
@@ -184,12 +188,14 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const total = safetyNoControl ? 0 : loggedMinutes(blockTime, safeCrew);
 
   // Columns 5 & 6: single-pilot SE/ME vs multi-pilot, exhaustively from the
-  // logged total.
-  const multiPilot = input.aircraft.multiPilot ? total : 0;
+  // logged total. These aeroplane/helicopter columns are left blank for balloons
+  // and sailplanes, whose time sits in the total column only.
+  const poweredAircraft = category === "AEROPLANE" || category === "HELICOPTER";
+  const multiPilot = poweredAircraft && input.aircraft.multiPilot ? total : 0;
   const singleEngine =
-    !input.aircraft.multiPilot && input.aircraft.engineClass === "SE" ? total : 0;
+    poweredAircraft && !input.aircraft.multiPilot && input.aircraft.engineClass === "SE" ? total : 0;
   const multiEngine =
-    !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
+    poweredAircraft && !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
 
   const night = safetyNoControl ? 0 : loggedMinutes(input.conditions.night, safeCrew);
   const ifr = safetyNoControl ? 0 : loggedMinutes(input.conditions.ifr, safeCrew);
@@ -207,6 +213,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     crewSize,
     category,
     ...(input.launchMethod !== undefined ? { launchMethod: input.launchMethod } : {}),
+    ...(input.balloonFlightType !== undefined ? { balloonFlightType: input.balloonFlightType } : {}),
     ...(input.function.instructorPosition !== undefined ? { instructorPosition: input.function.instructorPosition } : {}),
     ...(input.operatingRole !== undefined ? { operatingRole: input.operatingRole } : {}),
     date: utcDateKey(first.departureTime),

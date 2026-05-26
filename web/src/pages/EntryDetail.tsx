@@ -239,6 +239,10 @@ export function EntryDetail() {
           />
           <Detail label="Instructor seat" value={INSTRUCTOR_POSITION_LABELS[cols?.instructorPosition ?? ""]} />
           <Detail label="Launch method" value={LAUNCH_METHOD_LABELS[cols?.launchMethod ?? ""]} />
+          <Detail
+            label="Flight type"
+            value={cols?.balloonFlightType === "TETHERED" ? "Tethered" : cols?.balloonFlightType === "FREE" ? "Free flight" : undefined}
+          />
           {c.function?.primary === "SAFETY_PILOT" ? (
             <Detail label="Took control" value={c.function?.tookControl ? "Yes" : "No"} />
           ) : null}

@@ -139,6 +139,7 @@ export interface EntryColumns {
   category?: string;
   operatingRole?: string;
   launchMethod?: string;
+  balloonFlightType?: "FREE" | "TETHERED";
   instructorPosition?: string;
   attributes?: string[];
   attributeDetails?: AttributeDetails;
@@ -189,6 +190,9 @@ export interface NewEntryRequest {
   conditions: { night: number; ifr: number };
   function: { primary: string; instructor: number };
   remarks: string;
+  operatingRole?: string;
+  launchMethod?: string;
+  balloonFlightType?: "FREE" | "TETHERED";
   attributes?: string[];
   attributeDetails?: AttributeDetails;
 }

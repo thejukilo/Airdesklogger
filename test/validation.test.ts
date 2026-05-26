@@ -33,6 +33,41 @@ describe("entry validation & column derivation", () => {
     expect(named.valid).toBe(true);
   });
 
+  it("logs a balloon with its flight type and no SE/ME/MP columns", () => {
+    const r = validateEntry(
+      baseEntry({
+        aircraft: { makeModelVariant: "Cameron Z-90", registration: "HB-QXX", engineClass: "SE", multiPilot: false, category: "BALLOON" },
+        balloonFlightType: "TETHERED",
+      }),
+    );
+    expect(r.valid).toBe(true);
+    const d = r.derived!;
+    expect(d.total).toBe(90);
+    expect(d.singleEngine).toBe(0);
+    expect(d.multiEngine).toBe(0);
+    expect(d.multiPilot).toBe(0);
+    expect(d.balloonFlightType).toBe("TETHERED");
+  });
+
+  it("leaves the SE/ME columns blank for a sailplane but keeps its launch method", () => {
+    const r = validateEntry(
+      baseEntry({
+        aircraft: { makeModelVariant: "ASK 21", registration: "HB-3XXX", engineClass: "SE", multiPilot: false, category: "SAILPLANE" },
+        launchMethod: "WINCH",
+      }),
+    );
+    expect(r.valid).toBe(true);
+    expect(r.derived!.singleEngine).toBe(0);
+    expect(r.derived!.total).toBe(90);
+    expect(r.derived!.launchMethod).toBe("WINCH");
+  });
+
+  it("rejects a free/tethered flight type on a non-balloon", () => {
+    const r = validateEntry(baseEntry({ balloonFlightType: "FREE" }));
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.field === "balloonFlightType")).toBe(true);
+  });
+
   it("derives the 12 columns for a single-engine PIC flight", () => {
     const r = validateEntry(baseEntry());
     expect(r.valid).toBe(true);

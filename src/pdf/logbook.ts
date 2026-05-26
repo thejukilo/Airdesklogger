@@ -85,6 +85,7 @@ function remarksText(e: LogbookEntryForPdf): string {
   if (e.operatingRole) parts.push(e.operatingRole === "PILOT_FLYING" ? "(PF)" : "(PM)");
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
   if (e.launchMethod) parts.push(`(launch: ${e.launchMethod})`);
+  if (e.balloonFlightType) parts.push(e.balloonFlightType === "TETHERED" ? "(tethered)" : "(free flight)");
   if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
   if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
   const d = e.attributeDetails;

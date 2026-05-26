@@ -25,6 +25,9 @@ export type AircraftCategory = "AEROPLANE" | "HELICOPTER" | "SAILPLANE" | "BALLO
 /** Sailplane launch method (FOCA 2.2.5). */
 export type LaunchMethod = "WINCH" | "AEROTOW" | "SELF_LAUNCH" | "BUNGEE" | "CAR_TOW";
 
+/** Balloon operational condition: a free flight or a tethered flight (BFCL.050). */
+export type BalloonFlightType = "FREE" | "TETHERED";
+
 /**
  * Where an instructor or examiner sat (FOCA 2.2.4). Time spent on the jump seat
  * cannot be logged as PIC or instructor time per the Logging of Flight Time
@@ -109,6 +112,8 @@ export interface FlightEntryInput {
   operatingRole?: OperatingRole;
   /** Sailplane launch method, when the aircraft is a sailplane (FOCA 2.2.5). */
   launchMethod?: LaunchMethod;
+  /** Free or tethered flight, when the aircraft is a balloon (BFCL.050). */
+  balloonFlightType?: BalloonFlightType | undefined;
   /** Operating crew size: 2 (normal), or 3/4 for augmented operation (FOCA 2.3.4). */
   crewSize?: number;
   /** Structured FOCA attributes (skill test, cross country, etc.). */
@@ -179,6 +184,8 @@ export interface DerivedColumns {
   category: AircraftCategory;
   /** Sailplane launch method, if recorded. */
   launchMethod?: LaunchMethod;
+  /** Balloon free/tethered flight, if recorded. */
+  balloonFlightType?: BalloonFlightType | undefined;
   /** Instructor/examiner seat position, if recorded. */
   instructorPosition?: InstructorPosition;
   /** Operating role, if recorded. */
