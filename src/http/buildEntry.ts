@@ -34,29 +34,55 @@ async function timezoneForPlace(icao: string): Promise<string | null> {
   return coords ? timezoneAt(coords.latitude, coords.longitude) : null;
 }
 
-async function legsLocalToUtc(raw: unknown): Promise<RawLeg[]> {
+/** A wall-clock string kept as-is, marked as a UTC-shaped instant for storage. */
+function asInstantString(wallClock: unknown): string {
+  const s = String(wallClock);
+  return /(Z|[+-]\d{2}:\d{2})$/.test(s) ? s : `${s}Z`;
+}
+
+/**
+ * Convert a local-time request to UTC against each aerodrome's timezone. When a
+ * place has no timezone on file (no coordinates), the time cannot be converted,
+ * so it is kept as local and the entry is flagged `timesLocal` (shown with an L
+ * instead of a Z) rather than refused.
+ */
+async function resolveLocalLegs(raw: unknown): Promise<{ legs: RawLeg[]; timesLocal: boolean }> {
   const legs = Array.isArray((raw as { legs?: unknown })?.legs) ? (raw as { legs: RawLeg[] }).legs : [];
-  return Promise.all(
-    legs.map(async (leg) => {
-      const depTz = await timezoneForPlace(String(leg.departurePlace).toUpperCase());
-      const arrTz = await timezoneForPlace(String(leg.arrivalPlace).toUpperCase());
-      if (!depTz || !arrTz) {
-        throw new RequestError(
-          "Local time could not be converted because an aerodrome has no position on file yet. Switch this entry to UTC, or ask an administrator to refresh the airport data.",
-        );
-      }
-      try {
-        return {
-          ...leg,
-          departureTime: toUtcIso(zonedWallClockToUtc(String(leg.departureTime), depTz)),
-          arrivalTime: toUtcIso(zonedWallClockToUtc(String(leg.arrivalTime), arrTz)),
-        };
-      } catch (err) {
-        if (err instanceof LocalTimeError) throw new RequestError(err.message);
-        throw err;
-      }
-    }),
-  );
+  const tzCache = new Map<string, string | null>();
+  const tzFor = async (place: unknown): Promise<string | null> => {
+    const key = String(place).toUpperCase();
+    if (!tzCache.has(key)) tzCache.set(key, await timezoneForPlace(key));
+    return tzCache.get(key) ?? null;
+  };
+
+  let allResolved = true;
+  for (const leg of legs) {
+    if (!(await tzFor(leg.departurePlace)) || !(await tzFor(leg.arrivalPlace))) allResolved = false;
+  }
+
+  if (!allResolved) {
+    // Keep the wall-clock as the stored time; it is local, not UTC.
+    return {
+      legs: legs.map((leg) => ({ ...leg, departureTime: asInstantString(leg.departureTime), arrivalTime: asInstantString(leg.arrivalTime) })),
+      timesLocal: true,
+    };
+  }
+
+  const converted = legs.map((leg) => {
+    const depTz = tzCache.get(String(leg.departurePlace).toUpperCase())!;
+    const arrTz = tzCache.get(String(leg.arrivalPlace).toUpperCase())!;
+    try {
+      return {
+        ...leg,
+        departureTime: toUtcIso(zonedWallClockToUtc(String(leg.departureTime), depTz)),
+        arrivalTime: toUtcIso(zonedWallClockToUtc(String(leg.arrivalTime), arrTz)),
+      };
+    } catch (err) {
+      if (err instanceof LocalTimeError) throw new RequestError(err.message);
+      throw err;
+    }
+  });
+  return { legs: converted, timesLocal: false };
 }
 
 async function computeNight(input: FlightEntryInput): Promise<number> {
@@ -88,12 +114,21 @@ export async function prepareFlightEntry(
   opts: { excludeEntryId?: string } = {},
 ): Promise<PreparedEntry> {
   const localMode = (raw as { timeZone?: unknown })?.timeZone === "LOCAL";
-  const body = localMode ? { ...(raw as object), legs: await legsLocalToUtc(raw) } : raw;
+  let timesLocal = false;
+  let body = raw;
+  if (localMode) {
+    const resolved = await resolveLocalLegs(raw);
+    body = { ...(raw as object), legs: resolved.legs };
+    timesLocal = resolved.timesLocal;
+  }
   const input = parseEntryRequest({ ...(body as object), pilotId });
   if (localMode) input.enteredInLocalTime = true;
+  if (timesLocal) input.timesLocal = true;
 
+  // The no-future-date guard only applies when the stored time is true UTC; a
+  // local time kept unconverted has no offset to compare against, so it is skipped.
   const latestArrival = Math.max(...input.legs.map((l) => l.arrivalTime.getTime()));
-  if (latestArrival > Date.now() + 60_000) {
+  if (!timesLocal && latestArrival > Date.now() + 60_000) {
     return { ok: false, status: 422, body: { valid: false, issues: [{ field: "legs", message: "A flight cannot be logged with a date or time in the future." }] } };
   }
 

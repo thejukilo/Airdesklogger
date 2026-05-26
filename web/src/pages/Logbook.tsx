@@ -13,8 +13,8 @@ function hhmm(v: number | string | null | undefined): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
-function clock(iso: string | undefined): string {
-  return iso ? `${iso.slice(11, 16)}Z` : "";
+function clock(iso: string | undefined, local = false): string {
+  return iso ? `${iso.slice(11, 16)}${local ? "L" : "Z"}` : "";
 }
 
 const ICON = "h-6 w-6";
@@ -194,8 +194,8 @@ export function Logbook() {
                       </td>
                       <td className="px-2 py-2">{c?.departurePlace}</td>
                       <td className="px-2 py-2">{c?.arrivalPlace}</td>
-                      <td className="px-2 py-2 text-right">{clock(c?.departureTime)}</td>
-                      <td className="px-2 py-2 text-right">{clock(c?.arrivalTime)}</td>
+                      <td className="px-2 py-2 text-right">{clock(c?.departureTime, c?.timesLocal)}</td>
+                      <td className="px-2 py-2 text-right">{clock(c?.arrivalTime, c?.timesLocal)}</td>
                       <td className="px-2 py-2 text-right font-semibold">{fstd ? hhmm(fstd.totalMinutes) : hhmm(c?.total)}</td>
                       <td className="px-2 py-2 font-sans">{FUNCTION_LABELS[e.content.function?.primary ?? ""] ?? ""}</td>
                       <td className="px-2 py-2 text-right">{hhmm(c?.pic)}</td>
@@ -256,7 +256,7 @@ export function Logbook() {
                     </div>
                     {!fstd && (
                       <div className="mt-1 font-mono text-[13px] text-slate-600">
-                        {c?.departurePlace} {clock(c?.departureTime)} to {c?.arrivalPlace} {clock(c?.arrivalTime)}
+                        {c?.departurePlace} {clock(c?.departureTime, c?.timesLocal)} to {c?.arrivalPlace} {clock(c?.arrivalTime, c?.timesLocal)}
                       </div>
                     )}
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">

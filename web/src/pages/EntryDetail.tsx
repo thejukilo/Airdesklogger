@@ -19,10 +19,10 @@ function hhmm(v: unknown): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
-/** Clock time from a stored UTC ISO string, suffixed with Z to mark it as Zulu. */
-function timeZ(iso: unknown): string {
+/** Clock time from a stored ISO string: Z for UTC, L when the time is stored as local. */
+function timeZ(iso: unknown, local = false): string {
   const s = typeof iso === "string" ? iso : "";
-  return s.length >= 16 ? `${s.slice(11, 16)}Z` : "";
+  return s.length >= 16 ? `${s.slice(11, 16)}${local ? "L" : "Z"}` : "";
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -169,7 +169,7 @@ export function EntryDetail() {
         <div className="mb-3 flex items-center justify-between">
           <div>
             <div className="text-lg font-semibold">{String(cols?.date ?? "")}</div>
-            <div className="text-sm text-slate-500">All times in UTC (Z = Zulu)</div>
+            <div className="text-sm text-slate-500">{cols?.timesLocal ? "Times in local time (L)" : "All times in UTC (Z = Zulu)"}</div>
           </div>
           {locked ? (
             <span className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
@@ -199,8 +199,8 @@ export function EntryDetail() {
             value={cols?.arrivalPlaceName ? `${cols.arrivalPlace} (${cols.arrivalPlaceName})` : cols?.arrivalPlace}
           />
           <Detail label="Total time" value={hhmm(cols?.total)} />
-          <Detail label="Block off" value={timeZ(cols?.departureTime)} />
-          <Detail label="Block on" value={timeZ(cols?.arrivalTime)} />
+          <Detail label="Block off" value={timeZ(cols?.departureTime, cols?.timesLocal)} />
+          <Detail label="Block on" value={timeZ(cols?.arrivalTime, cols?.timesLocal)} />
           {cols?.isMultiFlight ? <Detail label="Flight type" value="Series of flights" /> : null}
         </dl>
         {c.remarks && (

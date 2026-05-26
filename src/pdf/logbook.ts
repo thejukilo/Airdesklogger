@@ -40,14 +40,15 @@ interface LeafColumn {
 
 const MIN = (m: number) => (m > 0 ? formatHHMM(m) : "");
 const NUM = (n: number) => (n > 0 ? String(n) : "");
-const TIME = (d: Date) => d.toISOString().slice(11, 16) + "Z"; // HH:MM UTC, Z = Zulu
+// HH:MM with Z for UTC, or L when the time is stored as local (could not be converted).
+const TIME = (d: Date, e: DerivedColumns) => d.toISOString().slice(11, 16) + (e.timesLocal ? "L" : "Z");
 
 const COLUMNS: LeafColumn[] = [
   { group: "DATE", sub: "dd/mm/yy", width: 58, value: (e) => formatLogbookDate(e.departureTime) },
   { group: "DEPARTURE", sub: "Place", width: 44, value: (e) => e.departurePlace },
-  { group: "DEPARTURE", sub: "Time", width: 38, value: (e) => TIME(e.departureTime) },
+  { group: "DEPARTURE", sub: "Time", width: 38, value: (e) => TIME(e.departureTime, e) },
   { group: "ARRIVAL", sub: "Place", width: 44, value: (e) => e.arrivalPlace },
-  { group: "ARRIVAL", sub: "Time", width: 38, value: (e) => TIME(e.arrivalTime) },
+  { group: "ARRIVAL", sub: "Time", width: 38, value: (e) => TIME(e.arrivalTime, e) },
   { group: "AIRCRAFT", sub: "Type", width: 72, value: (e) => "" }, // filled from content below
   { group: "AIRCRAFT", sub: "Reg", width: 56, value: () => "" },
   { group: "SINGLE-PILOT", sub: "SE", width: 40, value: (e) => MIN(e.singleEngine), totalKey: "singleEngine" },
@@ -317,7 +318,7 @@ function drawPage(
   p.drawText(
     `Holder: ${opts.pilotName}${opts.dateOfBirth ? `    DOB: ${opts.dateOfBirth}` : ""}` +
       `${opts.licenseNumber ? `    Licence: ${opts.licenseNumber}` : ""}` +
-      `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    All times in UTC (Z = Zulu)`,
+      `${opts.holderAddress ? `    Address: ${opts.holderAddress}` : ""}    Times: Z = UTC (Zulu), L = local`,
     { x: MARGIN, y: top - 24, size: 8, font, color: GREY },
   );
   p.drawText(`Page ${page.pageNumber} of ${totalPages}`, {

@@ -145,6 +145,7 @@ export interface EntryColumns {
   attributeDetails?: AttributeDetails;
   signatureRequired?: boolean;
   enteredInLocalTime?: boolean;
+  timesLocal?: boolean;
   fstd?: { deviceType: string; qualificationNumber: string; totalMinutes: number };
 }
 

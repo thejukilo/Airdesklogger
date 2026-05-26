@@ -122,6 +122,8 @@ export interface FlightEntryInput {
   attributeDetails?: AttributeDetails | undefined;
   /** True when any time in the entry was supplied as local time (FOCA 2.2.7). */
   enteredInLocalTime?: boolean;
+  /** True when the stored times are local (could not be converted to UTC), shown with an L. */
+  timesLocal?: boolean | undefined;
 }
 
 /**
@@ -198,6 +200,8 @@ export interface DerivedColumns {
   attributeDetails?: AttributeDetails | undefined;
   /** True when any time was entered as local time (flagged on exports). */
   enteredInLocalTime: boolean;
+  /** True when the stored times are local (not UTC); shown with an L instead of Z. */
+  timesLocal?: boolean | undefined;
   /** True when an attribute requires a sign-off that is not yet present. */
   signatureRequired: boolean;
 }
