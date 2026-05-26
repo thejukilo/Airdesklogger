@@ -39,7 +39,7 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 ### 2.1 Basic requirements
 - [x] 2.1.1 / 2.1.2 Data stored off-device and recoverable (server-side Postgres / Supabase)
 - [x] 2.1.4 Aircraft categories aeroplane, helicopter, sailplane, balloon (`AircraftCategory`)
-- [x] 2.1.3 Identity verified by confirmed email. Login is now refused until the address is verified, with a registration-to-verify flow and a /verify page.
+- [x] 2.1.3 Identity verified by confirmed email, and the basic data (forenames, surname, date of birth, address) is required at registration and saved on the account, so the electronic record is tied to the physical person. Login is refused until the address is verified.
 - [x] 2.1.5 Flight and FSTD entries with their properties, both with entry screens.
 
 ### 2.2 Format of the record and supported values

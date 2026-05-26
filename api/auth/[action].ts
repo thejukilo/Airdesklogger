@@ -74,12 +74,11 @@ function body(req: VercelRequest): unknown {
 const RegisterBody = z.object({
   email: z.string().email(),
   password: z.string().min(12),
-  name: z.string().min(1),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use yyyy-mm-dd").optional(),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date of birth is required (yyyy-mm-dd)."),
+  address: z.string().min(1, "Address is required."),
   licenseNumber: z.string().optional(),
-  address: z.string().optional(),
   roles: z.array(z.string()).optional(),
 });
 
@@ -93,7 +92,10 @@ async function register(req: VercelRequest, res: VercelResponse): Promise<void> 
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request." });
     return;
   }
-  const { email, password, name, firstName, lastName, dateOfBirth, licenseNumber, address } = parsed.data;
+  const { email, password, firstName, lastName, dateOfBirth, address, licenseNumber } = parsed.data;
+  // EASA/FOCA 2.1.3 requires the holder's identity (forenames, surname, date of
+  // birth, address) saved on the account; the display name is the two names.
+  const name = `${firstName} ${lastName}`.trim();
 
   let roles: Role[] = ["PILOT"];
   if (parsed.data.roles && parsed.data.roles.length > 0) {
@@ -119,13 +121,13 @@ async function register(req: VercelRequest, res: VercelResponse): Promise<void> 
     email,
     passwordHash,
     name,
+    firstName,
+    lastName,
+    dateOfBirth,
+    address,
     roles,
     emailVerificationToken,
-    ...(firstName !== undefined ? { firstName } : {}),
-    ...(lastName !== undefined ? { lastName } : {}),
-    ...(dateOfBirth !== undefined ? { dateOfBirth } : {}),
     ...(licenseNumber !== undefined ? { licenseNumber } : {}),
-    ...(address !== undefined ? { address } : {}),
     signingPublicKey: publicKey,
     signingKeyWrapped: wrappedPrivateKey,
   });

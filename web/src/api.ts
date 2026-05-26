@@ -78,7 +78,10 @@ export function login(email: string, password: string, code?: string): Promise<L
 export function register(input: {
   email: string;
   password: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  address: string;
   licenseNumber?: string;
 }): Promise<{ id: string; email: string; emailVerificationToken: string; emailed: boolean }> {
   return request("/auth/register", { method: "POST", body: JSON.stringify(input) });
