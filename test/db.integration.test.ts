@@ -81,7 +81,7 @@ describe.skipIf(!hasDb)("repository (integration)", () => {
     expect(history[0].content_hash).not.toBe(history[1].content_hash);
   });
 
-  it("locks an entry on sign-off and forbids further amendment", async () => {
+  it("locks an entry on sign-off, then reopens it when amended", async () => {
     const pilot = await createPilot("Student");
     const keys = generateSigningKeyPair();
     const instructor = await createPilot("Instructor", "UK.FI.999", keys.publicKey);
@@ -97,13 +97,13 @@ describe.skipIf(!hasDb)("repository (integration)", () => {
     );
     expect(verifySignature(sig)).toBe(true);
     expect(sig.contentHash).toBe(created.contentHash);
+    expect((await getCurrentVersion(created.entryId)).locked).toBe(true);
 
+    // Amending a signed entry invalidates the sign-off and reopens the entry.
+    await amendEntry(created.entryId, input, validateEntry(input).derived!, pilot, "correction");
     const cur = await getCurrentVersion(created.entryId);
-    expect(cur.locked).toBe(true);
-
-    await expect(
-      amendEntry(created.entryId, input, validateEntry(input).derived!, pilot, "late edit"),
-    ).rejects.toThrow(/locked/i);
+    expect(cur.locked).toBe(false);
+    expect(Number(cur.version_no)).toBe(created.versionNo + 1);
   });
 
   it("the database itself rejects UPDATE/DELETE on append-only tables", async () => {

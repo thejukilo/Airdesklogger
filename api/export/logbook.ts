@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { loadLogbookForExport } from "../../src/db/exportRepository.js";
+import { loadLogbookForExport, loadDeletionsForExport } from "../../src/db/exportRepository.js";
 import { getUserById } from "../../src/db/authRepository.js";
 import { generateLogbookPdf, type AuditAppendix, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
@@ -26,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const from = typeof req.query.from === "string" ? req.query.from : undefined;
     const to = typeof req.query.to === "string" ? req.query.to : undefined;
     const entries = await loadLogbookForExport(claims.sub, { from, to });
+    const deletions = await loadDeletionsForExport(claims.sub, { from, to });
     const rows: LogbookEntryForPdf[] = entries.map((e) => e.row);
 
     const audit: AuditAppendix = { signoffs: [], changeLog: [] };
@@ -44,6 +45,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         });
       }
     });
+    // Deletions after the 48-hour window are part of the change log (FOCA 2.3.7).
+    for (const d of deletions) {
+      audit.changeLog.push({
+        entry: `${d.date}${d.aircraft ? ` ${d.aircraft}` : ""}`,
+        text: `flight deleted on ${d.voidedAt}`,
+      });
+    }
 
     const pdf = await generateLogbookPdf(
       rows,

@@ -64,6 +64,37 @@ export interface ExportRange {
   to?: string | undefined; // yyyy-mm-dd inclusive
 }
 
+export interface DeletedEntry {
+  date: string;
+  aircraft: string;
+  voidedAt: string;
+}
+
+/**
+ * Flights deleted after the 48-hour window (void_logged), which FOCA 2.3.7
+ * requires to appear in the export change log even though the flight itself no
+ * longer counts.
+ */
+export async function loadDeletionsForExport(pilotId: string, range: ExportRange = {}): Promise<DeletedEntry[]> {
+  const { rows } = await getPool().query(
+    `SELECT e.voided_at,
+            v.content->'columns'->>'date' AS date,
+            COALESCE(v.content->'aircraft'->>'registration', '') AS reg
+       FROM flight_entries e
+       JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
+      WHERE e.pilot_id = $1 AND e.voided = true AND e.void_logged = true
+        AND v.content->'columns'->>'date' >= COALESCE($2, '0000-01-01')
+        AND v.content->'columns'->>'date' <= COALESCE($3, '9999-12-31')
+      ORDER BY v.content->'columns'->>'date' ASC`,
+    [pilotId, range.from ?? null, range.to ?? null],
+  );
+  return rows.map((r) => ({
+    date: (r.date as string) ?? "",
+    aircraft: (r.reg as string) ?? "",
+    voidedAt: r.voided_at ? new Date(r.voided_at).toISOString().replace(/\.\d{3}Z$/, "Z") : "",
+  }));
+}
+
 export async function loadLogbookForExport(
   pilotId: string,
   range: ExportRange = {},
@@ -100,7 +131,7 @@ export async function loadLogbookForExport(
   const { rows: histRows } = await pool.query(
     `SELECT v.entry_id, v.version_no, v.change_reason, v.content_hash, v.created_at, p.name AS by_name
        FROM flight_entry_versions v JOIN pilots p ON p.id = v.created_by
-      WHERE v.entry_id = ANY($1::uuid[])
+      WHERE v.entry_id = ANY($1::uuid[]) AND v.logged = true
       ORDER BY v.entry_id, v.version_no ASC`,
     [ids],
   );

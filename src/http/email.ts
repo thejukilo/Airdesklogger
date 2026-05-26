@@ -198,6 +198,66 @@ export async function sendPasswordResetEmail(m: { to: string; name: string; link
   }
 }
 
+/**
+ * Tells a signer that an entry they countersigned was edited, so the sign-off
+ * was removed and the entry is open for them to review and sign again.
+ */
+export async function sendEntryReopenedEmail(m: {
+  to: string;
+  signerName: string;
+  holderName: string;
+  flight: { date: string; route: string; aircraft: string };
+  link: string;
+}): Promise<boolean> {
+  if (!emailConfigured()) return false;
+  const greetingName = m.signerName?.trim() || "there";
+
+  const text =
+    `Hello ${greetingName},\n\n` +
+    `${m.holderName} has edited a flight logbook entry that you had countersigned, so your sign-off has been removed and the entry is open again for your review.\n\n` +
+    `Flight details:\n` +
+    `  Date:     ${m.flight.date}\n` +
+    `  Aircraft: ${m.flight.aircraft}\n` +
+    `  Route:    ${m.flight.route}\n\n` +
+    `To review and countersign the updated entry, open this link:\n${m.link}\n\n` +
+    `Sent by Airdeck Logger on behalf of ${m.holderName}.`;
+
+  const html =
+    `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
+    `<p>Hello ${escapeHtml(greetingName)},</p>` +
+    `<p>${escapeHtml(m.holderName)} has edited a flight logbook entry that you had countersigned, so your sign-off has been removed and the entry is open again for your review.</p>` +
+    `<table style="border-collapse:collapse;margin:12px 0">` +
+    row("Date", m.flight.date) +
+    row("Aircraft", m.flight.aircraft) +
+    row("Route", m.flight.route) +
+    `</table>` +
+    `<p><a href="${m.link}" style="color:#1a1a1a">Review and countersign the updated entry</a></p>` +
+    `<p style="color:#666;font-size:13px">Sent by Airdeck Logger on behalf of ${escapeHtml(m.holderName)}.</p>` +
+    `</div>`;
+
+  try {
+    const transport = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? "587"),
+      secure: process.env.SMTP_SECURE === "true",
+      ...(process.env.SMTP_USER
+        ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS ?? "" } }
+        : {}),
+    });
+    await transport.sendMail({
+      from: process.env.SMTP_FROM,
+      to: m.to,
+      subject: `A flight you signed on ${m.flight.date} was updated`,
+      text,
+      html,
+    });
+    return true;
+  } catch (err) {
+    console.error("entry-reopened email failed:", err);
+    return false;
+  }
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }

@@ -134,6 +134,7 @@ export function NewEntry() {
   const [timeMode, setTimeMode] = useState<TimeMode>("utc");
   const [reason, setReason] = useState("");
   const [loadingEntry, setLoadingEntry] = useState(editing);
+  const [editLocked, setEditLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aircraftMsg, setAircraftMsg] = useState<string | null>(null);
@@ -146,6 +147,7 @@ export function NewEntry() {
       .getEntry(editId)
       .then((e) => {
         if (e.current?.content) setF(fromContent(e.current.content));
+        setEditLocked(Boolean(e.current?.locked));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load the entry."))
       .finally(() => setLoadingEntry(false));
@@ -305,11 +307,17 @@ export function NewEntry() {
 
         {editing && (
           <Section title="Change">
+            {editLocked && (
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                This entry is signed. Saving your changes removes the sign-off and reopens it for the
+                instructor to sign again.
+              </p>
+            )}
             <Field
               label="Reason for change (optional)"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              hint="Recorded in the entry's change history."
+              hint="Changes more than 48 hours after the entry are recorded in the change history."
             />
           </Section>
         )}

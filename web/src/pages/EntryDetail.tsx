@@ -144,13 +144,22 @@ export function EntryDetail() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Flight entry</h1>
         <div className="flex items-center gap-4 text-sm">
-          {!locked && isOwner && (
-            <>
-              <Link to={`/entry/${id}/edit`} className="font-medium text-brand-700 hover:underline">Edit</Link>
-              <button type="button" onClick={deleteEntry} disabled={deleting} className="font-medium text-red-600 hover:underline disabled:opacity-50">
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </>
+          {isOwner && !cols?.fstd && (
+            <button
+              type="button"
+              onClick={() => {
+                if (locked && !window.confirm("This entry is signed. Editing it removes the sign-off and reopens it for the instructor to sign again. Continue?")) return;
+                navigate(`/entry/${id}/edit`);
+              }}
+              className="font-medium text-brand-700 hover:underline"
+            >
+              Edit
+            </button>
+          )}
+          {isOwner && (
+            <button type="button" onClick={deleteEntry} disabled={deleting} className="font-medium text-red-600 hover:underline disabled:opacity-50">
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
           )}
           <Link to="/" className="text-slate-600 hover:text-ink">Back to logbook</Link>
         </div>

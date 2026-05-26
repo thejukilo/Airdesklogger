@@ -53,11 +53,11 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 
 ### 2.3 Integrity of the record
 - [x] 2.3.1 Type and range validation, structured storage not free text
-- [x] 2.3.7 Tamper-proof change log, integral to the export. Append-only versions plus hash-chained ledger; change-log appendix in the PDF. We always version, which is stricter than the optional 48-hour exception.
+- [x] 2.3.7 Tamper-proof change log, integral to the export. Append-only versions plus hash-chained ledger; change-log appendix in the PDF. A change or deletion within 48 hours of the initial entry is not shown in the export change log (the permitted exception); after 48 hours it is logged and shown, including deletions.
 - [ ] PARTIAL: 2.3.2 Aircraft from a common database. All fields present incl. `balloonGroup` and `validFrom`; depends on the full reference dataset being loaded operationally.
 - [x] 2.3.3 Airports from a common database, valid ICAO or no-location indicator. ICAO table and ZZZZ supported; a free-text aerodrome name is captured and required for the ZZZZ case.
 - [x] 2.3.4 All time values calculated automatically. SE/ME, single/multi-pilot, function split, augmented-crew fractions and night are auto-derived; IFR follows the flight rules. Night is computed from civil twilight.
-- [ ] PARTIAL: 2.3.5 Auto-calculated values not user-editable except Part-FCL exceptions, attribute-gated, reduce-only. Computed columns are not editable and the augmented-crew and series exceptions are auto-applied; there is no general reduce-only manual override.
+- [x] 2.3.5 Auto-calculated values not user-editable, reduce-only after the window. The columns are computed, not typed; the augmented-crew and series exceptions are auto-applied; and after the 48-hour window an edit may not increase the flight time.
 - [ ] PARTIAL: 2.3.6 Rigorous validation on entry, import and save, including at the data store. Strong app-layer validation; DB-level enforcement is limited to immutability triggers and a few CHECK constraints.
 
 ### 2.4 Entry signatures
@@ -78,7 +78,6 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 
 ## Remaining work, shortlist
 1. dLIS dataset export and the FOCA acceptance process (1.3 / 3.x). The dataset format is published by FOCA and the acceptance is administrative (declaration of conformity, test account, acceptance letter); the PDF is the accepted interim. This cannot be completed in code alone.
-2. A general reduce-only manual override for a calculated value when a Part-FCL exception applies (2.3.5). The automatic exceptions (augmented crew, series of flights) are handled; an explicit manual reduction path is not.
 3. Airship flight-time basis (AMC1 g); airship is not a selectable category.
 4. A dedicated cruise-relief co-pilot flag (covered today by co-pilot plus augmented-crew fractions).
 

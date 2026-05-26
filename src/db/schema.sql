@@ -27,8 +27,11 @@ CREATE TABLE IF NOT EXISTS flight_entries (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 -- An unsigned entry can be removed from the logbook by voiding it: the row and
--- its history stay for the audit trail, but it no longer appears or counts.
+-- its history stay for the audit trail, but it no longer appears or counts. A
+-- void after the 48-hour window is logged (void_logged) and shown on the export.
 ALTER TABLE flight_entries ADD COLUMN IF NOT EXISTS voided boolean NOT NULL DEFAULT false;
+ALTER TABLE flight_entries ADD COLUMN IF NOT EXISTS voided_at timestamptz;
+ALTER TABLE flight_entries ADD COLUMN IF NOT EXISTS void_logged boolean NOT NULL DEFAULT false;
 
 -- Append-only snapshots. A modification is a NEW row, never an UPDATE. The full
 -- 12-column payload is stored as jsonb (times as UTC ISO strings) alongside its
@@ -39,10 +42,14 @@ CREATE TABLE IF NOT EXISTS flight_entry_versions (
   content      jsonb NOT NULL,
   content_hash text NOT NULL,
   change_reason text,
+  logged       boolean NOT NULL DEFAULT true,
   created_by   uuid NOT NULL REFERENCES pilots(id),
   created_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (entry_id, version_no)
 );
+-- A change made within 48 hours of the initial entry need not appear in the
+-- exported change log (FOCA 2.3.7); such a version is recorded with logged=false.
+ALTER TABLE flight_entry_versions ADD COLUMN IF NOT EXISTS logged boolean NOT NULL DEFAULT true;
 
 -- Cryptographic sign-off. Presence of a row here flips flight_entries.locked.
 CREATE TABLE IF NOT EXISTS signatures (

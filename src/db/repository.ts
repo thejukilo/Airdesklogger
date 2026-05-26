@@ -193,6 +193,7 @@ export async function amendEntry(
   derived: DerivedColumns,
   actorId: string,
   reason: string,
+  logged = true,
 ): Promise<CreatedEntry> {
   return withTransaction(async (client) => {
     const { rows: head } = await client.query(
@@ -200,16 +201,23 @@ export async function amendEntry(
       [entryId],
     );
     if (head.length === 0) throw new Error(`Entry ${entryId} not found`);
-    if (head[0].locked) throw new Error(`Entry ${entryId} is locked by sign-off; cannot amend`);
+
+    // Editing a signed entry invalidates the sign-off: the entry is reopened so
+    // it can be countersigned again (FOCA 2.4.5). The old signature rows stay for
+    // the audit trail but now refer to a superseded version. Unlocking first lets
+    // the new version be appended past the lock trigger.
+    if (head[0].locked) {
+      await client.query("UPDATE flight_entries SET locked = false, locked_at = null WHERE id = $1", [entryId]);
+    }
 
     const versionNo = Number(head[0].current_version) + 1;
     const content = buildVersionContent(input, derived);
     const contentHash = hashContent(content);
 
     await client.query(
-      `INSERT INTO flight_entry_versions (entry_id, version_no, content, content_hash, change_reason, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [entryId, versionNo, content, contentHash, reason, actorId],
+      `INSERT INTO flight_entry_versions (entry_id, version_no, content, content_hash, change_reason, logged, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [entryId, versionNo, content, contentHash, logged ? reason : null, logged, actorId],
     );
     await client.query("UPDATE flight_entries SET current_version = $2 WHERE id = $1", [
       entryId,
@@ -335,22 +343,24 @@ export async function getEntryMeta(
  * ledger are kept for the audit trail, but the entry no longer appears in the
  * logbook, exports or overlap checks. A signed (locked) entry cannot be voided.
  */
-export async function voidEntry(entryId: string, actorId: string): Promise<void> {
+export async function voidEntry(entryId: string, actorId: string, logged = true): Promise<void> {
   await withTransaction(async (client) => {
     const { rows } = await client.query(
-      "SELECT current_version, locked, voided FROM flight_entries WHERE id = $1 FOR UPDATE",
+      "SELECT current_version, voided FROM flight_entries WHERE id = $1 FOR UPDATE",
       [entryId],
     );
     const row = rows[0];
     if (!row) throw new Error("Entry not found.");
-    if (row.locked) throw new Error("Entry is locked by sign-off and cannot be deleted.");
     if (row.voided) return;
     const { rows: vrows } = await client.query(
       "SELECT content_hash FROM flight_entry_versions WHERE entry_id = $1 AND version_no = $2",
       [entryId, row.current_version],
     );
     const payloadHash = (vrows[0]?.content_hash as string) ?? "void";
-    await client.query("UPDATE flight_entries SET voided = true WHERE id = $1", [entryId]);
+    await client.query(
+      "UPDATE flight_entries SET voided = true, voided_at = now(), void_logged = $2 WHERE id = $1",
+      [entryId, logged],
+    );
     await appendLedger(client, { eventType: "VOID", entryId, payloadHash, actorId });
   });
 }
@@ -401,8 +411,11 @@ export async function getEntrySignatures(entryId: string) {
   const { rows } = await getPool().query(
     `SELECT s.signer_role, s.signed_at, s.signature_image, s.signer_license,
             COALESCE(s.signer_name, p.name) AS signer_name
-       FROM signatures s LEFT JOIN pilots p ON p.id = s.signer_id
-      WHERE s.entry_id = $1 ORDER BY s.signed_at ASC`,
+       FROM signatures s
+       JOIN flight_entries e ON e.id = s.entry_id
+       LEFT JOIN pilots p ON p.id = s.signer_id
+      WHERE s.entry_id = $1 AND s.version_no = e.current_version
+      ORDER BY s.signed_at ASC`,
     [entryId],
   );
   return rows.map((r) => ({
@@ -415,12 +428,55 @@ export async function getEntrySignatures(entryId: string) {
 }
 
 export async function getHistory(entryId: string) {
+  // Only logged versions are part of the change history; an edit made inside the
+  // 48-hour window (logged=false) is not shown (FOCA 2.3.7).
   const { rows } = await getPool().query(
     `SELECT version_no, content_hash, change_reason, created_by, created_at
-       FROM flight_entry_versions WHERE entry_id = $1 ORDER BY version_no`,
+       FROM flight_entry_versions WHERE entry_id = $1 AND logged = true ORDER BY version_no`,
     [entryId],
   );
   return rows;
+}
+
+/** Context the edit/delete rules need: when it was first logged, current total, status. */
+export async function getEntryEditContext(
+  entryId: string,
+): Promise<{ pilotId: string; locked: boolean; voided: boolean; createdAt: string; total: number; kind: string } | null> {
+  const { rows } = await getPool().query(
+    `SELECT e.pilot_id, e.locked, e.voided,
+            (SELECT created_at FROM flight_entry_versions WHERE entry_id = e.id AND version_no = 0) AS created_at,
+            (cv.content->'columns'->>'total')::int AS total,
+            COALESCE(cv.content->'columns'->>'kind', 'FLIGHT') AS kind
+       FROM flight_entries e
+       JOIN flight_entry_versions cv ON cv.entry_id = e.id AND cv.version_no = e.current_version
+      WHERE e.id = $1`,
+    [entryId],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    pilotId: r.pilot_id as string,
+    locked: Boolean(r.locked),
+    voided: Boolean(r.voided),
+    createdAt: new Date(r.created_at).toISOString(),
+    total: Number(r.total ?? 0),
+    kind: String(r.kind),
+  };
+}
+
+/** Email contacts of the signers on the current version, to tell them an edit reopened it. */
+export async function getEntrySignerContacts(entryId: string): Promise<Array<{ name: string; email: string }>> {
+  const { rows } = await getPool().query(
+    `SELECT COALESCE(s.signer_email, p.email) AS email, COALESCE(s.signer_name, p.name) AS name
+       FROM signatures s
+       JOIN flight_entries e ON e.id = s.entry_id
+       LEFT JOIN pilots p ON p.id = s.signer_id
+      WHERE s.entry_id = $1 AND s.version_no = e.current_version`,
+    [entryId],
+  );
+  return rows
+    .filter((r) => r.email)
+    .map((r) => ({ name: (r.name as string) ?? "", email: r.email as string }));
 }
 
 export async function getLedger(): Promise<LedgerRecord[]> {
