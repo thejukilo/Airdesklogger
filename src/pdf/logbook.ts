@@ -95,7 +95,7 @@ function remarksText(e: LogbookEntryForPdf): string {
     if (d.mountainLandingGear) parts.push(`(mountain: ${d.mountainLandingGear.toLowerCase()})`);
     if (d.lowVisibilityLandingType) parts.push(`(low-vis: ${d.lowVisibilityLandingType})`);
   }
-  if (e.signatureRequired && !e.signed) parts.push("(signature required)");
+  if (e.signatureMissing) parts.push("(SIGNATURE MISSING)");
   else if (e.signed) parts.push("(signed off)");
   return parts.join(" ");
 }
@@ -147,8 +147,10 @@ export interface LogbookEntryForPdf extends DerivedColumns {
   aircraftReg: string;
   picName: string;
   remarks: string;
-  /** Whether a valid sign-off exists; used to flag a missing required signature. */
+  /** Whether a valid sign-off exists on the current version. */
   signed?: boolean;
+  /** True when the entry needs a signature (required, or invalidated by an edit) but has none. */
+  signatureMissing?: boolean;
 }
 
 export interface PdfOptions {

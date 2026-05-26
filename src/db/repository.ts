@@ -464,10 +464,10 @@ export async function getEntryEditContext(
   };
 }
 
-/** Email contacts of the signers on the current version, to tell them an edit reopened it. */
-export async function getEntrySignerContacts(entryId: string): Promise<Array<{ name: string; email: string }>> {
+/** Email contacts and capacity of the signers on the current version, to tell them an edit reopened it. */
+export async function getEntrySignerContacts(entryId: string): Promise<Array<{ name: string; email: string; role: string }>> {
   const { rows } = await getPool().query(
-    `SELECT COALESCE(s.signer_email, p.email) AS email, COALESCE(s.signer_name, p.name) AS name
+    `SELECT COALESCE(s.signer_email, p.email) AS email, COALESCE(s.signer_name, p.name) AS name, s.signer_role AS role
        FROM signatures s
        JOIN flight_entries e ON e.id = s.entry_id
        LEFT JOIN pilots p ON p.id = s.signer_id
@@ -476,7 +476,7 @@ export async function getEntrySignerContacts(entryId: string): Promise<Array<{ n
   );
   return rows
     .filter((r) => r.email)
-    .map((r) => ({ name: (r.name as string) ?? "", email: r.email as string }));
+    .map((r) => ({ name: (r.name as string) ?? "", email: r.email as string, role: r.role as string }));
 }
 
 export async function getLedger(): Promise<LedgerRecord[]> {

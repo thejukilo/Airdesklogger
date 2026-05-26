@@ -208,31 +208,40 @@ export async function sendEntryReopenedEmail(m: {
   holderName: string;
   flight: { date: string; route: string; aircraft: string };
   link: string;
+  changes: string[];
 }): Promise<boolean> {
   if (!emailConfigured()) return false;
   const greetingName = m.signerName?.trim() || "there";
+  const changeLines = m.changes.length ? m.changes : ["(no field-level differences detected)"];
 
   const text =
     `Hello ${greetingName},\n\n` +
-    `${m.holderName} has edited a flight logbook entry that you had countersigned, so your sign-off has been removed and the entry is open again for your review.\n\n` +
+    `${m.holderName} has edited a flight logbook entry that you had countersigned, so your sign-off has been removed and the entry needs to be signed again.\n\n` +
     `Flight details:\n` +
     `  Date:     ${m.flight.date}\n` +
     `  Aircraft: ${m.flight.aircraft}\n` +
     `  Route:    ${m.flight.route}\n\n` +
-    `To review and countersign the updated entry, open this link:\n${m.link}\n\n` +
-    `Sent by Airdeck Logger on behalf of ${m.holderName}.`;
+    `What changed:\n` +
+    changeLines.map((c) => `  - ${c}`).join("\n") +
+    `\n\n` +
+    `To review the updated entry and add your signature, open this single-use link:\n${m.link}\n\n` +
+    `The link works once and will expire. Sent by Airdeck Logger on behalf of ${m.holderName}.`;
 
   const html =
     `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
     `<p>Hello ${escapeHtml(greetingName)},</p>` +
-    `<p>${escapeHtml(m.holderName)} has edited a flight logbook entry that you had countersigned, so your sign-off has been removed and the entry is open again for your review.</p>` +
+    `<p>${escapeHtml(m.holderName)} has edited a flight logbook entry that you had countersigned, so your sign-off has been removed and the entry needs to be signed again.</p>` +
     `<table style="border-collapse:collapse;margin:12px 0">` +
     row("Date", m.flight.date) +
     row("Aircraft", m.flight.aircraft) +
     row("Route", m.flight.route) +
     `</table>` +
-    `<p><a href="${m.link}" style="color:#1a1a1a">Review and countersign the updated entry</a></p>` +
-    `<p style="color:#666;font-size:13px">Sent by Airdeck Logger on behalf of ${escapeHtml(m.holderName)}.</p>` +
+    `<p style="margin-bottom:4px"><strong>What changed</strong></p>` +
+    `<ul style="margin:0 0 12px 0;padding-left:18px;color:#1a1a1a">` +
+    changeLines.map((c) => `<li>${escapeHtml(c)}</li>`).join("") +
+    `</ul>` +
+    `<p><a href="${m.link}" style="display:inline-block;background:#2563eb;color:#fff;padding:9px 16px;border-radius:8px;text-decoration:none">Review and sign the entry</a></p>` +
+    `<p style="color:#666;font-size:13px">The link works once and will expire. Sent by Airdeck Logger on behalf of ${escapeHtml(m.holderName)}.</p>` +
     `</div>`;
 
   try {

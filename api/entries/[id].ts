@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { RequestError } from "../../src/http/parseEntry.js";
-import { prepareFlightEntry } from "../../src/http/buildEntry.js";
+import { prepareFlightEntry, summarizeChanges } from "../../src/http/buildEntry.js";
 import {
   amendEntry,
   voidEntry,
@@ -9,7 +9,9 @@ import {
   getEntrySignerContacts,
   getHistory,
   getEntrySignatures,
+  createSignoffRequest,
 } from "../../src/db/repository.js";
+import type { SignerRole } from "../../src/domain/signature.js";
 import { canEditOwnLogbook } from "../../src/auth/roles.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 import { sendEntryReopenedEmail } from "../../src/http/email.js";
@@ -78,13 +80,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const reason = typeof reasonRaw === "string" && reasonRaw.trim() ? reasonRaw.trim() : "correction";
 
       const wasSigned = ctx.locked;
+      // Capture the previous content (for the change summary) and the signers
+      // before the amendment reopens the entry.
+      const before = wasSigned ? await getCurrentVersion(entryId) : null;
       const contacts = wasSigned ? await getEntrySignerContacts(entryId) : [];
 
       const amended = await amendEntry(entryId, prepared.input, prepared.derived, claims.sub, reason, logged);
 
       if (wasSigned && contacts.length > 0) {
         const holder = claims.email || "the pilot";
-        const link = `${process.env.APP_BASE_URL ?? `https://${req.headers.host}`}/entry/${entryId}`;
+        const origin = process.env.APP_BASE_URL ?? `https://${req.headers.host}`;
         const first = prepared.input.legs[0]!;
         const last = prepared.input.legs[prepared.input.legs.length - 1]!;
         const flight = {
@@ -92,8 +97,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           route: `${first.departurePlace} to ${last.arrivalPlace}`,
           aircraft: `${prepared.input.aircraft.makeModelVariant} (${prepared.input.aircraft.registration})`,
         };
+        const oldContent = (before?.content ?? null) as { columns?: Record<string, unknown>; picName?: string } | null;
+        const changes = summarizeChanges(oldContent, oldContent?.picName ?? "", prepared.derived, prepared.input.picName);
+        // Each former signer gets a fresh single-use signing link, plus the diff.
         await Promise.all(
-          contacts.map((c) => sendEntryReopenedEmail({ to: c.email, signerName: c.name, holderName: holder, flight, link })),
+          contacts.map(async (c) => {
+            try {
+              const { token } = await createSignoffRequest({
+                entryId,
+                signerName: c.name,
+                signerEmail: c.email,
+                capacity: c.role as SignerRole,
+                createdBy: claims.sub,
+              });
+              await sendEntryReopenedEmail({
+                to: c.email,
+                signerName: c.name,
+                holderName: holder,
+                flight,
+                link: `${origin}/sign/${token}`,
+                changes,
+              });
+            } catch {
+              // Notifying the signer is best-effort; the edit itself succeeded.
+            }
+          }),
         );
       }
 

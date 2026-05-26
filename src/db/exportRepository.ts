@@ -46,7 +46,7 @@ function reviveColumns(columns: Record<string, unknown>): DerivedColumns {
   };
 }
 
-function toRow(entryId: string, content: Record<string, unknown>, signed: boolean): LogbookEntryForPdf {
+function toRow(content: Record<string, unknown>, signed: boolean, signatureMissing: boolean): LogbookEntryForPdf {
   const columns = reviveColumns(content.columns as Record<string, unknown>);
   const aircraft = content.aircraft as { makeModelVariant?: string; registration?: string } | undefined;
   return {
@@ -56,6 +56,7 @@ function toRow(entryId: string, content: Record<string, unknown>, signed: boolea
     picName: (content.picName as string) ?? "",
     remarks: (content.remarks as string) ?? "",
     signed,
+    signatureMissing,
   };
 }
 
@@ -105,7 +106,7 @@ export async function loadLogbookForExport(
   // correct date comparison. A range lets an export cover just a revalidation
   // period (FOCA 2.5.1).
   const { rows: entryRows } = await pool.query(
-    `SELECT e.id, e.locked,
+    `SELECT e.id, e.locked, e.current_version,
             v.content
        FROM flight_entries e
        JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
@@ -120,13 +121,14 @@ export async function loadLogbookForExport(
   const ids = entryRows.map((r) => r.id as string);
 
   const { rows: sigRows } = await pool.query(
-    `SELECT s.entry_id, s.signer_role, s.content_hash, s.signature, s.public_key, s.signed_at,
+    `SELECT s.entry_id, s.version_no, s.signer_role, s.content_hash, s.signature, s.public_key, s.signed_at,
             s.signer_id, p.name AS signer_name
        FROM signatures s JOIN pilots p ON p.id = s.signer_id
       WHERE s.entry_id = ANY($1::uuid[])
       ORDER BY s.signed_at ASC`,
     [ids],
   );
+  const currentVersionByEntry = new Map<string, number>(entryRows.map((r) => [r.id as string, Number(r.current_version)]));
 
   const { rows: histRows } = await pool.query(
     `SELECT v.entry_id, v.version_no, v.change_reason, v.content_hash, v.created_at, p.name AS by_name
@@ -137,7 +139,10 @@ export async function loadLogbookForExport(
   );
 
   const signaturesByEntry = new Map<string, ExportSignature[]>();
+  const anySignature = new Set<string>();
+  const currentValid = new Set<string>();
   for (const s of sigRows) {
+    anySignature.add(s.entry_id);
     const valid = verifySignature({
       entryId: s.entry_id,
       contentHash: s.content_hash,
@@ -147,6 +152,11 @@ export async function loadLogbookForExport(
       signature: s.signature,
       publicKey: s.public_key,
     });
+    // Only a signature on the current version counts as a present sign-off; a
+    // signature on a superseded version was invalidated by a later edit.
+    const isCurrent = Number(s.version_no) === currentVersionByEntry.get(s.entry_id);
+    if (isCurrent && valid) currentValid.add(s.entry_id);
+    if (!isCurrent) continue;
     const list = signaturesByEntry.get(s.entry_id) ?? [];
     list.push({
       signerName: s.signer_name,
@@ -172,9 +182,14 @@ export async function loadLogbookForExport(
 
   return entryRows.map((e) => {
     const signatures = signaturesByEntry.get(e.id) ?? [];
+    const signed = currentValid.has(e.id);
+    const columns = (e.content as { columns?: { signatureRequired?: boolean } }).columns ?? {};
+    // Flag a missing signature when the entry needs one (a check/test attribute)
+    // or was previously signed and the sign-off has since been invalidated.
+    const signatureMissing = (Boolean(columns.signatureRequired) || anySignature.has(e.id)) && !signed;
     return {
       entryId: e.id as string,
-      row: toRow(e.id, e.content, signatures.some((s) => s.valid)),
+      row: toRow(e.content, signed, signatureMissing),
       signatures,
       history: historyByEntry.get(e.id) ?? [],
     };

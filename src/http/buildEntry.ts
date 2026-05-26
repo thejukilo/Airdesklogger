@@ -119,3 +119,43 @@ export async function prepareFlightEntry(
 
   return { ok: true, input, derived: result.derived };
 }
+
+function minutesToHHMM(m: number): string {
+  const n = Number(m) || 0;
+  if (n <= 0) return "00:00";
+  return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+}
+
+function clockZ(v: unknown): string {
+  const s = v instanceof Date ? v.toISOString() : typeof v === "string" ? v : "";
+  return s.length >= 16 ? `${s.slice(11, 16)}Z` : "";
+}
+
+/** A human-readable list of what changed, for the notice sent to a signer. */
+export function summarizeChanges(
+  oldContent: { columns?: Record<string, unknown>; picName?: string } | null,
+  oldPicName: string,
+  newDerived: DerivedColumns,
+  newPicName: string,
+): string[] {
+  const oc = (oldContent?.columns ?? {}) as Record<string, unknown>;
+  const fields = (cols: Record<string, unknown>, pic: string): Record<string, string> => ({
+    Date: String(cols.date ?? ""),
+    From: String(cols.departurePlace ?? ""),
+    To: String(cols.arrivalPlace ?? ""),
+    "Block off": clockZ(cols.departureTime),
+    "Block on": clockZ(cols.arrivalTime),
+    "Total time": minutesToHHMM(Number(cols.total ?? 0)),
+    PIC: pic,
+    Night: minutesToHHMM(Number(cols.night ?? 0)),
+    IFR: minutesToHHMM(Number(cols.ifr ?? 0)),
+    Landings: String((Number(cols.dayLandings ?? 0)) + (Number(cols.nightLandings ?? 0))),
+  });
+  const before = fields(oc, oldPicName);
+  const after = fields(newDerived as unknown as Record<string, unknown>, newPicName);
+  const out: string[] = [];
+  for (const key of Object.keys(before)) {
+    if (before[key] !== after[key]) out.push(`${key}: ${before[key] || "(empty)"} to ${after[key] || "(empty)"}`);
+  }
+  return out;
+}
