@@ -82,6 +82,7 @@ const empty = {
   flightRules: "VFR",
   launchMethod: "",
   balloonFlightType: "",
+  inflations: 1,
   instructor: 0,
   landings: 1,
   picName: "SELF",
@@ -117,6 +118,7 @@ function fromContent(c: api.EntryContent): typeof empty {
     flightRules: (cols?.ifr ?? 0) > 0 ? "IFR" : "VFR",
     launchMethod: cols?.launchMethod ?? "",
     balloonFlightType: cols?.balloonFlightType ?? "",
+    inflations: cols?.inflations ?? 1,
     instructor: c.function?.instructor ?? 0,
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
     picName: c.picName ?? "SELF",
@@ -301,6 +303,7 @@ export function NewEntry() {
         ...(isPowered && f.operatingRole ? { operatingRole: f.operatingRole } : {}),
         ...(isSailplane && f.launchMethod ? { launchMethod: f.launchMethod } : {}),
         ...(isBalloon && f.balloonFlightType ? { balloonFlightType: f.balloonFlightType } : {}),
+        ...(isBalloon ? { inflations: Number(f.inflations) } : {}),
         ...(f.attributes.length ? { attributes: f.attributes } : {}),
         ...(buildAttributeDetails() ? { attributeDetails: buildAttributeDetails() } : {}),
         remarks: f.remarks,
@@ -493,8 +496,11 @@ export function NewEntry() {
         </Section>
 
         <Section title="Landings and time">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field label="Landings" type="number" min={0} inputMode="numeric" value={f.landings} onChange={(e) => set("landings", Number(e.target.value))} />
+            {isBalloon && (
+              <Field label="Inflations" type="number" min={0} inputMode="numeric" value={f.inflations} onChange={(e) => set("inflations", Number(e.target.value))} />
+            )}
             <Field label="Instructor (min)" type="number" min={0} inputMode="numeric" value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} />
           </div>
           <p className="text-xs text-slate-500">

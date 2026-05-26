@@ -68,6 +68,24 @@ describe("entry validation & column derivation", () => {
     expect(r.issues.some((i) => i.field === "balloonFlightType")).toBe(true);
   });
 
+  it("records the number of inflations for a balloon", () => {
+    const r = validateEntry(
+      baseEntry({
+        aircraft: { makeModelVariant: "Cameron Z-90", registration: "HB-QXX", engineClass: "SE", multiPilot: false, category: "BALLOON" },
+        balloonFlightType: "FREE",
+        inflations: 2,
+      }),
+    );
+    expect(r.valid).toBe(true);
+    expect(r.derived!.inflations).toBe(2);
+  });
+
+  it("rejects inflations on a non-balloon", () => {
+    const r = validateEntry(baseEntry({ inflations: 1 }));
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.field === "inflations")).toBe(true);
+  });
+
   it("derives the 12 columns for a single-engine PIC flight", () => {
     const r = validateEntry(baseEntry());
     expect(r.valid).toBe(true);

@@ -114,6 +114,8 @@ export interface FlightEntryInput {
   launchMethod?: LaunchMethod;
   /** Free or tethered flight, when the aircraft is a balloon (BFCL.050). */
   balloonFlightType?: BalloonFlightType | undefined;
+  /** Number of inflations, for a balloon (BFCL.050). */
+  inflations?: number | undefined;
   /** Operating crew size: 2 (normal), or 3/4 for augmented operation (FOCA 2.3.4). */
   crewSize?: number;
   /** Structured FOCA attributes (skill test, cross country, etc.). */
@@ -188,6 +190,8 @@ export interface DerivedColumns {
   launchMethod?: LaunchMethod;
   /** Balloon free/tethered flight, if recorded. */
   balloonFlightType?: BalloonFlightType | undefined;
+  /** Number of inflations, for a balloon. */
+  inflations?: number | undefined;
   /** Instructor/examiner seat position, if recorded. */
   instructorPosition?: InstructorPosition;
   /** Operating role, if recorded. */

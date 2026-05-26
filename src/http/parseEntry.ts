@@ -58,6 +58,7 @@ const EntryShape = z.object({
   operatingRole: z.enum(["PILOT_FLYING", "PILOT_MONITORING"]).optional(),
   launchMethod: z.enum(["WINCH", "AEROTOW", "SELF_LAUNCH", "BUNGEE", "CAR_TOW"]).optional(),
   balloonFlightType: z.enum(["FREE", "TETHERED"]).optional(),
+  inflations: z.number().int().nonnegative().optional(),
   crewSize: z.number().int().optional(),
   attributes: z.array(z.string()).optional(),
   attributeDetails: z
@@ -119,6 +120,7 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
       ...(data.operatingRole !== undefined ? { operatingRole: data.operatingRole } : {}),
       ...(data.launchMethod !== undefined ? { launchMethod: data.launchMethod } : {}),
       ...(data.balloonFlightType !== undefined ? { balloonFlightType: data.balloonFlightType } : {}),
+      ...(data.inflations !== undefined ? { inflations: data.inflations } : {}),
       ...(data.crewSize !== undefined ? { crewSize: data.crewSize } : {}),
       attributes: (data.attributes ?? []) as EntryAttribute[],
       ...(data.attributeDetails !== undefined ? { attributeDetails: data.attributeDetails } : {}),

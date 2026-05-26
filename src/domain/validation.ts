@@ -123,9 +123,16 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   if (input.launchMethod !== undefined && category !== "SAILPLANE") {
     issues.push({ field: "launchMethod", message: "Launch method applies only to sailplanes." });
   }
-  // Free/tethered is a balloon operational condition (BFCL.050).
+  // Free/tethered and the inflation count are balloon-only (BFCL.050).
   if (input.balloonFlightType !== undefined && category !== "BALLOON") {
     issues.push({ field: "balloonFlightType", message: "Free/tethered applies only to balloons." });
+  }
+  if (input.inflations !== undefined) {
+    if (category !== "BALLOON") {
+      issues.push({ field: "inflations", message: "Number of inflations applies only to balloons." });
+    } else if (!isNonNegInt(input.inflations)) {
+      issues.push({ field: "inflations", message: "Number of inflations must be a non-negative integer." });
+    }
   }
 
   // Column 9.
@@ -215,6 +222,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     category,
     ...(input.launchMethod !== undefined ? { launchMethod: input.launchMethod } : {}),
     ...(input.balloonFlightType !== undefined ? { balloonFlightType: input.balloonFlightType } : {}),
+    ...(input.inflations !== undefined ? { inflations: input.inflations } : {}),
     ...(input.function.instructorPosition !== undefined ? { instructorPosition: input.function.instructorPosition } : {}),
     ...(input.operatingRole !== undefined ? { operatingRole: input.operatingRole } : {}),
     date: utcDateKey(first.departureTime),

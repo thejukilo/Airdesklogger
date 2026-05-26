@@ -243,6 +243,7 @@ export function EntryDetail() {
             label="Flight type"
             value={cols?.balloonFlightType === "TETHERED" ? "Tethered" : cols?.balloonFlightType === "FREE" ? "Free flight" : undefined}
           />
+          <Detail label="Inflations" value={cols?.inflations !== undefined ? String(cols.inflations) : undefined} />
           {c.function?.primary === "SAFETY_PILOT" ? (
             <Detail label="Took control" value={c.function?.tookControl ? "Yes" : "No"} />
           ) : null}
