@@ -218,6 +218,14 @@ export function NewEntry() {
               ...prev,
               makeModelVariant: match.model || prev.makeModelVariant,
               category: known ?? prev.category,
+              // More than one engine means multi-engine; a known single engine
+              // sets single-engine. Leave the choice alone when unknown.
+              engineClass:
+                typeof match.engineCount === "number"
+                  ? match.engineCount > 1
+                    ? "ME"
+                    : "SE"
+                  : prev.engineClass,
               multiPilot: match.multiPilot ?? prev.multiPilot,
             };
           });
