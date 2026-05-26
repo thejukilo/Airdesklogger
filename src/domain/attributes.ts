@@ -8,6 +8,8 @@
  * entry that needs a signature but does not have one, so we name that subset here.
  */
 
+import type { AircraftCategory } from "./types.js";
+
 export const ENTRY_ATTRIBUTES = [
   "skill_test",
   "proficiency_check",
@@ -37,6 +39,17 @@ export const ENTRY_ATTRIBUTES = [
 ] as const;
 
 export type EntryAttribute = (typeof ENTRY_ATTRIBUTES)[number];
+
+/**
+ * Attributes that only make sense for some aircraft categories: a launch
+ * privilege is a sailplane endorsement, and HESLO (sling load) and HEC (human
+ * external cargo) are helicopter operations. Anything not listed applies to all.
+ */
+export const ATTRIBUTE_CATEGORY_RESTRICTIONS: Partial<Record<EntryAttribute, readonly AircraftCategory[]>> = {
+  launch_privilege: ["SAILPLANE"],
+  heslo: ["HELICOPTER"],
+  hec: ["HELICOPTER"],
+};
 
 const ATTRIBUTE_SET: ReadonlySet<string> = new Set(ENTRY_ATTRIBUTES);
 

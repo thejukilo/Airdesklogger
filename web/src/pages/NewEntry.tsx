@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
-import { ATTRIBUTES, CATEGORY_LABELS } from "../labels";
+import { ATTRIBUTE_GROUPS, ATTRIBUTE_LABELS, CATEGORY_LABELS } from "../labels";
 
 /** A titled card that groups related fields, so the form reads as sections. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -191,6 +191,9 @@ export function NewEntry() {
   const [regCategory, setRegCategory] = useState<string | null>(null);
   const [depName, setDepName] = useState<string | null>(null);
   const [arrName, setArrName] = useState<string | null>(null);
+  // Attributes are optional, so the section is collapsed by default to stay out
+  // of the way; it opens when the pilot has one to add.
+  const [showAttributes, setShowAttributes] = useState(false);
 
   useEffect(() => {
     if (!editId) return;
@@ -219,6 +222,26 @@ export function NewEntry() {
 
   const has = (key: string) => f.attributes.includes(key);
   const showDetails = has("heslo") || has("hec") || has("mountain_landings") || has("low_visibility_landing");
+
+  // Only the attributes that apply to the chosen category (launch is
+  // sailplane-only; HESLO/HEC are helicopter-only).
+  const visibleGroups = ATTRIBUTE_GROUPS.map((g) => ({
+    title: g.title,
+    items: g.items.filter((it) => !it.categories || it.categories.includes(f.category)),
+  })).filter((g) => g.items.length > 0);
+  const selectedLabels = f.attributes.map((k) => ATTRIBUTE_LABELS[k] ?? k);
+
+  // When the category changes, drop any selected attribute that no longer
+  // applies, so the entry does not carry (and the server does not reject) a
+  // launch privilege on an aeroplane or a HESLO on a balloon.
+  useEffect(() => {
+    const hiddenRestricted = ATTRIBUTE_GROUPS.flatMap((g) => g.items)
+      .filter((it) => it.categories && !it.categories.includes(f.category))
+      .map((it) => it.key);
+    if (f.attributes.some((k) => hiddenRestricted.includes(k))) {
+      setF((prev) => ({ ...prev, attributes: prev.attributes.filter((k) => !hiddenRestricted.includes(k)) }));
+    }
+  }, [f.category]);
 
   function buildAttributeDetails(): api.AttributeDetails | null {
     const d: api.AttributeDetails = {};
@@ -612,21 +635,40 @@ export function NewEntry() {
         </Section>
 
         <Section title="Attributes and endorsements">
-          <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3">
-            {ATTRIBUTES.map((a) => (
-              <label key={a.key} className="flex items-center gap-2 py-1 text-sm">
-                <input
-                  type="checkbox"
-                  checked={f.attributes.includes(a.key)}
-                  onChange={() => toggleAttr(a.key)}
-                />
-                {a.label}
-              </label>
-            ))}
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-slate-600">
+              {selectedLabels.length > 0 ? selectedLabels.join(", ") : "None added (optional)."}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowAttributes((v) => !v)}
+              className="shrink-0 text-sm text-sky-700 underline"
+            >
+              {showAttributes ? "Done" : selectedLabels.length > 0 ? "Edit" : "Add"}
+            </button>
           </div>
-          <p className="text-xs text-slate-500">
-            A skill test, proficiency check or line check will require a sign-off.
-          </p>
+
+          {showAttributes && (
+            <div className="mt-2 space-y-3">
+              {visibleGroups.map((g) => (
+                <div key={g.title}>
+                  <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">{g.title}</div>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3">
+                    {g.items.map((a) => (
+                      <label key={a.key} className="flex items-center gap-2 py-1 text-sm">
+                        <input type="checkbox" checked={has(a.key)} onChange={() => toggleAttr(a.key)} />
+                        {a.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-slate-500">
+                A skill test, proficiency check or line check will require a sign-off.
+              </p>
+            </div>
+          )}
+
           {showDetails && (
             <div className="grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
               {has("heslo") && (

@@ -9,19 +9,31 @@
  *   - landing counts are non-negative integers.
  */
 
-import type { AttributeDetails, DerivedColumns, FlightEntryInput, FstdSessionInput, PilotFunction } from "./types.js";
+import type { AircraftCategory, AttributeDetails, DerivedColumns, FlightEntryInput, FstdSessionInput, PilotFunction } from "./types.js";
 import { minutesBetween, utcDateKey } from "./time.js";
 import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
 import { isValidCrewSize, loggedMinutes } from "./crew.js";
-import { isEntryAttribute, requiresSignature, type EntryAttribute } from "./attributes.js";
+import { ATTRIBUTE_CATEGORY_RESTRICTIONS, isEntryAttribute, requiresSignature, type EntryAttribute } from "./attributes.js";
 import { isNoLocationIndicator } from "./icao.js";
 
-function validateAttributes(attributes: EntryAttribute[] | undefined, issues: ValidationIssue[]): EntryAttribute[] {
+function validateAttributes(
+  attributes: EntryAttribute[] | undefined,
+  issues: ValidationIssue[],
+  category?: AircraftCategory,
+): EntryAttribute[] {
   const attrs = attributes ?? [];
   for (const a of attrs) {
     if (!isEntryAttribute(a)) {
       issues.push({ field: "attributes", message: `Unknown attribute "${a}".` });
+      continue;
+    }
+    const allowed = ATTRIBUTE_CATEGORY_RESTRICTIONS[a];
+    if (category && allowed && !allowed.includes(category)) {
+      issues.push({
+        field: "attributes",
+        message: `"${a}" applies only to ${allowed.map((c) => c.toLowerCase()).join(" or ")} flights.`,
+      });
     }
   }
   return attrs.filter(isEntryAttribute);
@@ -173,7 +185,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     }
   });
 
-  const attributes = validateAttributes(input.attributes, issues);
+  const attributes = validateAttributes(input.attributes, issues, category);
   const attributeDetails = cleanAttributeDetails(input.attributeDetails, issues);
   if (issues.length > 0) return { valid: false, issues };
 

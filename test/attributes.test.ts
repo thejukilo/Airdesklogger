@@ -57,3 +57,37 @@ describe("attributes flow through validation", () => {
     expect(r.issues.some((i) => i.field === "attributes")).toBe(true);
   });
 });
+
+describe("attributes restricted to an aircraft category", () => {
+  function entry(category: FlightEntryInput["aircraft"]["category"], attributes: string[]): FlightEntryInput {
+    return {
+      pilotId: "p1",
+      aircraft: { makeModelVariant: "x", registration: "G-AB", engineClass: "SE", multiPilot: false, category },
+      legs: [
+        {
+          departurePlace: "EGKB",
+          departureTime: new Date("2026-05-25T08:00:00Z"),
+          arrivalPlace: "EGKB",
+          arrivalTime: new Date("2026-05-25T09:00:00Z"),
+        },
+      ],
+      picName: "SELF",
+      landings: { day: 1, night: 0 },
+      conditions: { night: 0, ifr: 0 },
+      function: { primary: "PIC", instructor: 0 },
+      remarks: "",
+      attributes: attributes as never,
+    };
+  }
+
+  it("allows a launch privilege only on a sailplane", () => {
+    expect(validateEntry(entry("AEROPLANE", ["launch_privilege"])).valid).toBe(false);
+    expect(validateEntry(entry("SAILPLANE", ["launch_privilege"])).valid).toBe(true);
+  });
+
+  it("allows HESLO and HEC only on a helicopter", () => {
+    expect(validateEntry(entry("AEROPLANE", ["heslo"])).valid).toBe(false);
+    expect(validateEntry(entry("BALLOON", ["hec"])).valid).toBe(false);
+    expect(validateEntry(entry("HELICOPTER", ["heslo", "hec"])).valid).toBe(true);
+  });
+});
