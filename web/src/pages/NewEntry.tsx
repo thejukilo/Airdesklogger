@@ -200,18 +200,19 @@ export function NewEntry() {
     }
     const t = setTimeout(async () => {
       try {
-        const { match } = await api.lookupAircraft(reg);
+        const { match, subtype } = await api.lookupAircraft(reg);
         if (match) {
           const known = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"].includes(match.category)
             ? match.category
             : null;
           setRegCategory(known);
+          const detail = subtype ? `${match.model} (${subtype})` : match.model;
           setF((prev) => {
             const corrected = known && known !== prev.category;
             setAircraftMsg(
               corrected
-                ? `${reg} is registered as a ${CATEGORY_LABELS[known]}; category set to match.`
-                : `Found: ${match.model}`,
+                ? `${reg} is registered as a ${CATEGORY_LABELS[known]}; category set to match. ${detail}`
+                : `Found: ${detail}`,
             );
             return {
               ...prev,

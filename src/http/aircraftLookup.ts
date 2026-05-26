@@ -8,25 +8,16 @@
  * unit tested without a network. Any network or parsing failure yields null, so
  * a flaky third party degrades to "not found" rather than an error.
  *
- * adsbdb carries the ICAO type designator, which uses the pseudo-codes BALL for
- * balloons and GLID for gliders, so those categories are classified rather than
- * guessed. It has no distinct marker for rotorcraft, so helicopters carry their
- * real type code (e.g. R44, EC35) and fall through to aeroplane; an admin can
- * correct the category for those.
+ * adsbdb gives the ICAO type designator (e.g. PC12, EC35, BALL); we look that up
+ * in the ICAO Doc 8643 table to classify the Part-FCL category and prefill the
+ * engine type and count, rather than guessing. An unknown designator falls back
+ * to aeroplane for an admin to correct.
  */
 
 import type { AircraftRecord } from "../db/referenceRepository.js";
+import { lookupIcaoType } from "../data/icaoTypes.js";
 
 const ENDPOINT = "https://api.adsbdb.com/v0/aircraft/";
-
-type AircraftCategory = AircraftRecord["category"];
-
-function deriveCategory(icaoType: string, flagCode: string): AircraftCategory {
-  const codes = [icaoType.toUpperCase(), flagCode.toUpperCase()];
-  if (codes.includes("BALL")) return "BALLOON";
-  if (codes.includes("GLID")) return "SAILPLANE";
-  return "AEROPLANE";
-}
 
 /** Map an adsbdb aircraft response to our record shape, or null if unusable. */
 export function normalizeAdsbdb(body: unknown, registration: string): AircraftRecord | null {
@@ -36,21 +27,24 @@ export function normalizeAdsbdb(body: unknown, registration: string): AircraftRe
   const manufacturer = typeof aircraft.manufacturer === "string" ? aircraft.manufacturer : "";
   const type = typeof aircraft.type === "string" ? aircraft.type : "";
   const icaoType = typeof aircraft.icao_type === "string" ? aircraft.icao_type : undefined;
-  const flagCode = typeof aircraft.registered_owner_operator_flag_code === "string"
-    ? aircraft.registered_owner_operator_flag_code
-    : "";
   const model = [manufacturer, type].filter(Boolean).join(" ").trim();
 
   if (!model && !icaoType) return null;
 
-  return {
+  const info = lookupIcaoType(icaoType);
+  const record: AircraftRecord = {
     // Store under the registration the caller asked for, so a later flight entry
     // that uses the same string validates against it.
     registration: registration.toUpperCase(),
     model: model || icaoType || "Unknown",
-    ...(icaoType ? { icaoType } : {}),
-    category: deriveCategory(icaoType ?? "", flagCode),
+    // The designator is unknown to the Doc 8643 list: assume aeroplane, the
+    // dominant case, and let the pilot or an admin correct it.
+    category: info?.category ?? "AEROPLANE",
   };
+  if (icaoType) record.icaoType = icaoType;
+  if (info?.engineType) record.engineType = info.engineType;
+  if (info?.engineCount) record.engineCount = info.engineCount;
+  return record;
 }
 
 export async function lookupExternalAircraft(registration: string): Promise<AircraftRecord | null> {

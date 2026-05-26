@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "migrate": "tsx src/db/migrate.ts",
     "seed:airports": "tsx src/db/seedAirports.ts",
+    "gen:icao-types": "node scripts/genIcaoTypes.mjs",
     "demo": "tsx src/demo.ts"
   },
   "dependencies": {

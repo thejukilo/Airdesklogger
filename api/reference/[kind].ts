@@ -9,6 +9,7 @@ import {
   upsertFstdDevice,
 } from "../../src/db/referenceRepository.js";
 import { lookupExternalAircraft } from "../../src/http/aircraftLookup.js";
+import { lookupIcaoType } from "../../src/data/icaoTypes.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
 /**
@@ -47,7 +48,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               source = "external";
             }
           }
-          res.status(200).json({ match, source });
+          // The ICAO description (e.g. "Helicopter") is shown as a precise
+          // subtype; it is display-only and does not go in the log.
+          const subtype = match ? lookupIcaoType(match.icaoType)?.description ?? null : null;
+          res.status(200).json({ match, source, subtype });
           return;
         }
         res.status(200).json({ aircraft: await listAircraft(q) });
