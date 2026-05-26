@@ -14,6 +14,28 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** A small "i" badge that reveals a styled note on hover or focus. */
+function InfoTip({ title, text }: { title: string; text: string }) {
+  return (
+    <span className="group relative inline-flex align-middle">
+      <button
+        type="button"
+        aria-label={`About ${title}`}
+        className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-300 text-[10px] font-bold leading-none text-slate-700 hover:bg-slate-400"
+      >
+        i
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-6 z-30 hidden w-72 rounded-lg border border-slate-200 bg-white p-3 text-left text-xs leading-relaxed text-slate-600 shadow-xl group-hover:block group-focus-within:block"
+      >
+        <span className="mb-1 block font-semibold text-slate-900">{title}</span>
+        {text}
+      </span>
+    </span>
+  );
+}
+
 /**
  * Times are entered as a date plus block-off and block-on times. The pilot
  * chooses UTC or local. UTC is sent with a Z; local is sent as a bare wall-clock
@@ -46,6 +68,11 @@ function parseHHMM(s: string): number {
 function fmtHHMM(min: number): string {
   const n = Math.max(0, Math.round(min));
   return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+}
+/** Insert the colon as the user types: "0540" -> "05:40", "1240" -> "12:40". */
+function autoFormatHHMM(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 4);
+  return d.length <= 2 ? d : `${d.slice(0, d.length - 2)}:${d.slice(d.length - 2)}`;
 }
 
 function blockMinutes(date: string, start: string, end: string): number {
@@ -240,13 +267,14 @@ export function NewEntry() {
   // Calculated flight time from the block times, used as the ceiling for a
   // series of flights (which may only be logged with a reduced time).
   const computedBlock = f.blockStart && f.blockEnd ? blockMinutes(f.date || "1970-01-01", f.blockStart, f.blockEnd) : 0;
-  // The entered series time in minutes, never above the calculated block time.
-  const seriesMinutes = Math.min(parseHHMM(f.seriesTime), computedBlock);
-  // Prefill the editable series time (HH:MM) with the calculated time, and clamp
-  // it down whenever it would exceed it (reduce only).
+  // The entered series time, in minutes; extending beyond the calculated block
+  // time is not allowed and is flagged rather than silently clamped.
+  const seriesMinutes = parseHHMM(f.seriesTime);
+  const seriesExceeds = isSeries && computedBlock > 0 && seriesMinutes > computedBlock;
+  // Prefill the editable series time (HH:MM) with the calculated time when it is
+  // empty; the pilot may then reduce it.
   useEffect(() => {
-    if (!isSeries) return;
-    if (f.seriesTime === "" || parseHHMM(f.seriesTime) > computedBlock) set("seriesTime", fmtHHMM(computedBlock));
+    if (isSeries && computedBlock > 0 && parseHHMM(f.seriesTime) === 0) set("seriesTime", fmtHHMM(computedBlock));
   }, [isSeries, computedBlock]);
 
   // Only the attributes that apply to the chosen category (launch is
@@ -407,6 +435,10 @@ export function NewEntry() {
     setError(null);
     if (categoryMismatch) {
       setError(`${reg} is registered as a ${CATEGORY_LABELS[regCategory!]}, not a ${CATEGORY_LABELS[f.category]}. Correct the category or the registration.`);
+      return;
+    }
+    if (seriesExceeds) {
+      setError(`The flight time of a series can only be reduced, not extended beyond the calculated ${fmtHHMM(computedBlock)}.`);
       return;
     }
     setBusy(true);
@@ -686,12 +718,13 @@ export function NewEntry() {
                   <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">{g.title}</div>
                   <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3">
                     {g.items.map((a) => (
-                      <label key={a.key} className="flex items-center gap-2 py-1 text-sm" title={a.note}>
-                        <input type="checkbox" checked={has(a.key)} onChange={() => toggleAttr(a.key)} />
-                        <span className={a.note ? "underline decoration-dotted decoration-slate-400 underline-offset-2" : undefined}>
+                      <div key={a.key} className="flex items-center gap-1.5 py-1 text-sm">
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" checked={has(a.key)} onChange={() => toggleAttr(a.key)} />
                           {a.label}
-                        </span>
-                      </label>
+                        </label>
+                        {a.note && <InfoTip title={a.label} text={a.note} />}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -705,16 +738,22 @@ export function NewEntry() {
           {showDetails && (
             <div className="grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
               {isSeries && (
-                <Field
-                  label="Flight time (HH:MM)"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="HH:MM"
-                  pattern="[0-9]{1,2}:[0-5][0-9]"
-                  value={f.seriesTime}
-                  onChange={(e) => set("seriesTime", e.target.value)}
-                  hint={`Calculated ${fmtHHMM(computedBlock)}. You may only reduce it.`}
-                />
+                <div>
+                  <Field
+                    label="Flight time (HH:MM)"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="HH:MM"
+                    value={f.seriesTime}
+                    onChange={(e) => set("seriesTime", autoFormatHHMM(e.target.value))}
+                    hint={seriesExceeds ? undefined : `Calculated ${fmtHHMM(computedBlock)}. You may only reduce it.`}
+                  />
+                  {seriesExceeds && (
+                    <p className="mt-1 text-xs text-rose-600">
+                      Cannot exceed the calculated {fmtHHMM(computedBlock)}; the time may only be reduced.
+                    </p>
+                  )}
+                </div>
               )}
               {has("heslo") && (
                 <Select label="HESLO level" value={f.hesloLevel} onChange={(e) => set("hesloLevel", e.target.value)}>
