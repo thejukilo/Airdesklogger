@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
+import type { AircraftRecord } from "../../src/db/referenceRepository.js";
 import {
   searchAirports,
   upsertAirport,
@@ -48,9 +49,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               source = "external";
             }
           }
-          // The ICAO description (e.g. "Helicopter") is shown as a precise
-          // subtype; it is display-only and does not go in the log.
-          const subtype = match?.icaoType ? (await getIcaoType(match.icaoType))?.description ?? null : null;
+          // The ICAO type designator is authoritative for the category. Correct
+          // a cached record that was classified before the type list was seeded
+          // (so it fell back to aeroplane) and prefill missing engine details, so
+          // the form and the server-side validation agree with the type. The
+          // description is also shown as a display-only subtype.
+          let subtype: string | null = null;
+          if (match?.icaoType) {
+            const info = await getIcaoType(match.icaoType);
+            if (info) {
+              subtype = info.description;
+              const corrected: AircraftRecord = {
+                ...match,
+                category: info.category,
+                engineType: match.engineType ?? info.engineType,
+                engineCount: match.engineCount ?? info.engineCount,
+              };
+              if (
+                corrected.category !== match.category ||
+                corrected.engineType !== match.engineType ||
+                corrected.engineCount !== match.engineCount
+              ) {
+                await upsertAircraft(corrected);
+              }
+              match = corrected;
+            }
+          }
           res.status(200).json({ match, source, subtype });
           return;
         }
