@@ -18,19 +18,24 @@ export interface ReferenceIssue {
 export async function validateFlightReferences(input: FlightEntryInput): Promise<ReferenceIssue[]> {
   const issues: ReferenceIssue[] = [];
 
-  const places = new Set<string>();
-  for (const leg of input.legs) {
-    places.add(leg.departurePlace);
-    places.add(leg.arrivalPlace);
-  }
-  for (const place of places) {
-    if (isNoLocationIndicator(place)) continue;
-    if (!isIcaoFormat(place)) {
-      issues.push({ field: "legs.place", message: `Place "${place}" is not a valid ICAO code or the ZZZZ no-location indicator.` });
-      continue;
+  // Balloons take off and land at ordinary places (a field by a village), not at
+  // ICAO aerodromes, so their places are free text and not checked against the
+  // airport database.
+  if ((input.aircraft.category ?? "AEROPLANE") !== "BALLOON") {
+    const places = new Set<string>();
+    for (const leg of input.legs) {
+      places.add(leg.departurePlace);
+      places.add(leg.arrivalPlace);
     }
-    if (!(await airportExists(place))) {
-      issues.push({ field: "legs.place", message: `ICAO "${place}" is not in the airport reference database.` });
+    for (const place of places) {
+      if (isNoLocationIndicator(place)) continue;
+      if (!isIcaoFormat(place)) {
+        issues.push({ field: "legs.place", message: `Place "${place}" is not a valid ICAO code or the ZZZZ no-location indicator.` });
+        continue;
+      }
+      if (!(await airportExists(place))) {
+        issues.push({ field: "legs.place", message: `ICAO "${place}" is not in the airport reference database.` });
+      }
     }
   }
 

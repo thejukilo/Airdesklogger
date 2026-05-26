@@ -227,8 +227,15 @@ export function NewEntry() {
   // Show the airport name for entered ICAO codes.
   const dep = f.departurePlace.trim().toUpperCase();
   const arr = f.arrivalPlace.trim().toUpperCase();
-  useEffect(() => resolveAirport(dep, setDepName), [dep]);
-  useEffect(() => resolveAirport(arr, setArrName), [arr]);
+  // Balloon places are free text, so no ICAO name lookup for them.
+  useEffect(() => {
+    if (f.category === "BALLOON") { setDepName(null); return; }
+    return resolveAirport(dep, setDepName);
+  }, [dep, f.category]);
+  useEffect(() => {
+    if (f.category === "BALLOON") { setArrName(null); return; }
+    return resolveAirport(arr, setArrName);
+  }, [arr, f.category]);
 
   // The date cannot be in the future, so cap the picker at today (device date).
   const now = new Date();
@@ -249,6 +256,8 @@ export function NewEntry() {
   const isPowered = !isSailplane && !isBalloon;
   useEffect(() => {
     if (!isPowered && f.primary !== "PIC" && f.primary !== "DUAL") set("primary", "PIC");
+    // Balloon places are free text with no aerodrome timezone, so times are UTC.
+    if (isBalloon && timeMode === "local") setTimeMode("utc");
   }, [f.category]);
 
   async function onSubmit(e: FormEvent) {
@@ -269,9 +278,9 @@ export function NewEntry() {
         },
         legs: [
           {
-            departurePlace: f.departurePlace.toUpperCase(),
+            departurePlace: isBalloon ? f.departurePlace.trim() : f.departurePlace.toUpperCase(),
             departureTime: toSubmitTime(`${f.date}T${f.blockStart}`, timeMode),
-            arrivalPlace: f.arrivalPlace.toUpperCase(),
+            arrivalPlace: isBalloon ? f.arrivalPlace.trim() : f.arrivalPlace.toUpperCase(),
             arrivalTime: toSubmitTime(`${arrivalDate}T${f.blockEnd}`, timeMode),
             ...(f.departurePlace.toUpperCase() === "ZZZZ" && f.departurePlaceName
               ? { departurePlaceName: f.departurePlaceName }
@@ -381,17 +390,29 @@ export function NewEntry() {
         <Section title="Route and times">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-              {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
-              {dep === "ZZZZ" && (
-                <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
+              {isBalloon ? (
+                <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
+              ) : (
+                <>
+                  <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
+                  {dep === "ZZZZ" && (
+                    <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
+                  )}
+                </>
               )}
             </div>
             <div>
-              <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-              {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
-              {arr === "ZZZZ" && (
-                <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
+              {isBalloon ? (
+                <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
+              ) : (
+                <>
+                  <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
+                  {arr === "ZZZZ" && (
+                    <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -399,7 +420,7 @@ export function NewEntry() {
           <div className="rounded-md bg-slate-50 p-3">
             <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
               <option value="utc">UTC</option>
-              <option value="local">Local time (at the aerodrome)</option>
+              {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
             </Select>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} required />
