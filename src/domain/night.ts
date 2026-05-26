@@ -100,6 +100,43 @@ export function nightMinutes(
 }
 
 /**
+ * The day/night pattern of a flight as a dash-joined sequence of D and N
+ * segments (e.g. "D", "N", "D-N", "N-D-N", "D-N-D"), found by walking the
+ * civil-twilight crossings between departure and arrival. Like nightMinutes it
+ * uses the departure position for the whole flight, so the segments line up with
+ * the computed night time. Returns null when the position is unknown.
+ */
+export function dayNightPattern(
+  departure: Date,
+  arrival: Date,
+  coords: { latitude: number; longitude: number } | null | undefined,
+): string | null {
+  if (!coords) return null;
+  const start = departure.getTime();
+  const end = arrival.getTime();
+  if (!(end > start)) return null;
+
+  const transitions: Array<{ t: number; to: "D" | "N" }> = [];
+  const firstDay = Math.floor(start / DAY_MS) * DAY_MS;
+  for (let day = firstDay; day < end; day += DAY_MS) {
+    const { dawn, dusk } = civilTwilight(day + DAY_MS / 2, coords.latitude, coords.longitude);
+    if (dawn !== null && dawn > start && dawn < end) transitions.push({ t: dawn, to: "D" });
+    if (dusk !== null && dusk > start && dusk < end) transitions.push({ t: dusk, to: "N" });
+  }
+  transitions.sort((a, b) => a.t - b.t);
+
+  let state: "D" | "N" = isNightAt(departure, coords) ? "N" : "D";
+  const seq: Array<"D" | "N"> = [state];
+  for (const tr of transitions) {
+    if (tr.to !== state) {
+      state = tr.to;
+      seq.push(state);
+    }
+  }
+  return seq.join("-");
+}
+
+/**
  * Whether a single instant falls in night (sun more than 6 degrees below the
  * horizon) at a position. Used to classify a landing as day or night. Returns
  * false when no position is known.

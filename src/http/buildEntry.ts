@@ -11,7 +11,7 @@ import { validateEntry } from "../domain/validation.js";
 import { validateFlightReferences } from "./validateReferences.js";
 import { getAirportCoords } from "../db/referenceRepository.js";
 import { findOverlappingFlight } from "../db/repository.js";
-import { nightMinutes, isNightAt } from "../domain/night.js";
+import { nightMinutes, isNightAt, dayNightPattern } from "../domain/night.js";
 import { zonedWallClockToUtc, LocalTimeError } from "../domain/localTime.js";
 import { toUtcIso } from "../domain/time.js";
 import { timezoneAt } from "./timezone.js";
@@ -139,6 +139,17 @@ export async function prepareFlightEntry(
   if (!result.valid || !result.derived) {
     return { ok: false, status: 422, body: { valid: false, issues: result.issues } };
   }
+
+  // The day/night pattern over the whole flight, from the first departure's
+  // position (consistent with how night time is computed).
+  const firstLeg = input.legs[0]!;
+  const lastLeg = input.legs[input.legs.length - 1]!;
+  const pattern = dayNightPattern(
+    firstLeg.departureTime,
+    lastLeg.arrivalTime,
+    await getAirportCoords(firstLeg.departurePlace),
+  );
+  if (pattern) result.derived.dayNightPattern = pattern;
 
   const refIssues = await validateFlightReferences(input);
   if (refIssues.length > 0) {

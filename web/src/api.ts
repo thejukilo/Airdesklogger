@@ -130,6 +130,7 @@ export interface EntryColumns {
   nightLandings: number;
   night: number;
   ifr: number;
+  dayNightPattern?: string;
   pic: number;
   coPilot: number;
   dual: number;

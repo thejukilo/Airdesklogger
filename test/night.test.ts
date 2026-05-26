@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nightMinutes, isNightAt } from "../src/domain/night.js";
+import { nightMinutes, isNightAt, dayNightPattern } from "../src/domain/night.js";
 
 // London Heathrow, used as a representative mid-latitude position.
 const LONDON = { latitude: 51.47, longitude: -0.4543 };
@@ -37,6 +37,27 @@ describe("night time calculation (FOCA 2.3.4, EASA civil twilight)", () => {
     expect(isNightAt(new Date(Date.UTC(2026, 5, 21, 12, 0)), LONDON)).toBe(false); // summer midday
     expect(isNightAt(new Date(Date.UTC(2026, 11, 21, 22, 0)), LONDON)).toBe(true); // winter night
     expect(isNightAt(new Date(Date.UTC(2026, 11, 21, 22, 0)), null)).toBe(false); // unknown position
+  });
+
+  it("describes the day/night pattern of a flight", () => {
+    // Summer midday: all day.
+    expect(
+      dayNightPattern(new Date(Date.UTC(2026, 5, 21, 11, 0)), new Date(Date.UTC(2026, 5, 21, 12, 30)), LONDON),
+    ).toBe("D");
+    // Winter late evening: all night.
+    expect(
+      dayNightPattern(new Date(Date.UTC(2026, 11, 21, 22, 0)), new Date(Date.UTC(2026, 11, 21, 23, 0)), LONDON),
+    ).toBe("N");
+    // Crossing winter dusk: day then night.
+    expect(
+      dayNightPattern(new Date(Date.UTC(2026, 11, 21, 16, 0)), new Date(Date.UTC(2026, 11, 21, 17, 0)), LONDON),
+    ).toBe("D-N");
+    // A long winter flight from afternoon to the next morning: day, night, day.
+    expect(
+      dayNightPattern(new Date(Date.UTC(2026, 11, 21, 15, 0)), new Date(Date.UTC(2026, 11, 22, 9, 0)), LONDON),
+    ).toBe("D-N-D");
+    // No position: unknown.
+    expect(dayNightPattern(new Date(Date.UTC(2026, 11, 21, 16, 0)), new Date(Date.UTC(2026, 11, 21, 17, 0)), null)).toBeNull();
   });
 
   it("never reports more night than the length of the flight", () => {

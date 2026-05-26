@@ -228,6 +228,7 @@ export function EntryDetail() {
           <Detail label="Dual" value={hhmm(cols?.dual)} />
           <Detail label="Instructor" value={hhmm(cols?.instructor)} />
           <Detail label="Night" value={hhmm(cols?.night)} />
+          <Detail label="Day / night" value={cols?.dayNightPattern} />
           <Detail label="IFR" value={hhmm(cols?.ifr)} />
           <Detail label="Landings (day)" value={String(cols?.dayLandings ?? 0)} />
           <Detail label="Landings (night)" value={String(cols?.nightLandings ?? 0)} />

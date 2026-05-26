@@ -183,6 +183,8 @@ export interface DerivedColumns {
   nightLandings: number; // column 9b
   night: number; // column 10a
   ifr: number; // column 10b
+  /** Day/night segment pattern over the flight (e.g. "D-N-D"); blank if unknown. */
+  dayNightPattern?: string;
   pic: number; // column 11a (incl. PICUS/SPIC)
   coPilot: number; // column 11b
   dual: number; // column 11c
