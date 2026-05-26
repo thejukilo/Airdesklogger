@@ -130,6 +130,11 @@ CREATE TRIGGER trg_no_edit_when_locked
 -- EXISTS so the migration stays idempotent on an existing database.
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS email              text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS address            text;
+-- Address kept as structured parts (FOCA 2.1.3); `address` holds the composed
+-- one-line form used on the export.
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS address_street     text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS address_zip        text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS address_country    text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS first_name         text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS last_name          text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS date_of_birth      date;

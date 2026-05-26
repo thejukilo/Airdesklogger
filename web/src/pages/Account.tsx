@@ -8,7 +8,9 @@ const emptyProfile = {
   firstName: "",
   lastName: "",
   dateOfBirth: "",
-  address: "",
+  addressStreet: "",
+  addressZip: "",
+  addressCountry: "",
   licenseNumber: "",
   instructorCertificate: "",
   examinerCertificate: "",
@@ -41,7 +43,9 @@ export function Account() {
           firstName: p.firstName ?? parts[0] ?? "",
           lastName: p.lastName ?? parts.slice(1).join(" "),
           dateOfBirth: p.dateOfBirth ?? "",
-          address: p.address ?? "",
+          addressStreet: p.addressStreet ?? "",
+          addressZip: p.addressZip ?? "",
+          addressCountry: p.addressCountry ?? "",
           licenseNumber: p.licenseNumber ?? "",
           instructorCertificate: p.instructorCertificate ?? "",
           examinerCertificate: p.examinerCertificate ?? "",
@@ -149,7 +153,11 @@ export function Account() {
             </div>
             <Field label="Pilot licence number" value={profile.licenseNumber} onChange={setP("licenseNumber")} />
           </div>
-          <Field label="Address" value={profile.address} onChange={setP("address")} />
+          <Field label="Street / no." value={profile.addressStreet} onChange={setP("addressStreet")} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="ZIP / place" value={profile.addressZip} onChange={setP("addressZip")} />
+            <Field label="Country" value={profile.addressCountry} onChange={setP("addressCountry")} />
+          </div>
           <div className="rounded-md bg-slate-50 p-3">
             <p className="mb-2 text-xs text-slate-500">
               Enter a certificate number to be able to countersign in that capacity. The number is

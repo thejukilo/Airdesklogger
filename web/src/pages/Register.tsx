@@ -10,7 +10,9 @@ export function Register() {
     email: "",
     password: "",
     dateOfBirth: "",
-    address: "",
+    addressStreet: "",
+    addressZip: "",
+    addressCountry: "",
     licenseNumber: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,9 @@ export function Register() {
         email: form.email,
         password: form.password,
         dateOfBirth: form.dateOfBirth,
-        address: form.address,
+        addressStreet: form.addressStreet,
+        addressZip: form.addressZip,
+        addressCountry: form.addressCountry,
         ...(form.licenseNumber ? { licenseNumber: form.licenseNumber } : {}),
       });
       // The account must confirm its email before it can sign in (FOCA 2.1.3).
@@ -93,7 +97,11 @@ export function Register() {
             required
           />
           <Field label="Date of birth" type="date" max={today} value={form.dateOfBirth} onChange={set("dateOfBirth")} required />
-          <Field label="Full address" value={form.address} onChange={set("address")} required />
+          <Field label="Street / no." value={form.addressStreet} onChange={set("addressStreet")} required />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="ZIP / place" value={form.addressZip} onChange={set("addressZip")} required />
+            <Field label="Country" value={form.addressCountry} onChange={set("addressCountry")} required />
+          </div>
           <Field label="Licence number (optional)" value={form.licenseNumber} onChange={set("licenseNumber")} />
           <Button type="submit" disabled={busy} className="w-full">
             {busy ? "Creating..." : "Create account"}

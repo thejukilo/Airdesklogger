@@ -19,6 +19,9 @@ export interface UserRow {
   dateOfBirth: string | null;
   licenseNumber: string | null;
   address: string | null;
+  addressStreet: string | null;
+  addressZip: string | null;
+  addressCountry: string | null;
   instructorCertificate: string | null;
   examinerCertificate: string | null;
   exportPaperSize: "A4" | "LETTER";
@@ -49,6 +52,9 @@ function mapUser(r: Record<string, unknown>): UserRow {
     dateOfBirth: dateOnly(r.date_of_birth),
     licenseNumber: (r.license_number as string) ?? null,
     address: (r.address as string) ?? null,
+    addressStreet: (r.address_street as string) ?? null,
+    addressZip: (r.address_zip as string) ?? null,
+    addressCountry: (r.address_country as string) ?? null,
     instructorCertificate: (r.instructor_certificate as string) ?? null,
     examinerCertificate: (r.examiner_certificate as string) ?? null,
     exportPaperSize: r.export_paper_size === "LETTER" ? "LETTER" : "A4",
@@ -64,7 +70,13 @@ function mapUser(r: Record<string, unknown>): UserRow {
 }
 
 const USER_COLUMNS =
-  "id, email, name, first_name, last_name, date_of_birth, license_number, address, instructor_certificate, examiner_certificate, export_paper_size, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, mfa_required_for_login, signing_public_key, signing_key_wrapped";
+  "id, email, name, first_name, last_name, date_of_birth, license_number, address, address_street, address_zip, address_country, instructor_certificate, examiner_certificate, export_paper_size, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, mfa_required_for_login, signing_public_key, signing_key_wrapped";
+
+/** One-line address composed from its parts, for the export and display. */
+function composeAddress(street?: string | null, zip?: string | null, country?: string | null): string | null {
+  const parts = [street, zip, country].map((s) => (s ?? "").trim()).filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
 
 export interface NewUser {
   email: string;
@@ -75,7 +87,9 @@ export interface NewUser {
   dateOfBirth?: string;
   roles: Role[];
   licenseNumber?: string;
-  address?: string;
+  addressStreet?: string;
+  addressZip?: string;
+  addressCountry?: string;
   emailVerificationToken?: string;
   signingPublicKey: string;
   signingKeyWrapped: string;
@@ -83,11 +97,13 @@ export interface NewUser {
 
 export async function createUser(u: NewUser): Promise<UserRow> {
   const verificationToken = u.emailVerificationToken ?? randomBytes(24).toString("base64url");
+  const address = composeAddress(u.addressStreet, u.addressZip, u.addressCountry);
   const { rows } = await getPool().query(
     `INSERT INTO pilots
        (email, password_hash, name, first_name, last_name, date_of_birth, roles,
-        license_number, address, email_verification_token, signing_public_key, signing_key_wrapped)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ${USER_COLUMNS}`,
+        license_number, address, address_street, address_zip, address_country,
+        email_verification_token, signing_public_key, signing_key_wrapped)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING ${USER_COLUMNS}`,
     [
       u.email.toLowerCase(),
       u.passwordHash,
@@ -97,7 +113,10 @@ export async function createUser(u: NewUser): Promise<UserRow> {
       u.dateOfBirth ?? null,
       u.roles,
       u.licenseNumber ?? null,
-      u.address ?? null,
+      address,
+      u.addressStreet ?? null,
+      u.addressZip ?? null,
+      u.addressCountry ?? null,
       verificationToken,
       u.signingPublicKey,
       u.signingKeyWrapped,
@@ -110,7 +129,9 @@ export interface ProfileUpdate {
   firstName?: string | undefined;
   lastName?: string | undefined;
   dateOfBirth?: string | undefined; // yyyy-mm-dd or empty
-  address?: string | undefined;
+  addressStreet?: string | undefined;
+  addressZip?: string | undefined;
+  addressCountry?: string | undefined;
   licenseNumber?: string | undefined;
   instructorCertificate?: string | undefined;
   examinerCertificate?: string | undefined;
@@ -142,7 +163,13 @@ export async function updateProfile(userId: string, p: ProfileUpdate): Promise<U
   const fullName = [blank(p.firstName), blank(p.lastName)].filter(Boolean).join(" ");
   if (p.firstName !== undefined && p.lastName !== undefined && fullName) add("name", fullName);
   if (p.dateOfBirth !== undefined) add("date_of_birth", blank(p.dateOfBirth), "::date");
-  if (p.address !== undefined) add("address", blank(p.address));
+  // Address parts are edited together; keep the composed one-line address in step.
+  if (p.addressStreet !== undefined || p.addressZip !== undefined || p.addressCountry !== undefined) {
+    add("address_street", blank(p.addressStreet));
+    add("address_zip", blank(p.addressZip));
+    add("address_country", blank(p.addressCountry));
+    add("address", composeAddress(p.addressStreet, p.addressZip, p.addressCountry));
+  }
   if (p.licenseNumber !== undefined) add("license_number", blank(p.licenseNumber));
   if (p.instructorCertificate !== undefined) add("instructor_certificate", blank(p.instructorCertificate));
   if (p.examinerCertificate !== undefined) add("examiner_certificate", blank(p.examinerCertificate));

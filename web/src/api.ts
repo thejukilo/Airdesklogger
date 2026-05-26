@@ -81,7 +81,9 @@ export function register(input: {
   firstName: string;
   lastName: string;
   dateOfBirth: string;
-  address: string;
+  addressStreet: string;
+  addressZip: string;
+  addressCountry: string;
   licenseNumber?: string;
 }): Promise<{ id: string; email: string; emailVerificationToken: string; emailed: boolean }> {
   return request("/auth/register", { method: "POST", body: JSON.stringify(input) });
@@ -254,6 +256,9 @@ export interface Profile {
   lastName: string | null;
   dateOfBirth: string | null;
   address: string | null;
+  addressStreet: string | null;
+  addressZip: string | null;
+  addressCountry: string | null;
   licenseNumber: string | null;
   instructorCertificate: string | null;
   examinerCertificate: string | null;
@@ -271,7 +276,9 @@ export function updateProfile(input: {
   firstName?: string;
   lastName?: string;
   dateOfBirth?: string;
-  address?: string;
+  addressStreet?: string;
+  addressZip?: string;
+  addressCountry?: string;
   licenseNumber?: string;
   instructorCertificate?: string;
   examinerCertificate?: string;
