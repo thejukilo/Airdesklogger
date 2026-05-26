@@ -47,6 +47,7 @@ export type EntryAttribute = (typeof ENTRY_ATTRIBUTES)[number];
  */
 export const ATTRIBUTE_CATEGORY_RESTRICTIONS: Partial<Record<EntryAttribute, readonly AircraftCategory[]>> = {
   launch_privilege: ["SAILPLANE"],
+  cloud_flying_privilege: ["SAILPLANE"],
   heslo: ["HELICOPTER"],
   hec: ["HELICOPTER"],
 };

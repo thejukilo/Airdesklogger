@@ -80,9 +80,10 @@ describe("attributes restricted to an aircraft category", () => {
     };
   }
 
-  it("allows a launch privilege only on a sailplane", () => {
+  it("allows launch and cloud-flying privileges only on a sailplane", () => {
     expect(validateEntry(entry("AEROPLANE", ["launch_privilege"])).valid).toBe(false);
-    expect(validateEntry(entry("SAILPLANE", ["launch_privilege"])).valid).toBe(true);
+    expect(validateEntry(entry("AEROPLANE", ["cloud_flying_privilege"])).valid).toBe(false);
+    expect(validateEntry(entry("SAILPLANE", ["launch_privilege", "cloud_flying_privilege"])).valid).toBe(true);
   });
 
   it("allows HESLO and HEC only on a helicopter", () => {

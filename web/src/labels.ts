@@ -47,7 +47,7 @@ export const ATTRIBUTE_GROUPS: Array<{ title: string; items: AttributeDef[] }> =
     title: "Privileges / environment",
     items: [
       { key: "aerobatic_privilege", label: "Aerobatic" },
-      { key: "cloud_flying_privilege", label: "Cloud flying" },
+      { key: "cloud_flying_privilege", label: "Cloud flying", categories: ["SAILPLANE"] },
       { key: "launch_privilege", label: "Launch privilege", categories: ["SAILPLANE"] },
     ],
   },
