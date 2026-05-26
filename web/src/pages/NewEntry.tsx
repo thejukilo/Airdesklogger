@@ -220,11 +220,14 @@ export function NewEntry() {
   }, [reg]);
 
   // EASA times the flight from first movement (block) for aeroplanes, but from
-  // rotor start to rotor stop for helicopters (AMC1 FCL.050 (g)).
+  // rotor start to rotor stop for helicopters (AMC1 FCL.050 (g)). Balloons log
+  // a plain departure and arrival time.
   const timeLabels =
     f.category === "HELICOPTER"
       ? { off: "Rotor start", on: "Rotor stop" }
-      : { off: "Block off (start)", on: "Block on (end)" };
+      : f.category === "BALLOON"
+        ? { off: "Departure time", on: "Arrival time" }
+        : { off: "Block off (start)", on: "Block on (end)" };
 
   // Show the airport name for entered ICAO codes.
   const dep = f.departurePlace.trim().toUpperCase();

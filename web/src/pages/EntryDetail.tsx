@@ -116,6 +116,12 @@ export function EntryDetail() {
 
   const c = entry.current.content;
   const cols = c.columns;
+  const timeLabels =
+    cols?.category === "HELICOPTER"
+      ? { off: "Rotor start", on: "Rotor stop" }
+      : cols?.category === "BALLOON"
+        ? { off: "Departure time", on: "Arrival time" }
+        : { off: "Block off", on: "Block on" };
   const locked = entry.current.locked;
   const isOwner = c.pilotId === user?.id;
   const canSign = !locked && !isOwner && capabilities.length > 0;
@@ -199,8 +205,8 @@ export function EntryDetail() {
             value={cols?.arrivalPlaceName ? `${cols.arrivalPlace} (${cols.arrivalPlaceName})` : cols?.arrivalPlace}
           />
           <Detail label="Total time" value={hhmm(cols?.total)} />
-          <Detail label="Block off" value={timeZ(cols?.departureTime, cols?.timesLocal)} />
-          <Detail label="Block on" value={timeZ(cols?.arrivalTime, cols?.timesLocal)} />
+          <Detail label={timeLabels.off} value={timeZ(cols?.departureTime, cols?.timesLocal)} />
+          <Detail label={timeLabels.on} value={timeZ(cols?.arrivalTime, cols?.timesLocal)} />
           {cols?.isMultiFlight ? <Detail label="Flight type" value="Series of flights" /> : null}
         </dl>
         {c.remarks && (

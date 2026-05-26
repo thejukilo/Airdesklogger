@@ -174,12 +174,15 @@ export function summarizeChanges(
   newPicName: string,
 ): string[] {
   const oc = (oldContent?.columns ?? {}) as Record<string, unknown>;
+  const category = newDerived.category;
+  const offLabel = category === "HELICOPTER" ? "Rotor start" : category === "BALLOON" ? "Departure time" : "Block off";
+  const onLabel = category === "HELICOPTER" ? "Rotor stop" : category === "BALLOON" ? "Arrival time" : "Block on";
   const fields = (cols: Record<string, unknown>, pic: string): Record<string, string> => ({
     Date: String(cols.date ?? ""),
     From: String(cols.departurePlace ?? ""),
     To: String(cols.arrivalPlace ?? ""),
-    "Block off": clockZ(cols.departureTime),
-    "Block on": clockZ(cols.arrivalTime),
+    [offLabel]: clockZ(cols.departureTime),
+    [onLabel]: clockZ(cols.arrivalTime),
     "Total time": minutesToHHMM(Number(cols.total ?? 0)),
     PIC: pic,
     Night: minutesToHHMM(Number(cols.night ?? 0)),
