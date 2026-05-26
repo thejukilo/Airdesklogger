@@ -135,7 +135,8 @@ function Dashboard() {
         <h2 className="mb-1 font-medium">Reference data</h2>
         <p className="mb-3 text-sm text-slate-500">
           Load the public datasets. Airports come from OurAirports (with coordinates, needed for night
-          time and local-time conversion). Aircraft come from the configured dataset, if any.
+          time and local-time conversion). Aircraft come from the configured dataset, if any. Aircraft
+          types load the bundled ICAO list used to classify a registration's category.
         </p>
         {result && <p className="mb-3 text-sm text-emerald-700">{result}</p>}
         <div className="flex flex-wrap gap-2">
@@ -157,6 +158,16 @@ function Dashboard() {
             disabled={busy !== null}
           >
             {busy === "aircraft" ? "Importing aircraft..." : "Import aircraft"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => run("icao-types", async () => {
+              const r = await api.adminSeedIcaoTypes();
+              return `Seeded ${r.seeded} aircraft types.`;
+            })}
+            disabled={busy !== null}
+          >
+            {busy === "icao-types" ? "Seeding aircraft types..." : "Seed aircraft types"}
           </Button>
         </div>
       </Card>

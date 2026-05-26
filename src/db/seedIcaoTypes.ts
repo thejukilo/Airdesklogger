@@ -13,7 +13,7 @@
  * first row seen for a code wins (the description is consistent per code).
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseCsv } from "./seedAirports.js";
@@ -21,7 +21,16 @@ import { upsertIcaoTypes, type IcaoTypeSeed } from "./referenceRepository.js";
 import { closePool } from "./pool.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const BUNDLED_CSV = join(here, "..", "data", "icaoTypes.csv");
+
+/**
+ * Locate the bundled list. When run from the repo (tsx) it sits next to this
+ * module; in a Vercel function it is shipped via vercel.json includeFiles and
+ * resolved from the project root.
+ */
+function resolveBundledCsv(): string {
+  const candidates = [join(here, "..", "data", "icaoTypes.csv"), join(process.cwd(), "src", "data", "icaoTypes.csv")];
+  return candidates.find((p) => existsSync(p)) ?? candidates[0]!;
+}
 
 function column(header: string[], names: string[]): number {
   for (const n of names) {
@@ -62,7 +71,7 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
 }
 
 export async function seedIcaoTypes(csvPath?: string): Promise<number> {
-  const text = readFileSync(csvPath ?? BUNDLED_CSV, "utf8");
+  const text = readFileSync(csvPath ?? resolveBundledCsv(), "utf8");
   return upsertIcaoTypes(fromIcaoTypesCsv(text));
 }
 

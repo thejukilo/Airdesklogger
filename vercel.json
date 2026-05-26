@@ -3,5 +3,8 @@
   "framework": null,
   "buildCommand": "npm run typecheck && npm run migrate && npm run build:web",
   "outputDirectory": "web/dist",
+  "functions": {
+    "api/admin/seed-icao-types.ts": { "includeFiles": "src/data/icaoTypes.csv" }
+  },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }
