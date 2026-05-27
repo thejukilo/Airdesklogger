@@ -1,8 +1,13 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
 import { ATTRIBUTE_GROUPS, ATTRIBUTE_LABELS, CATEGORY_LABELS, attributeAllowedForCategory } from "../labels";
+import { SimulatorSession } from "./SimulatorSession";
+
+// The new-entry category chooser: the four flight categories plus the simulator
+// session, which has its own form.
+const ENTRY_CATEGORIES = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"] as const;
 
 /** A titled card that groups related fields, so the form reads as sections. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -11,6 +16,24 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
       <div className="space-y-4">{children}</div>
     </Card>
+  );
+}
+
+/** One pill in the category chooser at the top of the page. */
+function CategoryTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+        active
+          ? "border-brand-600 bg-brand-600 text-white"
+          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -231,8 +254,12 @@ function fromContent(c: api.EntryContent): typeof empty {
 
 export function NewEntry() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: editId } = useParams();
   const editing = Boolean(editId);
+  // A simulator session is reached from the same chooser but uses a separate
+  // form; an existing flight is never converted into one.
+  const [simulator, setSimulator] = useState(!editing && Boolean((location.state as { simulator?: boolean } | null)?.simulator));
   const [f, setF] = useState(empty);
   const [timeMode, setTimeMode] = useState<TimeMode>("utc");
   const [reason, setReason] = useState("");
@@ -531,7 +558,30 @@ export function NewEntry() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-xl font-semibold">{editing ? "Edit flight entry" : "New flight entry"}</h1>
+      <h1 className="text-xl font-semibold">
+        {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
+      </h1>
+
+      <div className="flex flex-wrap gap-2">
+        {ENTRY_CATEGORIES.map((c) => (
+          <CategoryTab
+            key={c}
+            active={!simulator && f.category === c}
+            label={CATEGORY_LABELS[c]!}
+            onClick={() => {
+              setSimulator(false);
+              set("category", c);
+            }}
+          />
+        ))}
+        {!editing && (
+          <CategoryTab active={simulator} label="Simulator session" onClick={() => setSimulator(true)} />
+        )}
+      </div>
+
+      {simulator ? (
+        <SimulatorSession />
+      ) : (
       <form onSubmit={onSubmit} className="space-y-4">
         {error && <Alert>{error}</Alert>}
 
@@ -569,22 +619,14 @@ export function NewEntry() {
             />
             {aircraftMsg && <p className="mt-1 text-xs text-slate-500">{aircraftMsg}</p>}
           </div>
+          {categoryMismatch && (
+            <p className="text-xs text-red-600">
+              {reg} must be logged as a {regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not a{" "}
+              {CATEGORY_LABELS[f.category]}. Change the category above.
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
-            <div>
-              <Select label="Category" value={f.category} onChange={(e) => set("category", e.target.value)}>
-                <option value="AEROPLANE">Aeroplane</option>
-                <option value="HELICOPTER">Helicopter</option>
-                <option value="SAILPLANE">Sailplane</option>
-                <option value="BALLOON">Balloon</option>
-              </Select>
-              {categoryMismatch && (
-                <p className="mt-1 text-xs text-red-600">
-                  {reg} must be logged as a {regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not a{" "}
-                  {CATEGORY_LABELS[f.category]}.
-                </p>
-              )}
-            </div>
             {isPowered && (
               <Select label="Engine" value={f.engineClass} onChange={(e) => set("engineClass", e.target.value)}>
                 <option value="SE">Single-engine</option>
@@ -819,6 +861,7 @@ export function NewEntry() {
           <Button type="button" variant="ghost" onClick={() => navigate(editing && editId ? `/entry/${editId}` : "/")} className="py-2.5 md:py-2">Cancel</Button>
         </div>
       </form>
+      )}
     </div>
   );
 }
