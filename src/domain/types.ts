@@ -142,14 +142,20 @@ export interface FlightEntryInput {
  */
 export interface FstdSessionInput {
   pilotId: string;
-  /** Aircraft type for a full simulator, or "FNPT I" / "FNPT II" for other devices. */
+  /** Aircraft model the simulator represents (e.g. "A320-200"). */
   deviceType: string;
-  /** Qualification number of the device. */
+  /** The device's EASA code (its identifier). */
   qualificationNumber: string;
+  /** FSTD type/level (e.g. "FFS Level D", "FNPT II"). */
+  qualification?: string | undefined;
+  /** The pilot's capacity in the session. */
+  pilotFunction?: "TRAINEE" | "SFI_SFE" | undefined;
   /** Whether the session was instruction received, and a short description. */
   instruction: string;
   date: Date; // UTC
   totalMinutes: number;
+  /** Optional landings performed in the session. */
+  landings?: { day: number; night: number } | undefined;
   remarks: string;
   attributes?: EntryAttribute[];
   enteredInLocalTime?: boolean;
@@ -160,6 +166,8 @@ export interface FstdColumns {
   date: string; // yyyy-mm-dd UTC
   deviceType: string;
   qualificationNumber: string;
+  qualification?: string;
+  pilotFunction?: string;
   instruction: string;
   totalMinutes: number;
 }

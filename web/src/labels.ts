@@ -97,6 +97,22 @@ export function attributeAllowedForCategory(item: AttributeDef, category: string
   return !item.categories || item.categories.includes(category);
 }
 
+// Attributes offered for a simulator session (tests/checks and coursework).
+export const SIMULATOR_ATTRIBUTES = new Set<string>([
+  "skill_test",
+  "proficiency_check",
+  "operator_proficiency_check",
+  "operator_line_check",
+  "language_proficiency_check",
+  "refresher_training",
+  "training_flight",
+  "familiarization",
+  "difference_training",
+  "zftt",
+  "course_completed",
+  "instruction_training_course",
+]);
+
 export const ATTRIBUTES: AttributeDef[] = ATTRIBUTE_GROUPS.flatMap((g) => g.items);
 
 export const ATTRIBUTE_LABELS: Record<string, string> = Object.fromEntries(

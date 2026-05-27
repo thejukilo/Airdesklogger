@@ -226,18 +226,42 @@ export function deleteEntry(id: string): Promise<{ deleted: boolean }> {
 }
 
 export interface NewFstdRequest {
-  deviceType: string;
-  deviceKind: string;
-  qualificationNumber: string;
-  instruction: string;
+  deviceType: string; // aircraft model
+  qualificationNumber: string; // EASA code
+  qualification?: string; // FSTD type
+  pilotFunction?: "TRAINEE" | "SFI_SFE";
+  instruction?: string;
   date: string;
   totalMinutes: number;
+  landings?: { day: number; night: number };
   remarks: string;
   attributes?: string[];
 }
 
 export function createFstd(input: NewFstdRequest): Promise<{ entryId: string }> {
   return request("/fstd", { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface SimulatorRef {
+  id: string;
+  easaCode: string;
+  serialNumber: string | null;
+  aircraftType: string | null;
+  qualification: string | null;
+  location: string | null;
+}
+
+export function searchSimulators(q: string): Promise<{ simulators: SimulatorRef[] }> {
+  return request(`/reference/simulators?q=${encodeURIComponent(q)}`, { method: "GET" });
+}
+
+export function addSimulator(input: {
+  easaCode: string;
+  aircraftType: string;
+  qualification: string;
+  serialNumber?: string;
+}): Promise<{ id: string }> {
+  return request("/reference/simulators", { method: "POST", body: JSON.stringify(input) });
 }
 
 export interface AircraftMatch {

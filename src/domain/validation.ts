@@ -299,6 +299,11 @@ export function validateFstdSession(input: FstdSessionInput): ValidationResult {
   if (Number.isNaN(input.date.getTime())) {
     issues.push({ field: "date", message: "A valid session date is required." });
   }
+  const dayLandings = input.landings?.day ?? 0;
+  const nightLandings = input.landings?.night ?? 0;
+  if (!isNonNegInt(dayLandings) || !isNonNegInt(nightLandings)) {
+    issues.push({ field: "landings", message: "Landings must be non-negative whole numbers." });
+  }
   const attributes = validateAttributes(input.attributes, issues);
 
   if (issues.length > 0) return { valid: false, issues };
@@ -320,8 +325,8 @@ export function validateFstdSession(input: FstdSessionInput): ValidationResult {
     multiEngine: 0,
     multiPilot: 0,
     total: 0,
-    dayLandings: 0,
-    nightLandings: 0,
+    dayLandings,
+    nightLandings,
     night: 0,
     ifr: 0,
     pic: 0,
@@ -333,6 +338,8 @@ export function validateFstdSession(input: FstdSessionInput): ValidationResult {
       date,
       deviceType: input.deviceType,
       qualificationNumber: input.qualificationNumber,
+      ...(input.qualification ? { qualification: input.qualification } : {}),
+      ...(input.pilotFunction ? { pilotFunction: input.pilotFunction } : {}),
       instruction: input.instruction,
       totalMinutes: input.totalMinutes,
     },

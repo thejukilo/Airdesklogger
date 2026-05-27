@@ -51,13 +51,18 @@ describe("PDF logbook generation", () => {
   it("lists FSTD sessions on their own page, not in the flight grid", async () => {
     const fstd = validateFstdSession({
       pilotId: "p1",
-      deviceType: "FNPT II",
-      qualificationNumber: "Q-123",
-      instruction: "IR training",
+      deviceType: "A320-200",
+      qualificationNumber: "AT-FFS-1112",
+      qualification: "FFS Level D",
+      pilotFunction: "TRAINEE",
+      instruction: "",
       date: new Date(Date.UTC(2026, 4, 25, 9, 0, 0)),
       totalMinutes: 120,
+      landings: { day: 2, night: 1 },
       remarks: "approaches",
     }).derived!;
+    expect(fstd.fstd?.qualification).toBe("FFS Level D");
+    expect(fstd.dayLandings).toBe(2);
     const fstdRow: LogbookEntryForPdf = { ...fstd, aircraftType: "", aircraftReg: "", picName: "", remarks: "approaches" };
 
     // One aeroplane flight + one FSTD session: one flight page plus one FSTD page.

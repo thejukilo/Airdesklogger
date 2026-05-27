@@ -305,11 +305,19 @@ function drawFstdSection(
   const left = MARGIN;
   const right = page.w - MARGIN;
   const top = page.h - MARGIN;
+  const fnLabel = (v?: string) => (v === "SFI_SFE" ? "SFI/SFE" : v === "TRAINEE" ? "Trainee" : "");
   const fixed = [
-    { title: "Date", w: 70, get: (e: LogbookEntryForPdf) => (e.fstd ? fmtIsoDate(e.fstd.date) : "") },
-    { title: "Device type", w: 150, get: (e: LogbookEntryForPdf) => e.fstd?.deviceType ?? "" },
-    { title: "Qualification", w: 120, get: (e: LogbookEntryForPdf) => e.fstd?.qualificationNumber ?? "" },
-    { title: "Total", w: 55, get: (e: LogbookEntryForPdf) => (e.fstd ? MIN(e.fstd.totalMinutes) : "") },
+    { title: "Date", w: 55, get: (e: LogbookEntryForPdf) => (e.fstd ? fmtIsoDate(e.fstd.date) : "") },
+    { title: "Model", w: 85, get: (e: LogbookEntryForPdf) => e.fstd?.deviceType ?? "" },
+    { title: "EASA code", w: 85, get: (e: LogbookEntryForPdf) => e.fstd?.qualificationNumber ?? "" },
+    { title: "Type", w: 60, get: (e: LogbookEntryForPdf) => e.fstd?.qualification ?? "" },
+    { title: "Function", w: 60, get: (e: LogbookEntryForPdf) => fnLabel(e.fstd?.pilotFunction) },
+    { title: "Total", w: 42, get: (e: LogbookEntryForPdf) => (e.fstd ? MIN(e.fstd.totalMinutes) : "") },
+    {
+      title: "Ldg",
+      w: 36,
+      get: (e: LogbookEntryForPdf) => (e.dayLandings + e.nightLandings > 0 ? `${e.dayLandings}/${e.nightLandings}` : ""),
+    },
   ];
   const fixedW = fixed.reduce((a, c) => a + c.w, 0);
   const remarksX = left + fixedW;
@@ -348,11 +356,13 @@ function drawFstdSection(
       y -= lineH;
     }
 
-    // Total time on the last page.
+    // Total time on the last page, under the Total column.
     if (pageNo === pageCount - 1) {
+      const totalIdx = fixed.findIndex((c) => c.title === "Total");
+      const totalX = left + fixed.slice(0, totalIdx).reduce((a, c) => a + c.w, 0);
       hline(p, left, right, y + lineH - 4);
       p.drawText("TOTAL FSTD TIME", { x: left + 2, y: y - 2, size: 8, font: bold, color: BLACK });
-      p.drawText(formatHHMM(grandTotal), { x: remarksX - fixed[3]!.w + 2, y: y - 2, size: 8, font: bold, color: BLACK });
+      p.drawText(formatHHMM(grandTotal), { x: totalX + 2, y: y - 2, size: 8, font: bold, color: BLACK });
     }
   }
 }

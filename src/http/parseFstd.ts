@@ -13,9 +13,12 @@ const Shape = z.object({
   pilotId: z.string().min(1),
   deviceType: z.string().min(1),
   qualificationNumber: z.string().min(1),
-  instruction: z.string(),
+  qualification: z.string().optional(),
+  pilotFunction: z.enum(["TRAINEE", "SFI_SFE"]).optional(),
+  instruction: z.string().optional().default(""),
   date: z.string(),
   totalMinutes: z.number().int().positive(),
+  landings: z.object({ day: z.number().int().nonnegative(), night: z.number().int().nonnegative() }).optional(),
   remarks: z.string(),
   attributes: z.array(z.string()).optional(),
 });
