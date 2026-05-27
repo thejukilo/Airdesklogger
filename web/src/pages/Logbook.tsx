@@ -110,9 +110,6 @@ export function Logbook() {
           <Button variant="ghost" onClick={exportPdf} disabled={exporting || entries.length === 0}>
             {exporting ? "Preparing..." : "Export PDF"}
           </Button>
-          <Link to="/new" state={{ simulator: true }}>
-            <Button variant="ghost">Simulator session</Button>
-          </Link>
           <Link to="/new">
             <Button>New entry</Button>
           </Link>
