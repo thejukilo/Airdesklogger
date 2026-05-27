@@ -237,16 +237,20 @@ CREATE INDEX IF NOT EXISTS idx_aircraft_registration ON aircraft (registration);
 -- and prefills the engine fields. Reference data the provider maintains: seed it
 -- from the bundled list with `npm run seed:icao-types`.
 CREATE TABLE IF NOT EXISTS icao_types (
-  code         text PRIMARY KEY,
-  description  text NOT NULL,
-  engine_type  text,
-  engine_count integer,
-  created_at   timestamptz NOT NULL DEFAULT now()
+  code           text PRIMARY KEY,
+  description    text NOT NULL,
+  aircraft_model text,
+  engine_type    text,
+  engine_count   integer,
+  created_at     timestamptz NOT NULL DEFAULT now()
 );
 -- The Doc 8643 "role" (e.g. Glider, Motor-Glider), which distinguishes types
 -- that may be logged under more than one category (a motor-glider as an
 -- aeroplane or a sailplane). Added with IF NOT EXISTS for an existing database.
 ALTER TABLE icao_types ADD COLUMN IF NOT EXISTS role text;
+-- A representative model name for the type designator, so a registration that
+-- carries only the ICAO type can still show a human model name.
+ALTER TABLE icao_types ADD COLUMN IF NOT EXISTS aircraft_model text;
 
 -- Synthetic training devices, including kind and level (FNPT I/II, FTD, FFS).
 CREATE TABLE IF NOT EXISTS fstd_devices (

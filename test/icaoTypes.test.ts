@@ -47,8 +47,18 @@ describe("ICAO types CSV seed parsing", () => {
       "BALL,Balloon,Balloon,No engine,0\n";
     const out = fromIcaoTypesCsv(csv);
     expect(out).toHaveLength(4); // EC35 deduped
-    expect(out[0]).toEqual({ code: "EC35", description: "Helicopter", role: "Helicopter", engineType: "Turboprop", engineCount: 2 });
-    expect(out.find((t) => t.code === "AS21")).toEqual({ code: "AS21", description: "Landplane", role: "Glider", engineType: "No engine", engineCount: null });
+    expect(out[0]).toEqual({ code: "EC35", description: "Helicopter", aircraftModel: null, role: "Helicopter", engineType: "Turboprop", engineCount: 2 });
+    expect(out.find((t) => t.code === "AS21")).toEqual({ code: "AS21", description: "Landplane", aircraftModel: null, role: "Glider", engineType: "No engine", engineCount: null });
+  });
+
+  it("reads the model column with the full-list headers, nulling underscore placeholders", () => {
+    const csv =
+      "ICAO aircraft type designator,description,aircraft_model,role,engine_type,Engines\n" +
+      "A109,Helicopter,AgustaWestland AW109S Grand,Helicopter,Turboprop,2\n" +
+      "GLID,Landplane,_ undefined Glider,Glider,No engine,0\n";
+    const out = fromIcaoTypesCsv(csv);
+    expect(out.find((t) => t.code === "A109")?.aircraftModel).toBe("AgustaWestland AW109S Grand");
+    expect(out.find((t) => t.code === "GLID")?.aircraftModel).toBeNull();
   });
 
   it("rejects a CSV without the required columns", () => {

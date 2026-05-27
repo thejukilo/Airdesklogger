@@ -33,8 +33,9 @@ function resolveBundledCsv(): string {
 }
 
 function column(header: string[], names: string[]): number {
+  const lower = header.map((h) => h.trim().toLowerCase());
   for (const n of names) {
-    const i = header.indexOf(n.trim());
+    const i = lower.indexOf(n.trim().toLowerCase());
     if (i !== -1) return i;
   }
   return -1;
@@ -44,17 +45,20 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
   const rows = parseCsv(text);
   const header = rows.shift()?.map((h) => h.trim());
   if (!header) return [];
-  const codeCol = column(header, ["code", "type", "typecode", "icao_type"]);
+  const codeCol = column(header, ["code", "type", "typecode", "icao_type", "icao aircraft type designator"]);
   const descCol = column(header, ["description"]);
+  const modelCol = column(header, ["aircraft_model", "model"]);
   const roleCol = column(header, ["role"]);
   const engCol = column(header, ["engine_type", "engine"]);
   const countCol = column(header, ["engine_count", "engines"]);
   if (codeCol === -1 || descCol === -1) {
     throw new Error("ICAO types CSV needs at least 'code' and 'description' columns.");
   }
+  // Placeholder values in the source (e.g. "_unknown_", "_ undefined Glider") all
+  // start with an underscore; treat those and blanks/dashes as missing.
   const clean = (v: string): string | null => {
     const s = v.trim();
-    return s && s !== "-" && s !== "_unknown_" && s.toLowerCase() !== "null" ? s : null;
+    return s && s !== "-" && !s.startsWith("_") && s.toLowerCase() !== "null" ? s : null;
   };
   const seen = new Set<string>();
   const out: IcaoTypeSeed[] = [];
@@ -67,6 +71,7 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
     out.push({
       code,
       description,
+      aircraftModel: modelCol === -1 ? null : clean(r[modelCol] ?? ""),
       role: roleCol === -1 ? null : clean(r[roleCol] ?? ""),
       engineType: engCol === -1 ? null : clean(r[engCol] ?? ""),
       engineCount: Number.isInteger(count) && count > 0 ? count : null,

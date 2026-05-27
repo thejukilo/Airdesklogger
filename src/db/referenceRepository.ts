@@ -156,6 +156,8 @@ export async function listAircraft(query: string, limit = 50): Promise<AircraftR
 export interface IcaoTypeInfo {
   /** The ICAO Doc 8643 description, shown to the pilot as the precise subtype. */
   description: string;
+  /** A representative model name for the type, or null. */
+  aircraftModel: string | null;
   /** The role (e.g. Glider, Motor-Glider), or null. */
   role: string | null;
   /** The default category for the type (the first allowed one). */
@@ -169,6 +171,7 @@ export interface IcaoTypeInfo {
 export interface IcaoTypeSeed {
   code: string;
   description: string;
+  aircraftModel?: string | null | undefined;
   role?: string | null | undefined;
   engineType?: string | null | undefined;
   engineCount?: number | null | undefined;
@@ -177,7 +180,7 @@ export interface IcaoTypeSeed {
 /** Classify an ICAO type designator from the reference table, or null if absent. */
 export async function getIcaoType(code: string): Promise<IcaoTypeInfo | null> {
   const { rows } = await getPool().query(
-    "SELECT description, role, engine_type, engine_count FROM icao_types WHERE code = $1",
+    "SELECT description, aircraft_model, role, engine_type, engine_count FROM icao_types WHERE code = $1",
     [code.trim().toUpperCase()],
   );
   const r = rows[0];
@@ -185,6 +188,7 @@ export async function getIcaoType(code: string): Promise<IcaoTypeInfo | null> {
   const allowed = allowedCategoriesForType(r.description as string, r.role as string | null);
   return {
     description: r.description as string,
+    aircraftModel: (r.aircraft_model as string) ?? null,
     role: (r.role as string) ?? null,
     category: allowed[0]!,
     allowedCategories: allowed,
@@ -197,22 +201,22 @@ function insertIcaoTypes(
   query: (text: string, params: unknown[]) => Promise<unknown>,
   types: IcaoTypeSeed[],
 ): Promise<unknown[]> {
-  const CHUNK = 1000; // 5 params per row, well under the parameter limit
+  const CHUNK = 1000; // 6 params per row, well under the parameter limit
   const batches: Promise<unknown>[] = [];
   for (let i = 0; i < types.length; i += CHUNK) {
     const chunk = types.slice(i, i + CHUNK);
     const values: string[] = [];
     const params: unknown[] = [];
     chunk.forEach((t, j) => {
-      const b = j * 5;
-      values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5})`);
-      params.push(t.code.toUpperCase(), t.description, t.role ?? null, t.engineType ?? null, t.engineCount ?? null);
+      const b = j * 6;
+      values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6})`);
+      params.push(t.code.toUpperCase(), t.description, t.aircraftModel ?? null, t.role ?? null, t.engineType ?? null, t.engineCount ?? null);
     });
     batches.push(
       query(
-        `INSERT INTO icao_types (code, description, role, engine_type, engine_count) VALUES ${values.join(",")}
+        `INSERT INTO icao_types (code, description, aircraft_model, role, engine_type, engine_count) VALUES ${values.join(",")}
            ON CONFLICT (code) DO UPDATE SET
-             description = EXCLUDED.description, role = EXCLUDED.role,
+             description = EXCLUDED.description, aircraft_model = EXCLUDED.aircraft_model, role = EXCLUDED.role,
              engine_type = EXCLUDED.engine_type, engine_count = EXCLUDED.engine_count`,
         params,
       ),
