@@ -148,7 +148,7 @@ export function Account() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="First name" value={profile.firstName} onChange={setP("firstName")} />
             <Field label="Last name" value={profile.lastName} onChange={setP("lastName")} />
-            <div className="max-w-[14rem]">
+            <div className="sm:max-w-[14rem]">
               <Field label="Date of birth" type="date" value={profile.dateOfBirth} onChange={setP("dateOfBirth")} />
             </div>
             <Field label="Pilot licence number" value={profile.licenseNumber} onChange={setP("licenseNumber")} />

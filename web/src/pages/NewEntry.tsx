@@ -645,7 +645,7 @@ export function NewEntry() {
         )}
 
         <Section title="Aircraft and date">
-          <div className="max-w-[14rem]">
+          <div className="sm:max-w-[14rem]">
             <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} required />
           </div>
           <div>
