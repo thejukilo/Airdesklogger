@@ -66,9 +66,6 @@ const COLUMNS: LeafColumn[] = [
   { group: "FUNCTION TIME", sub: "Co", width: 40, value: (e) => MIN(e.coPilot), totalKey: "coPilot" },
   { group: "FUNCTION TIME", sub: "Dual", width: 40, value: (e) => MIN(e.dual), totalKey: "dual" },
   { group: "FUNCTION TIME", sub: "Instr", width: 40, value: (e) => MIN(e.instructor), totalKey: "instructor" },
-  { group: "FSTD SESSION", sub: "Date", width: 44, value: (e) => (e.fstd ? fmtIsoDate(e.fstd.date) : "") },
-  { group: "FSTD SESSION", sub: "Type", width: 78, value: (e) => (e.fstd ? `${e.fstd.deviceType} (${e.fstd.qualificationNumber})` : "") },
-  { group: "FSTD SESSION", sub: "Total", width: 42, value: (e) => (e.fstd ? MIN(e.fstd.totalMinutes) : ""), totalKey: "fstdTotal" },
   { group: "REMARKS", sub: "& endorsements", width: 150, value: () => "" },
 ];
 
@@ -213,10 +210,15 @@ export async function generateLogbookPdf(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
+  // Flights print in the category grids; synthetic training sessions are kept
+  // out of those tables and listed separately afterwards.
+  const flights = entries.filter((e) => e.kind !== "FSTD");
+  const fstdSessions = entries.filter((e) => e.kind === "FSTD");
+
   // Each aircraft category prints as its own run of pages, with its own
   // page-by-page totals, since their columns and rules differ.
-  const groups = groupByCategory(entries);
-  if (groups.length === 0) {
+  const groups = groupByCategory(flights);
+  if (groups.length === 0 && fstdSessions.length === 0) {
     drawPage(doc, font, bold, emptyPage(), 1, resolved, [], "");
   } else {
     for (const group of groups) {
@@ -226,6 +228,10 @@ export async function generateLogbookPdf(
         drawPage(doc, font, bold, page, list.length, resolved, group.entries, group.label);
       }
     }
+  }
+
+  if (fstdSessions.length > 0) {
+    drawFstdSection(doc, font, bold, fstdSessions, resolved.pilotName, PAGE_PORTRAIT[paper]);
   }
 
   if (audit) {
@@ -278,6 +284,75 @@ function drawAppendix(
         color: BLACK,
       });
       y -= lineH;
+    }
+  }
+}
+
+/**
+ * Synthetic training (FSTD) sessions, on their own portrait table: date, device,
+ * qualification, total time and remarks, with a total-time line. Kept apart from
+ * the flight grids (AMC1 FCL.050 records simulator time separately from flight).
+ */
+function drawFstdSection(
+  doc: PDFDocument,
+  font: PDFFont,
+  bold: PDFFont,
+  sessions: readonly LogbookEntryForPdf[],
+  pilotName: string,
+  page: { w: number; h: number },
+): void {
+  const lineH = 16;
+  const left = MARGIN;
+  const right = page.w - MARGIN;
+  const top = page.h - MARGIN;
+  const fixed = [
+    { title: "Date", w: 70, get: (e: LogbookEntryForPdf) => (e.fstd ? fmtIsoDate(e.fstd.date) : "") },
+    { title: "Device type", w: 150, get: (e: LogbookEntryForPdf) => e.fstd?.deviceType ?? "" },
+    { title: "Qualification", w: 120, get: (e: LogbookEntryForPdf) => e.fstd?.qualificationNumber ?? "" },
+    { title: "Total", w: 55, get: (e: LogbookEntryForPdf) => (e.fstd ? MIN(e.fstd.totalMinutes) : "") },
+  ];
+  const fixedW = fixed.reduce((a, c) => a + c.w, 0);
+  const remarksX = left + fixedW;
+  const remarksW = right - remarksX;
+
+  const usable = top - 48 - (MARGIN + 20);
+  const perPage = Math.max(1, Math.floor(usable / lineH) - 1); // leave a line for the total
+  const pageCount = Math.ceil(sessions.length / perPage);
+  const grandTotal = sessions.reduce((a, e) => a + (e.fstd?.totalMinutes ?? 0), 0);
+
+  for (let pageNo = 0; pageNo < pageCount; pageNo++) {
+    const p = doc.addPage([page.w, page.h]);
+    p.drawText("SYNTHETIC TRAINING DEVICES (FSTD)", { x: left, y: top - 12, size: 12, font: bold, color: BLACK });
+    p.drawText(`Holder: ${pilotName}    All times UTC`, { x: left, y: top - 26, size: 8, font, color: GREY });
+
+    let y = top - 46;
+    // Header.
+    let hx = left;
+    for (const c of fixed) {
+      p.drawText(c.title, { x: hx + 2, y, size: 7, font: bold, color: BLACK });
+      hx += c.w;
+    }
+    p.drawText("Remarks & endorsements", { x: remarksX + 2, y, size: 7, font: bold, color: BLACK });
+    y -= 4;
+    hline(p, left, right, y);
+    y -= lineH - 4;
+
+    const slice = sessions.slice(pageNo * perPage, (pageNo + 1) * perPage);
+    for (const e of slice) {
+      let x = left;
+      for (const c of fixed) {
+        leftText(p, c.get(e), x, c.w, y, 8, font);
+        x += c.w;
+      }
+      leftText(p, remarksText(e), remarksX, remarksW, y, 8, font);
+      y -= lineH;
+    }
+
+    // Total time on the last page.
+    if (pageNo === pageCount - 1) {
+      hline(p, left, right, y + lineH - 4);
+      p.drawText("TOTAL FSTD TIME", { x: left + 2, y: y - 2, size: 8, font: bold, color: BLACK });
+      p.drawText(formatHHMM(grandTotal), { x: remarksX - fixed[3]!.w + 2, y: y - 2, size: 8, font: bold, color: BLACK });
     }
   }
 }
@@ -418,34 +493,28 @@ function drawGrid(
   hline(p, MARGIN, MARGIN + GRID_W, bodyTop);
   for (let r = 0; r <= rowsPerPage; r++) hline(p, MARGIN, MARGIN + GRID_W, bodyTop - r * ROW_H);
 
-  // Entry rows. An FSTD row leaves the flight columns blank and fills only the
-  // date, the FSTD column and the remarks; a flight row leaves the FSTD column
-  // blank. This mirrors how the paper logbook records a simulator session.
+  // Entry rows. Flight rows only; FSTD sessions are listed in their own table.
   page.rows.forEach((row, r) => {
     const y = bodyTop - (r + 1) * ROW_H + 5;
     const e = row as LogbookEntryForPdf;
-    const isFstd = e.kind === "FSTD";
     COLUMNS.forEach((c, idx) => {
       const x = colX(idx);
       let text = "";
       if (c.group === "DATE") {
         text = formatLogbookDate(e.departureTime);
-      } else if (c.group === "FSTD SESSION") {
-        text = c.value(row);
       } else if (c.group === "REMARKS") {
         text = remarksText(e);
-      } else if (!isFstd) {
-        if (c.group === "AIRCRAFT" && c.sub === "Type") text = e.aircraftType ?? "";
-        else if (c.group === "AIRCRAFT" && c.sub === "Reg") text = e.aircraftReg ?? "";
-        else if (c.group === "NAME PIC") text = e.picName ?? "";
-        else text = c.value(row);
+      } else if (c.group === "AIRCRAFT" && c.sub === "Type") {
+        text = e.aircraftType ?? "";
+      } else if (c.group === "AIRCRAFT" && c.sub === "Reg") {
+        text = e.aircraftReg ?? "";
+      } else if (c.group === "NAME PIC") {
+        text = e.picName ?? "";
+      } else {
+        text = c.value(row);
       }
       const leftAligned =
-        c.group === "REMARKS" ||
-        c.group === "NAME PIC" ||
-        c.group === "AIRCRAFT" ||
-        c.group === "DATE" ||
-        (c.group === "FSTD SESSION" && c.sub === "Type");
+        c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "DATE";
       if (leftAligned) leftText(p, text, x, c.width, y, 6.5, font);
       else centeredText(p, text, x, c.width, y, 6.5, font);
     });

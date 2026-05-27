@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { generateLogbookPdf, type LogbookEntryForPdf } from "../src/pdf/logbook.js";
-import { validateEntry } from "../src/domain/validation.js";
+import { validateEntry, validateFstdSession } from "../src/domain/validation.js";
 import type { FlightEntryInput } from "../src/domain/types.js";
 
 function toPdfRow(input: FlightEntryInput): LogbookEntryForPdf {
@@ -46,5 +46,27 @@ describe("PDF logbook generation", () => {
     const bytes = await generateLogbookPdf([], { pilotName: "A. Pilot" });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBe(1);
+  });
+
+  it("lists FSTD sessions on their own page, not in the flight grid", async () => {
+    const fstd = validateFstdSession({
+      pilotId: "p1",
+      deviceType: "FNPT II",
+      qualificationNumber: "Q-123",
+      instruction: "IR training",
+      date: new Date(Date.UTC(2026, 4, 25, 9, 0, 0)),
+      totalMinutes: 120,
+      remarks: "approaches",
+    }).derived!;
+    const fstdRow: LogbookEntryForPdf = { ...fstd, aircraftType: "", aircraftReg: "", picName: "", remarks: "approaches" };
+
+    // One aeroplane flight + one FSTD session: one flight page plus one FSTD page.
+    const bytes = await generateLogbookPdf([toPdfRow(sampleInput(0)), fstdRow], { pilotName: "A. Pilot", rowsPerPage: 5 });
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(2);
+
+    // An FSTD-only logbook still produces just the FSTD page (no empty flight grid).
+    const fstdOnly = await generateLogbookPdf([fstdRow], { pilotName: "A. Pilot" });
+    expect((await PDFDocument.load(fstdOnly)).getPageCount()).toBe(1);
   });
 });
