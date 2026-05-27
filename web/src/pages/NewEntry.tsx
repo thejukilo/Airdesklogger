@@ -227,7 +227,9 @@ export function NewEntry() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aircraftMsg, setAircraftMsg] = useState<string | null>(null);
-  const [regCategory, setRegCategory] = useState<string | null>(null);
+  // The categories the looked-up registration may be logged under (more than one
+  // for a motor-glider, which is an aeroplane or a sailplane).
+  const [regAllowed, setRegAllowed] = useState<string[]>([]);
   const [depName, setDepName] = useState<string | null>(null);
   const [arrName, setArrName] = useState<string | null>(null);
   // Attributes are optional, so the section is collapsed by default to stay out
@@ -316,29 +318,34 @@ export function NewEntry() {
   useEffect(() => {
     if (reg.length < 2) {
       setAircraftMsg(null);
-      setRegCategory(null);
+      setRegAllowed([]);
       return;
     }
     const t = setTimeout(async () => {
       try {
-        const { match, subtype } = await api.lookupAircraft(reg);
+        const { match, subtype, allowedCategories } = await api.lookupAircraft(reg);
         if (match) {
           const known = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"].includes(match.category)
             ? match.category
             : null;
-          setRegCategory(known);
+          const allowed = allowedCategories?.length ? allowedCategories : known ? [known] : [];
+          setRegAllowed(allowed);
           const detail = subtype ? `${match.model} (${subtype})` : match.model;
           setF((prev) => {
-            const corrected = known && known !== prev.category;
+            // Keep the pilot's category when the type already permits it (a
+            // motor-glider as aeroplane or sailplane); otherwise set the default.
+            const next = allowed.includes(prev.category) ? prev.category : known ?? prev.category;
+            const changed = next !== prev.category;
+            const dual = allowed.length > 1 ? ` (may also be logged as ${allowed.filter((c) => c !== next).map((c) => CATEGORY_LABELS[c]).join(", ")})` : "";
             setAircraftMsg(
-              corrected
-                ? `${reg} is registered as a ${CATEGORY_LABELS[known]}; category set to match. ${detail}`
-                : `Found: ${detail}`,
+              changed
+                ? `${reg} is registered as a ${CATEGORY_LABELS[next]}; category set to match. ${detail}`
+                : `Found: ${detail}${dual}`,
             );
             return {
               ...prev,
               makeModelVariant: match.model || prev.makeModelVariant,
-              category: known ?? prev.category,
+              category: next,
               // More than one engine means multi-engine; a known single engine
               // sets single-engine. Leave the choice alone when unknown.
               engineClass:
@@ -351,21 +358,21 @@ export function NewEntry() {
             };
           });
         } else {
-          setRegCategory(null);
+          setRegAllowed([]);
           setAircraftMsg("Not found; enter the type manually.");
         }
       } catch {
         setAircraftMsg(null);
-        setRegCategory(null);
+        setRegAllowed([]);
       }
     }, 600);
     return () => clearTimeout(t);
   }, [reg]);
 
-  // If the registration is known and the chosen category no longer matches it
-  // (the pilot changed it after the lookup), warn and block: the registration is
-  // authoritative for the category.
-  const categoryMismatch = regCategory && regCategory !== f.category;
+  // If the registration is known and the chosen category is not one the type
+  // allows (a motor-glider permits aeroplane or sailplane), warn and block: the
+  // registration is authoritative for the category.
+  const categoryMismatch = regAllowed.length > 0 && !regAllowed.includes(f.category);
 
   // EASA times the flight from first movement (block) for aeroplanes, but from
   // rotor start to rotor stop for helicopters (AMC1 FCL.050 (g)). Balloons log
@@ -434,7 +441,7 @@ export function NewEntry() {
     e.preventDefault();
     setError(null);
     if (categoryMismatch) {
-      setError(`${reg} is registered as a ${CATEGORY_LABELS[regCategory!]}, not a ${CATEGORY_LABELS[f.category]}. Correct the category or the registration.`);
+      setError(`${reg} must be logged as a ${regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not a ${CATEGORY_LABELS[f.category]}. Correct the category or the registration.`);
       return;
     }
     if (seriesExceeds) {
@@ -560,7 +567,8 @@ export function NewEntry() {
               </Select>
               {categoryMismatch && (
                 <p className="mt-1 text-xs text-red-600">
-                  {reg} is registered as a {CATEGORY_LABELS[regCategory!]}, not a {CATEGORY_LABELS[f.category]}.
+                  {reg} must be logged as a {regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not a{" "}
+                  {CATEGORY_LABELS[f.category]}.
                 </p>
               )}
             </div>

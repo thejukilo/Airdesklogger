@@ -243,6 +243,10 @@ CREATE TABLE IF NOT EXISTS icao_types (
   engine_count integer,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
+-- The Doc 8643 "role" (e.g. Glider, Motor-Glider), which distinguishes types
+-- that may be logged under more than one category (a motor-glider as an
+-- aeroplane or a sailplane). Added with IF NOT EXISTS for an existing database.
+ALTER TABLE icao_types ADD COLUMN IF NOT EXISTS role text;
 
 -- Synthetic training devices, including kind and level (FNPT I/II, FTD, FFS).
 CREATE TABLE IF NOT EXISTS fstd_devices (

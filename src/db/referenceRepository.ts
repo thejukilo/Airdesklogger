@@ -8,9 +8,9 @@
  * provider loads the ICAO list); the mechanism and the validation live here.
  */
 
-import { getPool } from "./pool.js";
+import { getPool, withTransaction } from "./pool.js";
 import { normalizeIcao } from "../domain/icao.js";
-import { categoryForDescription } from "../data/icaoTypes.js";
+import { allowedCategoriesForType } from "../data/icaoTypes.js";
 
 export interface Airport {
   icao: string;
@@ -156,7 +156,12 @@ export async function listAircraft(query: string, limit = 50): Promise<AircraftR
 export interface IcaoTypeInfo {
   /** The ICAO Doc 8643 description, shown to the pilot as the precise subtype. */
   description: string;
+  /** The role (e.g. Glider, Motor-Glider), or null. */
+  role: string | null;
+  /** The default category for the type (the first allowed one). */
   category: AircraftRecord["category"];
+  /** Every category the type may be logged under (a motor-glider allows two). */
+  allowedCategories: AircraftRecord["category"][];
   engineType?: string | undefined;
   engineCount?: number | undefined;
 }
@@ -164,6 +169,7 @@ export interface IcaoTypeInfo {
 export interface IcaoTypeSeed {
   code: string;
   description: string;
+  role?: string | null | undefined;
   engineType?: string | null | undefined;
   engineCount?: number | null | undefined;
 }
@@ -171,43 +177,64 @@ export interface IcaoTypeSeed {
 /** Classify an ICAO type designator from the reference table, or null if absent. */
 export async function getIcaoType(code: string): Promise<IcaoTypeInfo | null> {
   const { rows } = await getPool().query(
-    "SELECT description, engine_type, engine_count FROM icao_types WHERE code = $1",
+    "SELECT description, role, engine_type, engine_count FROM icao_types WHERE code = $1",
     [code.trim().toUpperCase()],
   );
   const r = rows[0];
   if (!r) return null;
+  const allowed = allowedCategoriesForType(r.description as string, r.role as string | null);
   return {
     description: r.description as string,
-    category: categoryForDescription(r.description as string),
+    role: (r.role as string) ?? null,
+    category: allowed[0]!,
+    allowedCategories: allowed,
     engineType: (r.engine_type as string) ?? undefined,
     engineCount: r.engine_count === null ? undefined : Number(r.engine_count),
   };
 }
 
-/** Bulk-upsert ICAO type designators. Used by the seed. */
-export async function upsertIcaoTypes(types: IcaoTypeSeed[]): Promise<number> {
-  const pool = getPool();
-  let written = 0;
-  const CHUNK = 2000; // 4 params per row, well under the parameter limit
+function insertIcaoTypes(
+  query: (text: string, params: unknown[]) => Promise<unknown>,
+  types: IcaoTypeSeed[],
+): Promise<unknown[]> {
+  const CHUNK = 1000; // 5 params per row, well under the parameter limit
+  const batches: Promise<unknown>[] = [];
   for (let i = 0; i < types.length; i += CHUNK) {
     const chunk = types.slice(i, i + CHUNK);
     const values: string[] = [];
     const params: unknown[] = [];
     chunk.forEach((t, j) => {
-      const b = j * 4;
-      values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4})`);
-      params.push(t.code.toUpperCase(), t.description, t.engineType ?? null, t.engineCount ?? null);
+      const b = j * 5;
+      values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5})`);
+      params.push(t.code.toUpperCase(), t.description, t.role ?? null, t.engineType ?? null, t.engineCount ?? null);
     });
-    await pool.query(
-      `INSERT INTO icao_types (code, description, engine_type, engine_count) VALUES ${values.join(",")}
-         ON CONFLICT (code) DO UPDATE SET
-           description = EXCLUDED.description, engine_type = EXCLUDED.engine_type,
-           engine_count = EXCLUDED.engine_count`,
-      params,
+    batches.push(
+      query(
+        `INSERT INTO icao_types (code, description, role, engine_type, engine_count) VALUES ${values.join(",")}
+           ON CONFLICT (code) DO UPDATE SET
+             description = EXCLUDED.description, role = EXCLUDED.role,
+             engine_type = EXCLUDED.engine_type, engine_count = EXCLUDED.engine_count`,
+        params,
+      ),
     );
-    written += chunk.length;
   }
-  return written;
+  return Promise.all(batches);
+}
+
+/** Bulk-upsert ICAO type designators. Used by the integration tests. */
+export async function upsertIcaoTypes(types: IcaoTypeSeed[]): Promise<number> {
+  const pool = getPool();
+  await insertIcaoTypes((text, params) => pool.query(text, params), types);
+  return types.length;
+}
+
+/** Replace the entire ICAO type table with the given set, atomically. */
+export async function replaceIcaoTypes(types: IcaoTypeSeed[]): Promise<number> {
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM icao_types");
+    await insertIcaoTypes((text, params) => client.query(text, params), types);
+  });
+  return types.length;
 }
 
 export interface FstdDevice {

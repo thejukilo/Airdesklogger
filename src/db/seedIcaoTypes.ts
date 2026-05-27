@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseCsv } from "./seedAirports.js";
-import { upsertIcaoTypes, type IcaoTypeSeed } from "./referenceRepository.js";
+import { replaceIcaoTypes, type IcaoTypeSeed } from "./referenceRepository.js";
 import { closePool } from "./pool.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -44,13 +44,18 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
   const rows = parseCsv(text);
   const header = rows.shift()?.map((h) => h.trim());
   if (!header) return [];
-  const codeCol = column(header, ["type", "typecode", "icao_type"]);
+  const codeCol = column(header, ["code", "type", "typecode", "icao_type"]);
   const descCol = column(header, ["description"]);
-  const engCol = column(header, ["engine", "engine_type"]);
+  const roleCol = column(header, ["role"]);
+  const engCol = column(header, ["engine_type", "engine"]);
   const countCol = column(header, ["engine_count", "engines"]);
   if (codeCol === -1 || descCol === -1) {
-    throw new Error("ICAO types CSV needs at least 'type' and 'description' columns.");
+    throw new Error("ICAO types CSV needs at least 'code' and 'description' columns.");
   }
+  const clean = (v: string): string | null => {
+    const s = v.trim();
+    return s && s !== "-" && s !== "_unknown_" && s.toLowerCase() !== "null" ? s : null;
+  };
   const seen = new Set<string>();
   const out: IcaoTypeSeed[] = [];
   for (const r of rows) {
@@ -58,12 +63,12 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
     const description = (r[descCol] ?? "").trim();
     if (!code || !description || seen.has(code)) continue;
     seen.add(code);
-    const engine = engCol === -1 ? "" : (r[engCol] ?? "").trim();
     const count = countCol === -1 ? NaN : Number((r[countCol] ?? "").trim());
     out.push({
       code,
       description,
-      engineType: engine && engine !== "-" ? engine : null,
+      role: roleCol === -1 ? null : clean(r[roleCol] ?? ""),
+      engineType: engCol === -1 ? null : clean(r[engCol] ?? ""),
       engineCount: Number.isInteger(count) && count > 0 ? count : null,
     });
   }
@@ -72,7 +77,7 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
 
 export async function seedIcaoTypes(csvPath?: string): Promise<number> {
   const text = readFileSync(csvPath ?? resolveBundledCsv(), "utf8");
-  return upsertIcaoTypes(fromIcaoTypesCsv(text));
+  return replaceIcaoTypes(fromIcaoTypesCsv(text));
 }
 
 const isMain = process.argv[1]?.endsWith("seedIcaoTypes.ts") || process.argv[1]?.endsWith("seedIcaoTypes.js");

@@ -252,7 +252,12 @@ export interface AircraftMatch {
 
 export function lookupAircraft(
   registration: string,
-): Promise<{ match: AircraftMatch | null; source: "db" | "external" | "none"; subtype: string | null }> {
+): Promise<{
+  match: AircraftMatch | null;
+  source: "db" | "external" | "none";
+  subtype: string | null;
+  allowedCategories?: string[];
+}> {
   return request(`/reference/aircraft?registration=${encodeURIComponent(registration)}`, {
     method: "GET",
   });

@@ -92,14 +92,19 @@ describe.skipIf(!hasDb)("reference data and validation (integration)", () => {
     expect(issues.map((i) => i.field)).toContain("aircraft.category");
   });
 
-  it("classifies an ICAO type designator and prefills engines, and is null when absent", async () => {
+  it("classifies an ICAO type designator, including a dual-category motor-glider", async () => {
     await upsertIcaoTypes([
-      { code: "EC35", description: "Helicopter", engineType: "Turboprop/Turboshaft", engineCount: 2 },
-      { code: "BALL", description: "Balloon", engineType: null, engineCount: null },
+      { code: "EC35", description: "Helicopter", role: "Helicopter", engineType: "Turboprop", engineCount: 2 },
+      { code: "BALL", description: "Balloon", role: "Balloon", engineType: null, engineCount: null },
+      { code: "DIMO", description: "Landplane", role: "Motor-Glider", engineType: "Piston", engineCount: 1 },
     ]);
     const heli = await getIcaoType("ec35"); // case-insensitive
     expect(heli).toMatchObject({ category: "HELICOPTER", description: "Helicopter", engineCount: 2 });
+    expect(heli?.allowedCategories).toEqual(["HELICOPTER"]);
     expect((await getIcaoType("BALL"))?.category).toBe("BALLOON");
+    const tmg = await getIcaoType("DIMO");
+    expect(tmg?.category).toBe("AEROPLANE");
+    expect(tmg?.allowedCategories).toEqual(["AEROPLANE", "SAILPLANE"]);
     expect(await getIcaoType("NOPE")).toBeNull();
   });
 

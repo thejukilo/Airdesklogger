@@ -7,7 +7,7 @@
  */
 
 import { isIcaoFormat, isNoLocationIndicator } from "../domain/icao.js";
-import { airportExists, getAircraftForFlight, fstdDeviceExists } from "../db/referenceRepository.js";
+import { airportExists, getAircraftForFlight, fstdDeviceExists, getIcaoType } from "../db/referenceRepository.js";
 import type { FlightEntryInput, FstdSessionInput } from "../domain/types.js";
 
 export interface ReferenceIssue {
@@ -56,12 +56,17 @@ export async function validateFlightReferences(input: FlightEntryInput): Promise
   } else {
     // The registration is authoritative for the category. A flight may not be
     // logged under a category the aircraft does not belong to (for example a
-    // single-engine aeroplane logged as a balloon).
+    // single-engine aeroplane logged as a balloon). A type that the Doc 8643
+    // list allows under more than one category (a motor-glider, as an aeroplane
+    // or a sailplane) accepts any of them.
     const selected = input.aircraft.category ?? "AEROPLANE";
-    if (aircraft.category && aircraft.category !== selected) {
+    const info = aircraft.icaoType ? await getIcaoType(aircraft.icaoType) : null;
+    const allowed = info?.allowedCategories ?? (aircraft.category ? [aircraft.category] : []);
+    if (allowed.length > 0 && !allowed.includes(selected)) {
+      const allowedNames = allowed.map((c) => CATEGORY_NAMES[c]).join(" or ");
       issues.push({
         field: "aircraft.category",
-        message: `${input.aircraft.registration} is registered as a ${CATEGORY_NAMES[aircraft.category]}, not a ${CATEGORY_NAMES[selected]}.`,
+        message: `${input.aircraft.registration} must be logged as a ${allowedNames}, not a ${CATEGORY_NAMES[selected]}.`,
       });
     }
   }

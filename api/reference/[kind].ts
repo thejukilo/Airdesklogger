@@ -52,16 +52,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           // The ICAO type designator is authoritative for the category. Correct
           // a cached record that was classified before the type list was seeded
           // (so it fell back to aeroplane) and prefill missing engine details, so
-          // the form and the server-side validation agree with the type. The
-          // description is also shown as a display-only subtype.
+          // the form and the server-side validation agree with the type. A type
+          // allowed under more than one category (a motor-glider) keeps whichever
+          // allowed category the record already has. The description is also
+          // shown as a display-only subtype, and the allowed categories let the
+          // form accept either choice for a dual-category type.
           let subtype: string | null = null;
+          let allowedCategories: AircraftRecord["category"][] = match ? [match.category] : [];
           if (match?.icaoType) {
             const info = await getIcaoType(match.icaoType);
             if (info) {
               subtype = info.description;
+              allowedCategories = info.allowedCategories;
+              const category = info.allowedCategories.includes(match.category) ? match.category : info.category;
               const corrected: AircraftRecord = {
                 ...match,
-                category: info.category,
+                category,
                 engineType: match.engineType ?? info.engineType,
                 engineCount: match.engineCount ?? info.engineCount,
               };
@@ -75,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               match = corrected;
             }
           }
-          res.status(200).json({ match, source, subtype });
+          res.status(200).json({ match, source, subtype, allowedCategories });
           return;
         }
         res.status(200).json({ aircraft: await listAircraft(q) });
