@@ -145,10 +145,27 @@ describe("entry validation & column derivation", () => {
     expect(r.issues.some((i) => i.field === "conditions.night")).toBe(true);
   });
 
-  it("rejects instructor time exceeding total", () => {
+  it("derives instructor time from the function and logs it as PIC too", () => {
+    const onSeat = validateEntry(
+      baseEntry({ function: { primary: "PIC", instructor: 0, instructorPosition: "PILOT_SEAT" } }),
+    );
+    expect(onSeat.valid).toBe(true);
+    expect(onSeat.derived!.pic).toBe(90);
+    expect(onSeat.derived!.instructor).toBe(90);
+  });
+
+  it("logs no instructor time for a plain PIC and ignores any supplied value", () => {
     const r = validateEntry(baseEntry({ function: { primary: "PIC", instructor: 999 } }));
-    expect(r.valid).toBe(false);
-    expect(r.issues.some((i) => i.field === "function.instructor")).toBe(true);
+    expect(r.valid).toBe(true);
+    expect(r.derived!.instructor).toBe(0);
+  });
+
+  it("does not credit instructor time from the jump seat", () => {
+    const r = validateEntry(
+      baseEntry({ function: { primary: "CO_PILOT", instructor: 0, instructorPosition: "JUMP_SEAT" } }),
+    );
+    expect(r.valid).toBe(true);
+    expect(r.derived!.instructor).toBe(0);
   });
 
   it("requires a PIC name", () => {
@@ -157,12 +174,11 @@ describe("entry validation & column derivation", () => {
     expect(r.issues.some((i) => i.field === "picName")).toBe(true);
   });
 
-  it("rejects PIC or instructor time logged from the jump seat", () => {
+  it("rejects PIC time logged from the jump seat", () => {
     const r = validateEntry(
-      baseEntry({ function: { primary: "PIC", instructor: 30, instructorPosition: "JUMP_SEAT" } }),
+      baseEntry({ function: { primary: "PIC", instructor: 0, instructorPosition: "JUMP_SEAT" } }),
     );
     expect(r.valid).toBe(false);
-    expect(r.issues.some((i) => i.field === "function.instructor")).toBe(true);
     expect(r.issues.some((i) => i.field === "function.primary")).toBe(true);
   });
 

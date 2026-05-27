@@ -52,6 +52,39 @@ export const ATTRIBUTE_CATEGORY_RESTRICTIONS: Partial<Record<EntryAttribute, rea
   hec: ["HELICOPTER"],
 };
 
+/**
+ * Sailplanes support only a specific subset of attributes (no operator checks,
+ * ZFTT, low-visibility or sea landings). When the category is a sailplane this
+ * whitelist applies instead of the per-attribute restrictions above.
+ */
+export const SAILPLANE_ATTRIBUTES: ReadonlySet<EntryAttribute> = new Set([
+  "skill_test",
+  "proficiency_check",
+  "language_proficiency_check",
+  "refresher_training",
+  "training_flight",
+  "familiarization",
+  "difference_training",
+  "course_completed",
+  "instruction_training_course",
+  "demonstration_of_ability_to_instruct",
+  "solo",
+  "cross_country",
+  "series_of_flights",
+  "towing",
+  "aerobatic_privilege",
+  "cloud_flying_privilege",
+  "launch_privilege",
+  "mountain_landings",
+]);
+
+/** Whether an attribute may be used for an aircraft of the given category. */
+export function attributeAllowedForCategory(attr: EntryAttribute, category: AircraftCategory): boolean {
+  if (category === "SAILPLANE") return SAILPLANE_ATTRIBUTES.has(attr);
+  const allowed = ATTRIBUTE_CATEGORY_RESTRICTIONS[attr];
+  return !allowed || allowed.includes(category);
+}
+
 const ATTRIBUTE_SET: ReadonlySet<string> = new Set(ENTRY_ATTRIBUTES);
 
 export function isEntryAttribute(value: string): value is EntryAttribute {

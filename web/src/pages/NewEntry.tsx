@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
-import { ATTRIBUTE_GROUPS, ATTRIBUTE_LABELS, CATEGORY_LABELS } from "../labels";
+import { ATTRIBUTE_GROUPS, ATTRIBUTE_LABELS, CATEGORY_LABELS, attributeAllowedForCategory } from "../labels";
 
 /** A titled card that groups related fields, so the form reads as sections. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -125,12 +125,28 @@ const POWERED_FUNCTIONS: FnOption[] = [
   { key: "FI_SUPERVISING", label: "Supervising instructor", primary: "PIC", instructorPosition: "SUPERVISING" },
   { key: "FE_EXAMINER", label: "Examiner", primary: "PIC", instructorPosition: "EXAMINER" },
 ];
-const UNPOWERED_FUNCTIONS: FnOption[] = [
+// Sailplanes use PIC, dual and the instructor/examiner functions (instructor
+// time is logged via these, not a separate field). Balloons stay simple.
+const SAILPLANE_FUNCTIONS: FnOption[] = [
+  { key: "PIC", label: "PIC (pilot in command)", primary: "PIC" },
+  { key: "DUAL", label: "Dual", primary: "DUAL" },
+  { key: "FI_PILOT_SEAT", label: "Instructor (pilot seat)", primary: "PIC", instructorPosition: "PILOT_SEAT" },
+  { key: "FI_JUMP_SEAT", label: "Instructor (jump seat)", primary: "CO_PILOT", instructorPosition: "JUMP_SEAT" },
+  { key: "FI_SUPERVISING", label: "Supervising instructor", primary: "PIC", instructorPosition: "SUPERVISING" },
+  { key: "FE_EXAMINER", label: "Examiner", primary: "PIC", instructorPosition: "EXAMINER" },
+];
+const BALLOON_FUNCTIONS: FnOption[] = [
   { key: "PIC", label: "PIC (pilot in command)", primary: "PIC" },
   { key: "DUAL", label: "Dual", primary: "DUAL" },
 ];
 const LEGACY_FUNCTIONS: FnOption[] = [{ key: "SAFETY_PILOT", label: "Safety pilot", primary: "SAFETY_PILOT" }];
 const ALL_FUNCTIONS: FnOption[] = [...POWERED_FUNCTIONS, ...LEGACY_FUNCTIONS];
+
+function functionsForCategory(category: string): FnOption[] {
+  if (category === "SAILPLANE") return SAILPLANE_FUNCTIONS;
+  if (category === "BALLOON") return BALLOON_FUNCTIONS;
+  return POWERED_FUNCTIONS;
+}
 
 function resolveFunction(key: string): FnOption {
   return ALL_FUNCTIONS.find((o) => o.key === key) ?? POWERED_FUNCTIONS[0]!;
@@ -164,7 +180,6 @@ const empty = {
   launchMethod: "",
   balloonFlightType: "",
   inflations: 1,
-  instructor: 0,
   seriesTime: "",
   landings: 1,
   picName: "SELF",
@@ -201,7 +216,6 @@ function fromContent(c: api.EntryContent): typeof empty {
     launchMethod: cols?.launchMethod ?? "",
     balloonFlightType: cols?.balloonFlightType ?? "",
     inflations: cols?.inflations ?? 1,
-    instructor: c.function?.instructor ?? 0,
     seriesTime: cols?.flightTimeMinutes ? fmtHHMM(cols.flightTimeMinutes) : "",
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
     picName: c.picName ?? "SELF",
@@ -279,23 +293,25 @@ export function NewEntry() {
     if (isSeries && computedBlock > 0 && parseHHMM(f.seriesTime) === 0) set("seriesTime", fmtHHMM(computedBlock));
   }, [isSeries, computedBlock]);
 
-  // Only the attributes that apply to the chosen category (launch is
-  // sailplane-only; HESLO/HEC are helicopter-only).
+  // Only the attributes that apply to the chosen category. Sailplanes use a
+  // strict whitelist; other categories use the per-attribute restrictions
+  // (launch/cloud are sailplane-only, HESLO/HEC helicopter-only).
   const visibleGroups = ATTRIBUTE_GROUPS.map((g) => ({
     title: g.title,
-    items: g.items.filter((it) => !it.categories || it.categories.includes(f.category)),
+    items: g.items.filter((it) => attributeAllowedForCategory(it, f.category)),
   })).filter((g) => g.items.length > 0);
   const selectedLabels = f.attributes.map((k) => ATTRIBUTE_LABELS[k] ?? k);
 
   // When the category changes, drop any selected attribute that no longer
-  // applies, so the entry does not carry (and the server does not reject) a
-  // launch privilege on an aeroplane or a HESLO on a balloon.
+  // applies, so the entry does not carry (and the server does not reject) one.
   useEffect(() => {
-    const hiddenRestricted = ATTRIBUTE_GROUPS.flatMap((g) => g.items)
-      .filter((it) => it.categories && !it.categories.includes(f.category))
-      .map((it) => it.key);
-    if (f.attributes.some((k) => hiddenRestricted.includes(k))) {
-      setF((prev) => ({ ...prev, attributes: prev.attributes.filter((k) => !hiddenRestricted.includes(k)) }));
+    const visible = new Set(
+      ATTRIBUTE_GROUPS.flatMap((g) => g.items)
+        .filter((it) => attributeAllowedForCategory(it, f.category))
+        .map((it) => it.key),
+    );
+    if (f.attributes.some((k) => !visible.has(k))) {
+      setF((prev) => ({ ...prev, attributes: prev.attributes.filter((k) => visible.has(k)) }));
     }
   }, [f.category]);
 
@@ -382,7 +398,9 @@ export function NewEntry() {
       ? { off: "Rotor start", on: "Rotor stop" }
       : f.category === "BALLOON"
         ? { off: "Departure time", on: "Arrival time" }
-        : { off: "Block off (start)", on: "Block on (end)" };
+        : f.category === "SAILPLANE"
+          ? { off: "Flight start", on: "Flight end" }
+          : { off: "Block off (start)", on: "Block on (end)" };
 
   // Show the airport name for entered ICAO codes.
   const dep = f.departurePlace.trim().toUpperCase();
@@ -406,18 +424,12 @@ export function NewEntry() {
   const fn = resolveFunction(f.pilotFunction);
   const isDual = fn.primary === "DUAL";
   const isSafety = fn.primary === "SAFETY_PILOT";
-  const isJumpSeat = fn.instructorPosition === "JUMP_SEAT";
 
   // On a dual flight the PIC is the instructor, so SELF is not valid: clear it
   // when the function switches to dual so the pilot must type the instructor.
   useEffect(() => {
     if (isDual && f.picName.trim().toUpperCase() === "SELF") set("picName", "");
   }, [isDual]);
-
-  // Jump-seat time cannot be logged as instructor time (FOCA 2.2.4), so zero it.
-  useEffect(() => {
-    if (isJumpSeat && Number(f.instructor) !== 0) set("instructor", 0);
-  }, [f.pilotFunction]);
 
   // Balloons and sailplanes are not aeroplane/helicopter: they have no SE/ME or
   // multi-pilot columns and no IFR, but carry their own conditions (launch
@@ -427,12 +439,12 @@ export function NewEntry() {
   const isPowered = !isSailplane && !isBalloon;
   // Functions offered for the category; keep the current value if it is not in
   // the list (e.g. a legacy safety-pilot entry, or after switching category).
-  const baseFunctions = isPowered ? POWERED_FUNCTIONS : UNPOWERED_FUNCTIONS;
+  const baseFunctions = functionsForCategory(f.category);
   const functionOptions = baseFunctions.some((o) => o.key === f.pilotFunction)
     ? baseFunctions
     : [...baseFunctions, resolveFunction(f.pilotFunction)];
   useEffect(() => {
-    if (!isPowered && !UNPOWERED_FUNCTIONS.some((o) => o.key === f.pilotFunction)) set("pilotFunction", "PIC");
+    if (!functionsForCategory(f.category).some((o) => o.key === f.pilotFunction)) set("pilotFunction", "PIC");
     // Balloon places are free text with no aerodrome timezone, so times are UTC.
     if (isBalloon && timeMode === "local") setTimeMode("utc");
   }, [f.category]);
@@ -480,7 +492,8 @@ export function NewEntry() {
         conditions: { night: 0, ifr },
         function: {
           primary: fn.primary,
-          instructor: isJumpSeat ? 0 : Number(f.instructor),
+          // Instructor time is derived server-side from the seat position.
+          instructor: 0,
           ...(fn.instructorPosition ? { instructorPosition: fn.instructorPosition } : {}),
           ...(isSafety ? { tookControl: f.tookControl } : {}),
         },
@@ -697,7 +710,6 @@ export function NewEntry() {
             {isBalloon && (
               <Field label="Inflations" type="number" min={0} inputMode="numeric" value={f.inflations} onChange={(e) => set("inflations", Number(e.target.value))} />
             )}
-            <Field label="Instructor (min)" type="number" min={0} inputMode="numeric" value={f.instructor} onChange={(e) => set("instructor", Number(e.target.value))} disabled={isJumpSeat} hint={isJumpSeat ? "Not loggable from the jump seat." : undefined} />
           </div>
           <p className="text-xs text-slate-500">
             Night time, and whether the landings count as day or night, are worked out automatically from the

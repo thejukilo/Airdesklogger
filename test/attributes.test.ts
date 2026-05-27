@@ -91,4 +91,14 @@ describe("attributes restricted to an aircraft category", () => {
     expect(validateEntry(entry("BALLOON", ["hec"])).valid).toBe(false);
     expect(validateEntry(entry("HELICOPTER", ["heslo", "hec"])).valid).toBe(true);
   });
+
+  it("restricts sailplanes to their whitelist", () => {
+    // In the whitelist.
+    expect(validateEntry(entry("SAILPLANE", ["launch_privilege", "cloud_flying_privilege", "mountain_landings", "towing"])).valid).toBe(true);
+    // Not on a sailplane: operator checks, ZFTT, low-visibility and sea landings.
+    expect(validateEntry(entry("SAILPLANE", ["operator_proficiency_check"])).valid).toBe(false);
+    expect(validateEntry(entry("SAILPLANE", ["zftt"])).valid).toBe(false);
+    expect(validateEntry(entry("SAILPLANE", ["low_visibility_landing"])).valid).toBe(false);
+    expect(validateEntry(entry("SAILPLANE", ["sea_landings"])).valid).toBe(false);
+  });
 });

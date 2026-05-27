@@ -67,6 +67,36 @@ export const ATTRIBUTE_GROUPS: Array<{ title: string; items: AttributeDef[] }> =
   },
 ];
 
+// Sailplanes support only this subset (must mirror the domain whitelist in
+// src/domain/attributes.ts). For other categories the per-item `categories`
+// field governs visibility instead.
+export const SAILPLANE_ATTRIBUTES = new Set<string>([
+  "skill_test",
+  "proficiency_check",
+  "language_proficiency_check",
+  "refresher_training",
+  "training_flight",
+  "familiarization",
+  "difference_training",
+  "course_completed",
+  "instruction_training_course",
+  "demonstration_of_ability_to_instruct",
+  "solo",
+  "cross_country",
+  "series_of_flights",
+  "towing",
+  "aerobatic_privilege",
+  "cloud_flying_privilege",
+  "launch_privilege",
+  "mountain_landings",
+]);
+
+/** Whether an attribute is offered for a given aircraft category. */
+export function attributeAllowedForCategory(item: AttributeDef, category: string): boolean {
+  if (category === "SAILPLANE") return SAILPLANE_ATTRIBUTES.has(item.key);
+  return !item.categories || item.categories.includes(category);
+}
+
 export const ATTRIBUTES: AttributeDef[] = ATTRIBUTE_GROUPS.flatMap((g) => g.items);
 
 export const ATTRIBUTE_LABELS: Record<string, string> = Object.fromEntries(

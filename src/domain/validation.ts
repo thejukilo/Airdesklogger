@@ -14,7 +14,7 @@ import { minutesBetween, utcDateKey } from "./time.js";
 import { validateMultiFlight } from "./multiFlight.js";
 import { functionMinutes } from "./functionTime.js";
 import { isValidCrewSize, loggedMinutes } from "./crew.js";
-import { ATTRIBUTE_CATEGORY_RESTRICTIONS, isEntryAttribute, requiresSignature, type EntryAttribute } from "./attributes.js";
+import { attributeAllowedForCategory, isEntryAttribute, requiresSignature, type EntryAttribute } from "./attributes.js";
 import { isNoLocationIndicator } from "./icao.js";
 
 function validateAttributes(
@@ -28,11 +28,10 @@ function validateAttributes(
       issues.push({ field: "attributes", message: `Unknown attribute "${a}".` });
       continue;
     }
-    const allowed = ATTRIBUTE_CATEGORY_RESTRICTIONS[a];
-    if (category && allowed && !allowed.includes(category)) {
+    if (category && !attributeAllowedForCategory(a, category)) {
       issues.push({
         field: "attributes",
-        message: `"${a}" applies only to ${allowed.map((c) => c.toLowerCase()).join(" or ")} flights.`,
+        message: `"${a}" does not apply to ${category.toLowerCase()} flights.`,
       });
     }
   }
@@ -107,24 +106,18 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     });
   }
 
-  // Conditions and instructor time are validated against actual block time,
-  // before the crew share is applied.
+  // Conditions are validated against actual block time, before the crew share.
   if (!isNonNegInt(input.conditions.night) || input.conditions.night > blockTime) {
     issues.push({ field: "conditions.night", message: "Night time must be 0..block time." });
   }
   if (!isNonNegInt(input.conditions.ifr) || input.conditions.ifr > blockTime) {
     issues.push({ field: "conditions.ifr", message: "IFR time must be 0..block time." });
   }
-  if (!isNonNegInt(input.function.instructor) || input.function.instructor > blockTime) {
-    issues.push({ field: "function.instructor", message: "Instructor time must be 0..block time." });
-  }
 
   // Jump-seat rule (FOCA 2.2.4 and Logging of Flight Time 2.3.2): time on the
-  // jump seat cannot be logged as PIC or instructor time.
+  // jump seat cannot be logged as PIC. (Instructor time is derived from the
+  // function below and is never credited from the jump seat.)
   if (input.function.instructorPosition === "JUMP_SEAT") {
-    if (input.function.instructor > 0) {
-      issues.push({ field: "function.instructor", message: "Instructor time cannot be logged from the jump seat." });
-    }
     if (input.function.primary === "PIC" || input.function.primary === "PICUS" || input.function.primary === "SPIC") {
       issues.push({ field: "function.primary", message: "PIC time cannot be logged from the jump seat." });
     }
@@ -238,8 +231,13 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const night = safetyNoControl ? 0 : loggedMinutes(Math.min(input.conditions.night, effectiveBlock), safeCrew);
   const ifr = safetyNoControl ? 0 : loggedMinutes(Math.min(input.conditions.ifr, effectiveBlock), safeCrew);
 
-  // Column 11.
-  const instructorMinutes = Math.min(input.function.instructor, effectiveBlock);
+  // Column 11. Instructor time is logged only when the instructor is the pilot
+  // flying: the instructor-on-the-pilot-seat, supervising and examiner functions
+  // credit the whole flight as instruction (and also as PIC). The jump seat
+  // credits neither. It is derived from the function, not entered by hand.
+  const pos = input.function.instructorPosition;
+  const instructsAsPilot = pos === "PILOT_SEAT" || pos === "SUPERVISING" || pos === "EXAMINER";
+  const instructorMinutes = instructsAsPilot ? effectiveBlock : 0;
   const fm = functionMinutes({ primary: effectivePrimary, instructor: instructorMinutes }, total);
   const instructor = safetyNoControl ? 0 : loggedMinutes(instructorMinutes, safeCrew);
 
