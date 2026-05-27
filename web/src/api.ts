@@ -22,6 +22,13 @@ export class ApiError extends Error {
   }
 }
 
+// Called when an authenticated request is rejected because the session token is
+// missing/expired (401), so the app can clear the session and return to login.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+  onUnauthorized = fn;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
@@ -47,6 +54,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
   }
   if (!res.ok) {
+    // A 401 on a request we sent a token with means the session is no longer
+    // valid: drop it and let the app send the user back to sign in.
+    if (res.status === 401 && token) onUnauthorized?.();
     const message = body?.error ?? body?.issues?.[0]?.message ?? `Request failed (${res.status})`;
     throw new ApiError(res.status, message);
   }

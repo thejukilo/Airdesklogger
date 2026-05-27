@@ -5,7 +5,7 @@ import * as api from "../api";
 import { Alert, Button, Card, Field } from "../components/ui";
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, sessionExpired } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,6 +54,11 @@ export function Login() {
       <Card>
         <form onSubmit={onSubmit} className="space-y-4">
           {error && <Alert>{error}</Alert>}
+          {!error && sessionExpired && (
+            <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+              Your session expired. Please sign in again.
+            </div>
+          )}
           {needsVerify && (
             <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
               <button type="button" onClick={resend} className="font-medium text-ink underline">

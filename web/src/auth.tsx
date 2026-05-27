@@ -5,6 +5,8 @@ interface AuthState {
   user: api.SessionUser | null;
   mfaEnabled: boolean;
   loading: boolean;
+  /** True when the session was dropped because the token expired, for a notice on login. */
+  sessionExpired: boolean;
   login: (email: string, password: string, code?: string) => Promise<{ mfaRequired: boolean }>;
   logout: () => void;
   setMfaEnabled: (enabled: boolean) => void;
@@ -20,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<api.SessionUser | null>(null);
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Restore the session from storage on first load. The token is validated by
   // the API on the next request; here we only rehydrate the cached identity.
@@ -33,11 +36,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  // When any authenticated request is rejected with a 401, the token has
+  // expired: clear the session so the route guard returns the user to login,
+  // and flag it so the login screen can explain why.
+  useEffect(() => {
+    api.setUnauthorizedHandler(() => {
+      api.setToken(null);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(MFA_KEY);
+      setUser(null);
+      setMfaEnabled(false);
+      setSessionExpired(true);
+    });
+    return () => api.setUnauthorizedHandler(null);
+  }, []);
+
   const value = useMemo<AuthState>(
     () => ({
       user,
       mfaEnabled,
       loading,
+      sessionExpired,
       async login(email, password, code) {
         const res = await api.login(email, password, code);
         if (res.mfaRequired && !res.token) return { mfaRequired: true };
@@ -46,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(MFA_KEY, String(res.mfaEnabled));
         setUser(res.user ?? null);
         setMfaEnabled(Boolean(res.mfaEnabled));
+        setSessionExpired(false);
         return { mfaRequired: false };
       },
       logout() {
@@ -54,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(MFA_KEY);
         setUser(null);
         setMfaEnabled(false);
+        setSessionExpired(false);
       },
       setMfaEnabled(enabled: boolean) {
         localStorage.setItem(MFA_KEY, String(enabled));
@@ -64,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(next);
       },
     }),
-    [user, mfaEnabled, loading],
+    [user, mfaEnabled, loading, sessionExpired],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
