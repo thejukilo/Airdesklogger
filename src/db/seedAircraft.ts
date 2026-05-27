@@ -31,14 +31,15 @@ const CATEGORIES = new Set(["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"]);
 // every balloon BALL); their model only lives in the register, not icao_types.
 const GENERIC_CODES = new Set(["GLID", "BALL"]);
 
-function resolveBundledCsv(): string {
-  const candidates = [join(here, "..", "data", "aircraftSwiss.csv"), join(process.cwd(), "src", "data", "aircraftSwiss.csv")];
+function resolveBundled(name: string): string {
+  const candidates = [join(here, "..", "data", name), join(process.cwd(), "src", "data", name)];
   return candidates.find((p) => existsSync(p)) ?? candidates[0]!;
 }
 
 function column(header: string[], names: string[]): number {
+  const lower = header.map((h) => h.trim().toLowerCase());
   for (const n of names) {
-    const i = header.indexOf(n);
+    const i = lower.indexOf(n.toLowerCase());
     if (i !== -1) return i;
   }
   return -1;
@@ -76,15 +77,18 @@ export function fromAircraftCsv(text: string): AircraftRecord[] {
   for (const r of rows) {
     const registration = (r[regCol] ?? "").trim().toUpperCase();
     const model = (r[modelCol] ?? "").trim();
-    if (!registration || !model || seen.has(registration)) continue;
+    const type = typeCol === -1 ? "" : (r[typeCol] ?? "").trim();
+    // A blank model is fine when the type is known: the ICAO code stands in and
+    // enrichment fills the real model. Only registration plus some identity is
+    // required.
+    if (!registration || seen.has(registration) || (!model && !type)) continue;
     seen.add(registration);
 
     const rec: AircraftRecord = {
       registration,
-      model,
+      model: model || type,
       category: normalizeCategory(catCol === -1 ? "" : (r[catCol] ?? "")),
     };
-    const type = typeCol === -1 ? "" : (r[typeCol] ?? "").trim();
     if (type) rec.icaoType = type;
     const variant = variantCol === -1 ? "" : (r[variantCol] ?? "").trim();
     if (variant) rec.variant = variant;
@@ -138,8 +142,22 @@ async function loadIcaoModelMap(): Promise<Map<string, IcaoModelInfo>> {
   return map;
 }
 
-/** Bulk-upsert aircraft records, keyed on registration and valid-from date. */
-export async function upsertAircraftBatch(records: AircraftRecord[]): Promise<number> {
+/**
+ * How an existing (registration, valid_from) row is handled: "update" refreshes
+ * it, "skip" keeps it untouched (insert only new registrations).
+ */
+export type ConflictMode = "update" | "skip";
+
+const ON_CONFLICT: Record<ConflictMode, string> = {
+  update: `ON CONFLICT (registration, valid_from) DO UPDATE SET
+             model = EXCLUDED.model, icao_type = EXCLUDED.icao_type, variant = EXCLUDED.variant, category = EXCLUDED.category,
+             engine_type = EXCLUDED.engine_type, engine_count = EXCLUDED.engine_count,
+             multi_pilot = EXCLUDED.multi_pilot, balloon_group = EXCLUDED.balloon_group`,
+  skip: "ON CONFLICT (registration, valid_from) DO NOTHING",
+};
+
+/** Bulk-insert aircraft records, keyed on registration and valid-from date. */
+export async function upsertAircraftBatch(records: AircraftRecord[], onConflict: ConflictMode = "update"): Promise<number> {
   const pool = getPool();
   let written = 0;
   const CHUNK = 1000; // 10 params per row
@@ -165,33 +183,39 @@ export async function upsertAircraftBatch(records: AircraftRecord[]): Promise<nu
         a.validFrom ?? null,
       );
     });
-    await pool.query(
+    const { rowCount } = await pool.query(
       `INSERT INTO aircraft (registration, model, icao_type, variant, category, engine_type, engine_count, multi_pilot, balloon_group, valid_from)
          VALUES ${values.join(",")}
-       ON CONFLICT (registration, valid_from) DO UPDATE SET
-         model = EXCLUDED.model, icao_type = EXCLUDED.icao_type, variant = EXCLUDED.variant, category = EXCLUDED.category,
-         engine_type = EXCLUDED.engine_type, engine_count = EXCLUDED.engine_count,
-         multi_pilot = EXCLUDED.multi_pilot, balloon_group = EXCLUDED.balloon_group`,
+       ${ON_CONFLICT[onConflict]}`,
       params,
     );
-    written += chunk.length;
+    written += rowCount ?? 0;
   }
   return written;
 }
 
-/** Seed the bundled (or given) register, enriching models from icao_types. */
-export async function seedAircraft(csvPath?: string): Promise<number> {
-  const text = readFileSync(csvPath ?? resolveBundledCsv(), "utf8");
+/** Seed a register file (bundled Swiss by default), enriching models from icao_types. */
+export async function seedAircraft(csvPath?: string, onConflict: ConflictMode = "update"): Promise<number> {
+  const text = readFileSync(csvPath ?? resolveBundled("aircraftSwiss.csv"), "utf8");
   const records = enrichFromIcaoTypes(fromAircraftCsv(text), await loadIcaoModelMap());
-  return upsertAircraftBatch(records);
+  return upsertAircraftBatch(records, onConflict);
+}
+
+/** Seed the bundled Europe-wide register, skipping registrations already present. */
+export function seedAircraftEurope(): Promise<number> {
+  return seedAircraft(resolveBundled("aircraftEurope.csv"), "skip");
 }
 
 const isMain = process.argv[1]?.endsWith("seedAircraft.ts") || process.argv[1]?.endsWith("seedAircraft.js");
 if (isMain) {
-  const path = process.argv[2];
-  seedAircraft(path)
+  const args = process.argv.slice(2);
+  const europe = args.includes("--europe");
+  const path = args.find((a) => !a.startsWith("--"));
+  const run = europe ? seedAircraftEurope() : seedAircraft(path);
+  run
     .then((n) => {
-      console.log(`Seeded ${n} aircraft${path ? ` from ${path}` : " (bundled Swiss register)"}.`);
+      const what = europe ? "Europe register, skipping existing" : path ? `from ${path}` : "bundled Swiss register";
+      console.log(`Seeded ${n} aircraft (${what}).`);
       return closePool();
     })
     .catch((err) => {

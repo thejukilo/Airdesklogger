@@ -27,6 +27,16 @@ describe("aircraft CSV import", () => {
     expect(out.find((a) => a.registration === "HB-ZZZ")?.category).toBe("AEROPLANE");
   });
 
+  it("keeps a row with a blank model when the type is known, using the code until enrichment fills it", () => {
+    // Capital-B header and trailing empty columns, like the Europe export.
+    const csv = "registration,model,icao_type,category,Balloon_group,country,,\n01AHA,,WT9,AEROPLANE,,France,,\n";
+    const out = fromAircraftCsv(csv);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ registration: "01AHA", model: "WT9", icaoType: "WT9" });
+    enrichFromIcaoTypes(out, new Map([["WT9", { aircraftModel: "Aerospool WT-9 Dynamic", engineCount: 1 }]]));
+    expect(out[0]?.model).toBe("Aerospool WT-9 Dynamic");
+  });
+
   it("rejects a CSV without the required columns", () => {
     expect(() => fromAircraftCsv("foo,bar\n1,2\n")).toThrow();
   });

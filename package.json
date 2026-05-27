@@ -20,6 +20,7 @@
     "seed:airports": "tsx src/db/seedAirports.ts",
     "seed:icao-types": "tsx src/db/seedIcaoTypes.ts",
     "seed:aircraft": "tsx src/db/seedAircraft.ts",
+    "seed:aircraft-europe": "tsx src/db/seedAircraft.ts --europe",
     "seed:simulators": "tsx src/db/seedSimulators.ts",
     "demo": "tsx src/demo.ts"
   },

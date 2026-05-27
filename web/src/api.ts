@@ -438,6 +438,10 @@ export function adminSeedAircraft(): Promise<{ seeded: number }> {
   return request("/admin/seed-aircraft", { method: "POST" });
 }
 
+export function adminSeedAircraftEurope(): Promise<{ seeded: number }> {
+  return request("/admin/seed-aircraft-europe", { method: "POST" });
+}
+
 export function adminSeedSimulators(): Promise<{ seeded: number }> {
   return request("/admin/seed-simulators", { method: "POST" });
 }

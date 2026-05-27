@@ -177,7 +177,17 @@ function Dashboard() {
             })}
             disabled={busy !== null}
           >
-            {busy === "aircraft" ? "Seeding aircraft..." : "Seed aircraft register"}
+            {busy === "aircraft" ? "Seeding aircraft..." : "Seed aircraft register (CH)"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => run("aircraft-eu", async () => {
+              const r = await api.adminSeedAircraftEurope();
+              return `Added ${r.seeded} new aircraft from the Europe register.`;
+            })}
+            disabled={busy !== null}
+          >
+            {busy === "aircraft-eu" ? "Seeding Europe..." : "Seed aircraft register (Europe)"}
           </Button>
           <Button
             variant="ghost"
