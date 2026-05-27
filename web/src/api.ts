@@ -410,6 +410,10 @@ export function adminSeedIcaoTypes(): Promise<{ seeded: number }> {
   return request("/admin/seed-icao-types", { method: "POST" });
 }
 
+export function adminSeedSimulators(): Promise<{ seeded: number }> {
+  return request("/admin/seed-simulators", { method: "POST" });
+}
+
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
   const res = await fetch("/api/export/logbook", {

@@ -169,6 +169,16 @@ function Dashboard() {
           >
             {busy === "icao-types" ? "Seeding aircraft types..." : "Seed aircraft types"}
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => run("simulators", async () => {
+              const r = await api.adminSeedSimulators();
+              return `Seeded ${r.seeded} simulators.`;
+            })}
+            disabled={busy !== null}
+          >
+            {busy === "simulators" ? "Seeding simulators..." : "Seed simulators"}
+          </Button>
         </div>
       </Card>
     </div>

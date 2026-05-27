@@ -261,3 +261,105 @@ export async function fstdDeviceExists(qualificationNumber: string): Promise<boo
   );
   return rows.length > 0;
 }
+
+export interface Simulator {
+  id?: string | undefined;
+  easaCode: string;
+  serialNumber?: string | null | undefined;
+  aircraftType?: string | null | undefined;
+  qualification?: string | null | undefined;
+  evalType?: string | null | undefined;
+  aircraftManufacturer?: string | null | undefined;
+  simManufacturer?: string | null | undefined;
+  location?: string | null | undefined;
+}
+
+function mapSimulatorRow(r: Record<string, unknown>): Simulator {
+  return {
+    id: r.id as string,
+    easaCode: r.easa_code as string,
+    serialNumber: (r.serial_number as string) ?? null,
+    aircraftType: (r.aircraft_type as string) ?? null,
+    qualification: (r.qualification as string) ?? null,
+    evalType: (r.eval_type as string) ?? null,
+    aircraftManufacturer: (r.aircraft_manufacturer as string) ?? null,
+    simManufacturer: (r.sim_manufacturer as string) ?? null,
+    location: (r.location as string) ?? null,
+  };
+}
+
+/** Autocomplete simulators by EASA code or serial number. */
+export async function searchSimulators(query: string, limit = 20): Promise<Simulator[]> {
+  const { rows } = await getPool().query(
+    `SELECT * FROM simulators
+       WHERE easa_code ILIKE $1 OR serial_number ILIKE $1
+       ORDER BY easa_code LIMIT $2`,
+    [`%${query}%`, limit],
+  );
+  return rows.map(mapSimulatorRow);
+}
+
+/** Add a single simulator (the "not found, add it" path), returning its id. */
+export async function addSimulator(s: Simulator): Promise<string> {
+  const { rows } = await getPool().query(
+    `INSERT INTO simulators
+       (easa_code, serial_number, aircraft_type, qualification, eval_type, aircraft_manufacturer, sim_manufacturer, location)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+    [
+      s.easaCode,
+      s.serialNumber ?? null,
+      s.aircraftType ?? null,
+      s.qualification ?? null,
+      s.evalType ?? null,
+      s.aircraftManufacturer ?? null,
+      s.simManufacturer ?? null,
+      s.location ?? null,
+    ],
+  );
+  return rows[0].id as string;
+}
+
+function insertSimulators(
+  query: (text: string, params: unknown[]) => Promise<unknown>,
+  sims: Simulator[],
+): Promise<unknown[]> {
+  const CHUNK = 1000; // 8 params per row
+  const batches: Promise<unknown>[] = [];
+  for (let i = 0; i < sims.length; i += CHUNK) {
+    const chunk = sims.slice(i, i + CHUNK);
+    const values: string[] = [];
+    const params: unknown[] = [];
+    chunk.forEach((s, j) => {
+      const b = j * 8;
+      values.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8})`);
+      params.push(
+        s.easaCode,
+        s.serialNumber ?? null,
+        s.aircraftType ?? null,
+        s.qualification ?? null,
+        s.evalType ?? null,
+        s.aircraftManufacturer ?? null,
+        s.simManufacturer ?? null,
+        s.location ?? null,
+      );
+    });
+    batches.push(
+      query(
+        `INSERT INTO simulators
+           (easa_code, serial_number, aircraft_type, qualification, eval_type, aircraft_manufacturer, sim_manufacturer, location)
+         VALUES ${values.join(",")}`,
+        params,
+      ),
+    );
+  }
+  return Promise.all(batches);
+}
+
+/** Replace the entire simulator table with the given set, atomically (the seed). */
+export async function replaceSimulators(sims: Simulator[]): Promise<number> {
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM simulators");
+    await insertSimulators((text, params) => client.query(text, params), sims);
+  });
+  return sims.length;
+}

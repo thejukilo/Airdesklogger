@@ -1,0 +1,886 @@
+easa_code,serial_number,eval_type,aircraft_man,aircraft_type,sim_man,qualification,location
+AT - 3A- 1031,SN-FFT-2114,R,Not Applicable,B777-300ER,Thomson Training & Simulation,D,Paris CDG
+AT - FFS - 1112,2TE3-787,R,Embraer,A330-200,CAE,D,Paris CDG
+AT - FFS - 1154,FFS-ATR-09,R,ATR,A220-300 + variants,CAE,D,Paris CDG
+AT - FFS - 1185,117769 – 1756,R,Airbus,AW139,CAE,D,Sesto Celende (VA)
+AT - FNPT - 1002,AS-AT-FTC-OG-B2,R,ATR,Not Applicable,ENTROL,Type II MCC,Rieti
+AT - FNPT - 1003,SN-FFT-2114,R,Not Applicable,Generic Multi Engine Piston,Alsim,2,Roma Urbe
+AT - FNPT - 1006,83-60089-C-3EX,S,Not Applicable,Not Applicable + variants,Alsim,2,Roma Urbe
+AT - FNPT - 1020,D-SIM-DA42-NG-8,R,Not Applicable,Not Applicable + variants,Alsim,Type II,Roma Urbe
+AT - FNPT - 1022,SimID 14-60022-,R,Not Applicable,Generic Single Engine Piston + variants,Alsim,2,Malpensa (LIMC)
+AT - FNPT - 1030,83-60089-C-3EX,R,Not Applicable,Generic Multi Engine Piston,Alsim,Type II,Malpensa airport
+AT - FNPT - 1033,D-SIM-DA42-NG-8,R,Not Applicable,Generic Multi Engine Piston,Alsim,Type II,Malpensa airport
+AT - FNPT - 1047,SIM ID 144-6014,R,Not Applicable,AW169,CAE,D,Sesto Calende
+AT - FNPT - 1066,S/N: ALX 11-2,R,Not Applicable,Not Applicable,ENTROL,Type II MCC,Rieti
+AT - FNPT - 1070,31-60039-C-3EX,R,Not Applicable,A 109 E,CAE,D,Sesto Celende (VA)
+AT - FNPT - 1102,SIM ID S923/101,R,ATR,EC 135 T + variants,ENTROL,2,Angoulême Airport
+AT - FNPT - 1105,S923/101-60101-,R,Not Applicable,B787-9,L3 CTS Ltd,D,Paris CDG
+AT - FNPT - 1416,DSIM-CONVNG-005,R,Not Applicable,A320-200,Thomson Training & Simulation,D,Toulouse Airport
+AT - FNPT - 1438,2311022,I,Not Applicable,A320-200,Thales Training and Simulation,D,Toulouse Airport
+AT - FNPT - 1442,2511011,I,Not Applicable,A320-200 + variants,CAE,D,Paris CDG
+AT-1A-1041,2RYA-641,R,Airbus,B777-300ER,L3 CTS Ltd,1,Roissy
+AT-FFS-1042,CAE SN2-WAN-763,R,De Havilland - Canada,A320-200,Thales Training and Simulation,D,Toulouse Airport
+AT-FFS-1060,FFS-XLS-02,R,Cessna,A320-200 + variants,CAE,D,Paris CDG
+AT-FFS-1080,FFS-ATR-03,R,ATR,AW189 + variants,CAE,D,Sesto Calende
+AT-FFS-1088,FFS-ATR-03,R,ATR,AS 365 N 2,Thales Training and Simulation,D,Marseille Airport
+AT-FFS-1163,FFS-CJ1Plus-11,R,Cessna,42-500,Thomson Training & Simulation,DG,Toulouse Airport
+AT-FFS-1372,127 586,R,Airbus,B777-300ER,Thales Training and Simulation,D,Paris CDG
+AT-FFS-1411,FFS-CL350-16,R,Bombardier,72-200,Thomson Training & Simulation,CG,Toulouse Airport
+AT-FFS-1417,131300,R,Boeing,AS 365 N 3 + variants,Thales Training and Simulation,B,Angoulême Airport
+AT-FFS-1440,80179,S,Airbus Helicopters,AS 365 N 3 + variants,Thales Training and Simulation,B,Angoulême Airport
+AT-FFS-1441,80170,I,Airbus Helicopters,AS 365 N 3,Thales Training and Simulation,3,Angoulême Airport
+AT-FNPT-1119,ALX 38,R,Not Applicable,AS 365 N 3,Thales Training and Simulation,3,Angoulême Airport
+AT-FNPT-1120,ALX 38,R,Not Applicable,EMB 170 + variants,FSI,D,Paris Le Bourget Airport
+AT-FNPT-1221,136-60134-M-1EX,R,Not Applicable,A320-200 + variants,AMST-Aviation,D,Morlaix Airport
+AT-FNPT-1240,L2830,R,Not Applicable,A320-200,AMST-Aviation,D,Morlaix Airport
+AT-FNPT-1255,ALX 11-4,R,ATR,Falcon 900 + variants,FSI,Special Category,Paris Le Bourget Airport
+AT-FNPT-1280,AL200/A2M29,R,Cessna,S-64F,ENTROL,2,Rieti airport
+AT-FNPT-1288,Reiser 129441,R,Not Applicable,HA160-B,Thales Training and Simulation,D,Marseille Airport
+AT-FNPT-1292,23-60031-C-3EX,I,ELITE,Falcon 7x + variants,FSI,D,Paris Le Bourget Airport
+AT-FNPT-1293,DA42-002,R,Not Applicable,B777-300ER,Thales Training and Simulation,D,Paris CDG
+AT-FNPT-1294,DA42-002,R,Not Applicable,72 - 600 + variants,CAE,D,Toulouse Airport
+AT-FNPT-1367,FFT 2025,R,Cessna,Pilatus PC 24,FSI,D,Le Bourget Airport
+AT-FNPT-1405,MSN 003,R,Not Applicable,A220-300 + variants,CAE,D,Roissy CDG
+AT-FNPT-1418,DSIM-DA42NG-005,R,Not Applicable,Generic Multi Engine Piston + variants,Diamond Aircraft Industries GmbH.,Type II,Rostock-Laage
+AT-FNPT-1443,2511011,I,Not Applicable,Generic Single Engine Piston,Alsim,Type II,Liebenscheid
+AT-FTD-1239,L2830,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Liebenscheid
+AT-FTD-1287,Reiser 129441,R,Airbus Helicopters,AW139,CAE,D,Sesto Celende (VA)
+AT-FTD-1366,FFT 2025,R,Cessna,A400M + variants,Thales Training and Simulation,D,Wunstorf
+AT-FTD-1407,2024-001,R,Airbus Helicopters,Generic Single Engine Piston,Diamond Aircraft Industries GmbH.,Type II,Egelsbach
+B-004,XXXX,R,Boeing,Generic Single Engine Piston,Diamond Aircraft Industries GmbH.,Type II,Egelsbach
+BE-001,50237,R,British Aerospace/AVRO,Generic Single Engine Piston,Alsim,Type II,Egelsbach
+BE-002,0,R,Lockheed,228 + variants,Euramec N.V.,2,Oberpfaffenhofen
+BE-005,UAL N552 UA,R,Boeing,Generic Multi Engine Piston + variants,Diamond Aircraft Industries GmbH.,Type II,Rostock-Laage
+BE-006/GE,VS 095,R,Boeing,A400M + variants,Thales Training and Simulation,1,Wunstorf
+BE-006/PW,VS 095,R,Boeing,A400M + variants,Thales Training and Simulation,D,Wunstorf
+BE-008,46 658 027,R,Airbus,EMB190,CAE,D,Frankfurt
+BE-009/GE,46 658 027,R,Airbus,Generic Multi Engine Piston,Frasca Internatinal Inc.,Type II,Essen
+BE-009/PW,46 658 027,R,Airbus,A220-300 + variants,CAE,1,Roissy CDG
+BE-010,3,R,Airbus,A320-200,MULTI PILOT SIMULATIONS,1,Essen
+BE-011,2H63504899,R,Boeing,Falcon 7x,FSI,D,Paris Le Bourget
+BE-012,2H63504899,R,Boeing,Generic Single Engine Piston,Alsim,Type II,Egelsbach
+BE-014,Rediffusion 006,R,Dornier,Generic Single Engine Piston,Diamond Aircraft Industries GmbH.,Type II,Egelsbach
+BE-015,2-RE 6-440,R,ATR,Generic Single Engine Piston,Diamond Aircraft Industries GmbH.,Type II,Egelsbach
+BE-016,2RE 6-440,R,ATR,B777-300ER,Thales Training and Simulation,D,Paris CDG
+BE-018,2WAP,R,Boeing,Generic Multi Engine Piston,ENTROL,Type II,Worms
+BE-019/CFM,2WB1,R,Airbus,A320-200,CAE,D,Essen
+BE-019/IAE,2WB1,R,Airbus,A350-900,CAE,2,München
+BE-021/PW,2TJF-1009/2011,I,Airbus,Generic Multi Engine Piston + variants,Diamond Aircraft Industries GmbH.,Type II,Rostock-Laage
+BE-021/RR,2TJF-1009/2011,I,Airbus,A220-300,CAE,D,Roissy CDG
+BE-FNPT 001A,Generic SEP(A) close to Beech A36,,,DC9 80 + variants,Rediffusion,CG,Paris CDG
+BE-FNPT 001B,Generic MEP(A) close to Beech 58,,,Generic Multi Engine Piston,Mechtronix,Type II,Essen
+BE-FNPT 003A,Generic SEP(A) representative of C182,,,B777-300ER,Thales Training and Simulation,D,Paris CDG
+BE-FNPT 007,Generic MEP(A) close to DA42,,,A220-300,CAE,D,Roissy CDG
+BE-FNPT 008,Generic MEP(A) close to DA42,,,B747-400,CAE,DG,Frankfurt
+BE-FNPT 009,Generic MEP(H) close to AS365N3,,,Generic Multi Engine Piston + variants,Diamond Aircraft Industries GmbH.,Type II,Rostock-Laage
+BE-FNPT 013,Generic SEP(A) close to PA28,,,A350-900,CAE,2,München
+BE-FNPT 014,Generic SEP(A) close to C172,,,A320-200,CAE,D,Essen
+BE-FNPT 016,Generic MEP(A) close to DA42,,,Generic Multi Engine Piston,ENTROL,Type II,Worms
+BE-FNPT 017,Generic MEP(A) close to DA42,,,Generic Multi Engine Turbine + variants,Multi Pilot Simulations BV,Type II MCC,Dublin
+BE-FNPT 019,Generic MEP(A) representative of DA42NG,,,B737-800 + variants,Multi Pilot Simulations BV,2,Dublin
+BE-FNPT 020,Generic SEP(A) representative of C172,,,Generic Multi Engine Jet,Frasca Internatinal Inc.,Type II MCC,Pori
+BE-FNPT 021,Generic MEP(A) representative of PA44,,,EMB-500,Frasca Internatinal Inc.,2,Pori
+BE-FNPT 022,Generic JET representative of A320,,,Generic Multi Engine Jet,Frasca Internatinal Inc.,Type II MCC,Pori
+BE-FNPT 023,Generic SEP(A) Close to SR22,,,Falcon 20 + variants,FSI,Special Category,Paris Le Bourget Airport
+BE-FNPT 024,Generic MEP(A) representative DA4,,,Generic Multi Engine Jet,SIM Industries,Type II MCC,Essen
+BE-FNPT 028,Generic Multi EngineTurbo Fan Aeroplane,,,EMB190 + variants,CAE,D,Amsterdam
+BE-FNPT 029,Generic close to A320,,,C510 (Citation Mustang),Frasca Internatinal Inc.,2,"Grenoble airport, France"
+BE-FNPT 031,Generic MEP(A) close to DA42,,,AS 350 B 3 + variants,Thales Training and Simulation,3,Albertville
+BE-FNPT 032,Generic SEP(A) close to C172,,,AS 350 B 3 + variants,Thales Training and Simulation,B,Albertville
+BE-FNPT 033,Generic SEP(A) (representative of DA40),,,EC 135 T + variants,Thales Training and Simulation,3,Albertville
+BE-FNPT 034,Generic MEP(A) (representative of DA42-VI),,,EC 135 T + variants,Thales Training and Simulation,B,Albertville
+BE-FNPT 035,Generic MEP(A) close to DA42,,,EMB-500,Frasca Internatinal Inc.,2,Pori
+BW-1A-101,T7697,R,Airbus,Falcon 2000,FSI,D,Paris Le Bourget
+BW-1A-101,T7697,R,Airbus,Falcon 20 + variants,FSI,CG,Paris Le Bourget Airport
+BW-1A-102,100007800,S,Airbus,Falcon 20 + variants,FSI,CG,Paris Le Bourget Airport
+BW-1H-501,8253,R,Eurocopter,AS 332 L1 + variants,Frasca Internatinal Inc.,2,Fuhlendorf
+BW-1H-502,8262,R,Eurocopter,EC 135 + variants,Frasca Internatinal Inc.,Type III MCC,Sankt Augustin
+BW-1H-504,8254,R,Eurocopter,EC 135 T + variants,Frasca Internatinal Inc.,MCC,Sankt Augustin
+BW-1H-505,8561,R,Eurocopter,EC 155 + variants,Frasca Internatinal Inc.,2,Sankt Augustin
+BW-1H-506,8263,R,Eurocopter,EC 155 + variants,Frasca Internatinal Inc.,Type III MCC,Sankt Augustin
+BW-2A-101,T7471,R,Airbus,A350-900,CAE,D,Tremblay en France
+BW-2A-101,T7471,S,Airbus,A320-200,CAE,D,Berlin
+CH-123,CAE-2NF7,R,Airbus,AT-802 + variants,ENTROL,2,"Cargolux Airlines International S.A. 70, rue de Luxembourg L-5230 SANDWEILER"
+CH-123,CAE-2NF7,R,Airbus,A320-200,Thales Training and Simulation,D,München
+CH-123,CAE-2NF7,R,Airbus,AS 365N2 + variants,Thomson Training & Simulation,D,Marseille Airport
+CH-123,CAE-2NF7,R,Airbus,B747-800 + variants,CAE,D,Frankfurt/Main
+CH-123,CAE-2NF7,R,Airbus,A320-200,CAE,D,Berlin
+CH-130,18022,R,Embraer,Generic Multi Engine Piston + variants,Diamond Simulation GmbH & Co KG,Type II,Helsinki-Vantaa airport
+CH-130,18022,R,Embraer,EMB 145 Regional Jet,CAE,D,Berlin
+CH-130,18022,R,Embraer,EC 135 P + variants,INDRA,B,Weßling
+CH-130,18022,R,Embraer,BK 117D-3,Reiser Simulation and Training,D,Weßling
+CH-130,18022,R,Embraer,Not Applicable,Alsim,Type II MCC,Catania
+CH-131,CAE-2T4Z-117908,R,Airbus,Generic Multi Engine Jet,Alsim,Type II MCC,Catania
+CH-131,CAE-2T4Z-117908,R,Airbus,Generic Multi Engine Piston,Mechtronix,Type II,Salzburg
+CH-131,CAE-2T4Z-117908,R,Airbus,Generic Multi Engine Turbine,Mechtronix,Type II MCC,Salzburg
+CH-131,CAE-2T4Z-117908,R,Airbus,Not Applicable,Aerotask GmbH,Type II MCC,Wiener Neustadt
+CH-131,CAE-2T4Z-117908,R,Airbus,C525 + variants,Mechtronix,2,Neusiedl am See
+CH-161,1001,R,Eurocopter,C525 + variants,Mechtronix,Type II MCC,Neusiedl am See
+CH-161,1001,R,Eurocopter,A350-900,CAE,D,Helsinki-Vantaa airport
+CH-161,1001,R,Eurocopter,B737-800,CAE,D,Schiphol-Oost
+CH-161,1001,R,Eurocopter,ATR 72 + variants,Mechtronix,D,Vantaa
+CH-161,1001,R,Eurocopter,ATR 72 + variants,Mechtronix,D,Vantaa
+CH-162,1001-46 965 741,R,Airbus Helicopters,B737-800,CAE,D,Schiphol-Oost
+CH-162,1001-46 965 741,R,Airbus Helicopters,A350-900,CAE,D,Paris CDG
+CH-162,1001-46 965 741,R,Airbus Helicopters,B737-800,Thales Training and Simulation,D,Berlin
+CH-162,1001-46 965 741,R,Airbus Helicopters,A340-300,CAE,D,Frankfurt/Main
+CH-162,1001-46 965 741,R,Airbus Helicopters,Pilatus PC 24,FSI,D,Le Bourget Airport
+CH-163,001,R,Agusta Westland,B737-800,Thales Training and Simulation,D,Berlin
+CH-163,001,R,Agusta Westland,Generic Multi Engine Piston,Alsim,Type II,Bremen
+CH-163,001,R,Agusta Westland,Generic Multi Engine Piston + variants,Alsim,Type II,Bremen
+CH-163,001,R,Agusta Westland,42-300,Thomson Training & Simulation,C,Toulouse Airport
+CH-163,001,R,Agusta Westland,72-500 + variants,Thomson Training & Simulation,D,Toulouse
+CH-213,15798-001,I,Pilatus,B737-300,CAE,D,Berlin
+CH-213,15798-001,I,Pilatus,C525 + variants,Mechtronix,2,Bremen
+CH-213,15798-001,I,Pilatus,C525 + variants,Mechtronix,Type II MCC,Bremen
+CH-213,15798-001,I,Pilatus,B737-300,CAE,DG,Paris CDG
+CH-213,15798-001,I,Pilatus,EC 135 + variants,Frasca Internatinal Inc.,Type III MCC,Sankt Augustin
+CH-345,DSIM-DA42NG-003,R,Not Applicable,AS 332 L1,Frasca Internatinal Inc.,Type III MCC,Sankt Augustin
+CH-345,DSIM-DA42NG-003,R,Not Applicable,AS 332 L1,Frasca Internatinal Inc.,2,Sankt Augustin
+CH-345,DSIM-DA42NG-003,R,Not Applicable,EC 135 T + variants,Frasca Internatinal Inc.,2,Sankt Augustin
+CH-345,DSIM-DA42NG-003,R,Not Applicable,B737-800,CAE,D,Schiphol-Oost
+CH-345,DSIM-DA42NG-003,R,Not Applicable,Generic Multi Engine Turbine,ENTROL,Type II MCC,Strausberg
+CH-346,15798-001,I,Pilatus,C525 + variants,Mechtronix,Type II MCC,Dortmund
+CH-346,15798-001,I,Pilatus,C525 + variants,Mechtronix,Interim level C,Dormtund
+CH-346,15798-001,I,Pilatus,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Mönchengladbach
+CH-346,15798-001,I,Pilatus,C510 (Citation Mustang),FSI,D,Roma
+CH-346,15798-001,I,Pilatus,B737-800 + variants,Rockwell Collins,D,Malpensa
+DE-1A-001,T3098,R,Boeing,Not Applicable + variants,Alsim,2,Aeroporto Roma Urbe
+DE-1A-007,CAE # 017,R,Boeing,Not Applicable + variants,Alsim,2,Aeroporto Roma Urbe
+DE-1A-014,2LB2.50.4.899,R,Airbus,Not Applicable + variants,Alsim,MCC,Aeroporto Roma Urbe
+DE-1A-021,2LF1.01.2.899,R,Canadair,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Vienna
+DE-1A-023,S/N 007,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Salzburg
+DE-1A-024,2L81.50.4.899,R,Airbus,Generic Multi Engine Turbine,Alsim,Type II MCC,Salzburg
+DE-1A-025,94FZ09D,R,Dornier,Not Applicable + variants,ENTROL,MCC,Lugo
+DE-1A-030,T2790,R,Boeing,CL415,TRU Simulation,D,Malpensa (LIMC)
+DE-1A-034,2NV2-279,R,Airbus,Not Applicable + variants,Diamond Simulation GmbH & Co KG,Type II,Wiener Neustadt
+DE-1A-035,CAE 2R49-331,R,Boeing,Not Applicable + variants,6MOUV,1,Hörsching
+DE-1A-039,56614825-040,R,Boeing,A320-200,SIM Industries,D,Paris CDG
+DE-1A-040,CAE 2RL5-394,R,Airbus,Bell 412 EP,ENTROL,3,Kirchanschöring
+DE-1A-046,61131344-040,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Jesenwang
+DE-1A-047,2RGH-465,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Jesenwang
+DE-1A-048,T3939,R,Boeing,A330-200 + variants,CAE,D,Toulouse
+DE-1A-049,T4253,R,Boeing,A330-200 + variants,CAE,D,Toulouse
+DE-1A-051,CAE 123 724,R,Airbus,A330-200 + variants,CAE,D,Toulouse
+DE-1A-066,CAE 2W10-715,R,Airbus,228,SIMTEC,Special Category,Braunschweig
+DE-1A-069,2WAV,R,Airbus,AS 332 L 1 + variants,Thales Training and Simulation,D,Marseille Airport
+DE-1A-075,CAE S/N 2T93,R,Boeing,A320-200,FAROS,1,Essen
+DE-1A-078,CAE 2TF8,R,Airbus,AS 332 L 2 + variants,Thales Training and Simulation,D,Marseille Airport
+DE-1A-079,CAE 2TF8,S,Airbus,F100 + variants,FSI,CG,Dinard Airport
+DE-1A-083,5,R,Bombardier,A320-200,SIM Industries,D,Paris CDG
+DE-1A-085,T4912,R,Airbus,EC 135 T + variants,CAE Elektronik GmbH,A,Bueckeburg
+DE-1A-087,2WB5,R,Airbus,EC 135 T + variants,CAE Elektronik GmbH,A,Bueckeburg
+DE-1A-091,S/N 2THP-1050,R,Airbus,EC 135 T + variants,CAE Elektronik GmbH,A,Bueckeburg
+DE-1A-092,2TFJ,R,Boeing,C525 + variants,Mechtronix,Type II MCC,Essen
+DE-1A-093,2THX-1103,R,Embraer,B787-9,Thales Training and Simulation,D,Schiphol-Oost
+DE-1A-094,SIM SBV 13/19,R,Boeing,C525 + variants,Mechtronix,2,Essen
+DE-1A-096,2T4M,R,Airbus,C525 + variants,Mechtronix,2,Essen
+DE-1A-097,2395,R,Cessna,C525 + variants,Mechtronix,Type II MCC,Essen
+DE-1A-098,2TY3,R,Bombardier,Generic Single Engine Piston,Alsim,Type II,Jesenwang
+DE-1A-101,SN-00002504,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Jesenwang
+DE-1A-102,CAE S/N 113567,R,Airbus,Bell 412 EP,ENTROL,3,Kirchanschöring
+DE-1A-103,CAE 112529,R,Airbus,A350-900,CAE,1,Roissy CDG
+DE-1A-103,CAE 112529,R,Airbus,A320-200 + variants,CAE,D,Frankfurt/Main
+DE-1A-108,6,R,Dornier,A320-200 + variants,Sim International B.V.,D,Vagar Airport
+DE-1A-109,2TY3,R,Airbus,A320-200,CAE,D,Frankfurt/Main
+DE-1A-110,S/0078,S,Airbus,A320-200 + variants,Sim International B.V.,D,Vagar Airport
+DE-1A-111,2RN8,R,Dornier,B787-9,L3Harris,2,Frankfurt/Main
+DE-1A-112,2WAB-899,R,Beech,A350-900,CAE,D,Neufahrn
+DE-1A-113,S/0091,R,Boeing,AS 332 L 2 + variants,Thales Training and Simulation,D,Marseille Airport
+DE-1A-115,S/N 2RS4-428,R,Embraer,EC-225LP,Thales Training and Simulation,3,Marseille Airport
+DE-1A-116,S/N: L3130,R,Boeing,EC-225LP,Thales Training and Simulation,D,Marseille Airport
+DE-1A-117,CAE S/N: 12,R,Boeing,Generic Single Engine Piston,Mechtronix,Type II,Mülheim
+DE-1A-118,S234102,R,Boeing,Generic Multi Engine Piston,Mechtronix,Type II,Mülheim
+DE-1A-119,129367,R,Airbus,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Uetersen
+DE-1A-122,134115,I,Airbus,C525 + variants,TRU Simulation,D,Dortmund
+DE-1H-005,EC135 FTD-002,R,Eurocopter,A320-200,6MOUV,D,Schiphol
+DE-1H-009,Bkk117-D2FF-001,S,Airbus Helicopters,AS 350 B3e + variants,TRU Simulation,D,Helsinki-Vantaa airport
+DE-1H-010,65940,R,Airbus Helicopters,Not Applicable + variants,ENTROL,Type II MCC,Rome
+DE-1H-011,107257/105367,R,Airbus Helicopters,EC 135 + variants,ENTROL,3,Verona
+DE-1H-012,107257/105979,R,Airbus Helicopters,AS 350 B3e,ENTROL,3,Verona
+DE-1H-014,S/N: 001,S,Airbus Helicopters,Not Applicable + variants,Alsim,MCC,Perugia (PG)
+DE-2A-002,7,R,Airbus,Not Applicable + variants,Alsim,2,Perugia (PG)
+DE-2A-006,S/N 118425,R,Airbus,Not Applicable + variants,Alsim,2,Perugia
+DE-2A-007,S/0117 (L3062),R,Boeing,B737-800 + variants,CAE,D,Bergamo
+DE-2A-009,S/N: 131506,R,Airbus,A320-200 + variants,L3Harris,Type II,Schwechat
+DE-2A-009,S/N: 131506,R,Airbus,Generic Multi Engine Turbine,L3Harris,Type II MCC,Schwechat
+DE-2A-093,SN-FFT-2122,R,Cessna,B787-9,CAE,D,Schwechat
+DE-2A-094,SN-FFT-2123,S,Cessna,Generic Multi Engine Piston,Alsim,Type II,Linz
+DE-2A-096,S/N SN-FFT-2126,R,Cessna,B777-300ER,Thales Training and Simulation,D,Schiphol-Oost
+DE-2A-105,SN-FFT-2197,R,Cessna,Generic Multi Engine Piston,Frasca Internatinal Inc.,Type II,Pori
+DE-2A-117,MPS-A207,R,Airbus,Generic Multi Engine Piston,Frasca Internatinal Inc.,Type II,Pori
+DE-2A-134,EUGAD228212NG,R,Dornier,DA 42 + variants,Frasca Internatinal Inc.,2,Pori
+DE-2H-001,121,I,Bell Helicopters,DA 42 + variants,Frasca Internatinal Inc.,2,Pori
+DE-2H-001,121,I,Bell Helicopters,PA 44 Seminole,Mechtronix,Type II,Mönchengladbach
+DE-2H-005,S/N 7872-001,R,Eurocopter,Not Applicable + variants,Alsim,Type II,Mönchengladbach
+DE-2H-009,10229-001,R,Eurocopter,ERJ 190-300  E2,FSI,D,Paris Le Bourget
+DE-2H-011,10230-001,R,Airbus Helicopters,A320-200,CAE,D,Frankfurt
+DE-2H-012,Frasca S/N 1369,R,Eurocopter,EMB190 + variants,FSI,D,Le Bourget Airport
+DE-2H-013,15364-001,R,Airbus Helicopters,A350-900,L3 CTS Ltd,D,München
+DE-3A-016,TFC 005/006,R,Not Applicable,B777-300ER,CAE,D,Berlin
+DE-3A-065B,15-60023-C-3EX,R,Not Applicable,A330-200,Sim International B.V.,D,Helsinki airport
+DE-3A-068,S821 10-60014,R,Not Applicable,A340-600,CAE,D,Frankfurt
+DE-3A-073,24-60030-S-3EX,R,Not Applicable,A330-300,CAE,D,München
+DE-3A-074,SN-FFT-2062,R,Not Applicable,A350-900,TRU Simulation,D,München
+DE-3A-076A,SN-FT-2057,R,Not Applicable,Not Applicable + variants,ELITE Simulation Solutions AG,Type II,Kyritz
+DE-3A-076B,SN-FT-2057,R,Not Applicable,Not Applicable + variants,ELITE Simulation Solutions AG,Type II MCC,Kyritz
+DE-3A-080A,4160049C3EX,R,Not Applicable,72 - 600,TRU Simulation,D,Paris CDG
+DE-3A-080B,4160049C3EX,R,Not Applicable,A320-200,CSS (China Simulation Sciences),D,"Tremblay en France, France"
+DE-3A-083,FFT-2089,R,Piper,A320-200 + variants,CSS (China Simulation Sciences),D,"Tremblay en France, France"
+DE-3A-089,SN-FFT-2087,S,Not Applicable,Generic Multi Engine Turbine,ENTROL,Type II MCC,Egelsbach
+DE-3A-093,SN-FFT-2122,R,Cessna,A400M + variants,Thales Training and Simulation,D,Wunstorf
+DE-3A-094,SN-FFT-2123,S,Cessna,King Air B200,CAE,D,Bocholt
+DE-3A-096,S/N SN-FFT-2126,S,Cessna,P180 + variants,ENTROL,2,"Grenoble Isère Airport, France"
+DE-3A-101A,FFT-2127,R,Not Applicable,Generic Multi Engine Turbine + variants,ENTROL,Type II MCC,Turin (LIMF)
+DE-3A-103,121-60120-S-1EX,S,Not Applicable,Not Applicable + variants,ENTROL,Type II,Turin (LIMF)
+DE-3A-105,SN-FFT-2197,R,Cessna,Not Applicable + variants,ENTROL,Type II,Turin (LIMF)
+DE-3A-106,S/N 8126-001,R,Not Applicable,Generic Multi Engine Piston,Diamond Simulation GmbH & Co KG,Type II,Aeroporto Bologna
+DE-3A-108,A11-001,R,Not Applicable,A320-200,CAE,D,Schwechat
+DE-3A-111,6,R,Not Applicable,Not Applicable,Alsim,Type II MCC,Wels
+DE-3A-112,S923/76-60085-C,R,Not Applicable,Citation II + variants,Alsim,Type II MCC,Wals
+DE-3A-117,MPS-A207,R,Airbus,C525,AXIS Flight Training Systems GmbH,D,Neusiedl am See
+DE-3A-119B,S/N25460239S1EX,R,Not Applicable,Generic Multi Engine Turbine + variants,Mechtronix,Type II MCC,Airport Zilina (LZZI)
+DE-3A-120,SIMDA42NG005E17,R,Not Applicable,Generic Multi Engine Piston + variants,Mechtronix,Type II,Airport Zilina (LZZI)
+DE-3A-120,SIMDA42NG005E17,R,Not Applicable,AW139,Leonardo Spa Helicopter,3,Pratica di Mare
+DE-3A-121,SIMDA42NG006E17,R,Not Applicable,ATR 72 + variants,AXIS Flight Training Systems GmbH,2,Pratica di Mare
+DE-3A-123,264-60249-C-3EX,R,ELITE,B737-800 + variants,CAE,D,Dublin
+DE-3A-124,264-60249-C-3EX,R,ELITE,Generic Multi Engine Turbine + variants,Multi Pilot Simulations BV,Type II MCC,Dublin
+DE-3A-125,S/N MSN0001,R,Not Applicable,B737-800 + variants,Multi Pilot Simulations BV,1,Dublin
+DE-3A-127,DSIM-CONVNG-003,R,Not Applicable,A320-200,CAE,D,Dublin
+DE-3A-127,DSIM-CONVNG-003,R,Not Applicable,B737-800 + variants,CAE,D,Krakow
+DE-3A-128,DSIM-CONVNG-003,R,Not Applicable,B737-800 + variants,CAE,D,Krakow
+DE-3A-128,DSIM-CONVNG-003,R,Not Applicable,Generic Multi Engine Piston + variants,ENTROL,Type II,"Luqa, Malta"
+DE-3A-129,S/N AL20-07,R,Not Applicable,DHC8-400,CAE,D,Schwechat
+DE-3A-129,S/N AL20-07,R,Not Applicable,Generic Single Engine Piston,"ASG, Belgium",Type II,Wels
+DE-3A-131A,A250-77,R,Not Applicable,Generic Multi Engine Piston,Diamond Simulation GmbH & Co KG,Type II,Feldkirchen
+DE-3A-131A,A250-77,R,Not Applicable,EC 135 P + variants,Frasca Internatinal Inc.,3,Pori
+DE-3A-131B,A250-77,R,Not Applicable,A350-900 + variants,CAE,D,Paris CDG
+DE-3A-131B,A250-77,R,Not Applicable,Beluga + variants,CAE,D,Frankfurt/Main
+DE-3A-133,S/N 2212015,R,Not Applicable,A310-300,CAE,Special Category,Toulouse Airport
+DE-3A-134,GA-D228-212NG,I,Not Applicable,A310-300,CAE,Special Category,Toulouse Airport
+DE-3A-135,Alsim A250-90,R,Not Applicable,A300-F4 600 + variants,CAE,Special Category,Toulouse Airport
+DE-3A-140,SN108,R,Not Applicable,ERJ 190-300  E2,CAE,D,Schiphol Airport
+DE-3A-140,SN108,R,Not Applicable,A350-900 + variants,CAE,D,Paris CDG
+DE-3A-141,S/N: A-A320-000,R,Not Applicable,A310-300,CAE,Special Category,Toulouse Airport
+DE-3A-143,41-60049-C-3EX,I,ELITE,A310-300,CAE,Special Category,Toulouse Airport
+DE-3A-144A,2311023,R,Not Applicable,A300-F4 600 + variants,CAE,Special Category,Toulouse Airport
+DE-3A-145A,S/N: A250-103,R,Not Applicable,A300-F4 600 + variants,CAE,Special Category,Toulouse Airport
+DE-3A-145B,S/N: A250-103,R,Not Applicable,A380 + variants,CAE,D,Toulouse Airport
+DE-3A-146,DSIMDA42NG004E2,R,Not Applicable,A380 + variants,CAE,D,Toulouse Airport
+DE-3A-147,ALSIM - AL4x-19,R,Not Applicable,A330-200,CAE,D,Toulouse Airport
+DE-3A-148,AL4x-20,R,Not Applicable,A330-900,CAE,D,"Toulouse, France"
+DE-3A-149A,A250-123,R,Not Applicable,B757-200,TTSL,CG,Paris CDG
+DE-3A-149B,A250-124,R,Not Applicable,B767-300 + variants,TTSL,CG,Paris CDG
+DE-3H-005,BuPol 1,R,Eurocopter,B737-800 + variants,Mechtronix,D,Paris CDG
+DE-3H-007,S/N 004,R,Not Applicable,CRJ-1000 + variants,FSI,D,Morlaix Airport
+DE-3H-008,H11 006,R,Not Applicable,CL600-2C10 + variants,FSI,D,Morlaix Airport
+DE-3H-009,10229-001,R,Eurocopter,B737-800 + variants,Sim International B.V.,D,Mönchengladbach
+DE-3H-010,7,R,Not Applicable,B767-300,Thales Training and Simulation,D,Frankfurt
+DE-3H-011,10230-001,R,Airbus Helicopters,B747-400,Thales Training and Simulation,D,Frankfurt
+DE-3H-012,Frasca S/N 1369,R,Eurocopter,CL600-2B19 + variants,CAE,DG,Berlin
+DK-110,xxxxx,I,ATR,CL600-2D24 + variants,CAE,D,Berlin
+DK-1110,Thales /1000,I,Agusta Westland,A320-200,CAE,D,Essen
+DK-1130A,2THT-939,R,Embraer,A320-200,CAE,D,Essen
+DK-1130B,2THT-939,R,Embraer,Generic Multi Engine Jet + variants,"TFC GmbH, Rehmanns Hof 45, 45257 Essen",Type II MCC,Essen
+DK-1185A,118960-1800,R,Airbus,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Marl
+DK-1185B,118960-1800,R,Airbus,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Hamburg
+DK-1186A,118960-1800,R,Airbus,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Hamburg
+DK-1186B,118960-1800,R,Airbus,Generic Multi Engine Piston + variants,ELITE Simulation Solutions AG,Type II,Mönchengladbach
+DK-1187A,118802-1797,I,Airbus,Not Applicable + variants,Thomson Training & Simulation,DG,Velbert
+DK-1187B,118802-1797,I,Airbus,DO 328-300,CAE,D,Velbert
+DK-1190A,117147-1718,R,Airbus,A320-200 + variants,CAE,D,Helsinki-Vantaa airport
+DK-1190B,117147-1718,R,Airbus,A320-200 + variants,TRU Simulation,D,Vantaa
+DK-1192,110168-1386,R,Boeing,B777-200ER,Thales Training and Simulation,D,Schiphol-Oost
+DK-1193A,2RL7-405,R,Airbus,A350-900 + variants,CAE,D,Toulouse Airport
+DK-1193B,2RL7-405,R,Airbus,A350-900,CAE,D,Toulouse Airport
+DK-1193C,2RL7-405,R,Airbus,A320-200 + variants,CAE,D,LIRF
+DK-1194,112640-1441,R,Embraer,A320-200 + variants,CAE,D,LIRF
+DK-1195A,113725-1600,R,Boeing,Not Applicable + variants,FTD.aero Sp.z o.o.,Type II MCC,Aeroporto Roma Urbe
+DK-1195B,113725-1600,R,Boeing,A 119 KOALA + variants,Leonardo Spa Helicopter,3,Sesto Calende
+DK-1196,110402-1471,R,Airbus,Not Applicable + variants,Alsim,Type II,Boscomantico airport
+DK-1197,111649-1483,R,ATR,Generic Single Engine Piston + variants,Alsim,Type II,Boscomantico airport
+DK-1199A,111798-1464,R,Airbus,Generic Single Engine Piston + variants,Alsim,Type II,Boscomantico airport
+DK-1199B,111798-1464,R,Airbus,Not Applicable,Alsim,Type II MCC,LIPN airport
+DK-1201,S241116,I,Airbus,B737-800 + variants,CAE,D,Bergamo
+DK-121B,111412-1528,R,Airbus,Generic Multi Engine Turbine + variants,Multi Pilot Simulations BV,Type II MCC,Dublin
+DK-122,141,R,British Aerospace/AVRO,B737-800 + variants,Multi Pilot Simulations BV,2,Dublin
+DK-124,2R48-334,R,De Havilland - Canada,B737-800 + variants,CAE,D,Madrid
+DK-125,2RF2-397,R,Bombardier,B737-800 + variants,CAE,D,Madrid
+DK-126,2WB9,R,Boeing,ATR 72 + variants,AXIS Flight Training Systems GmbH,D,Neusiedl am See
+DK-129,2NP2-244,R,Boeing,42-300 + variants,AXIS Flight Training Systems GmbH,C,Neusiedl am See
+DK-131,CAE/001,R,De Havilland - Canada,Not Applicable + variants,SoftekSim,Type II,Innsbruck
+DK-132,CAE/001,R,De Havilland - Canada,Not Applicable + variants,SoftekSim,Type II,Innsbruck
+DK-134,CAE 2NP8-267,R,Boeing,BK 117D-2 + variants,TRU Simulation,D,Helsinki-Vantaa airport
+DK-135A,SM SBV 11/10,R,Airbus,AW 169 + variants,TRU Simulation,D,Helsinki airport
+DK-135B,SM SBV 11/10,R,Airbus,B737-800,Thomson Training & Simulation,D,Mönchengladbach
+DK-136,FSI-SSD 5840,R,Saab,B777-300ER,Lockheed Martin Commercial Flight Training (LMCFT),D,Frankfurt/Main
+DK-137,2RF2-397,R,Canadair,CSeries 100,CAE,D,Frankfurt/Main
+DK-139A,2RB5-378,R,Airbus,A220-300 + variants,CAE,1,Frankfurt/Main
+DK-139B,2RB5-378,R,Airbus,BK 117D-2,Reiser Simulation and Training,D,Frankfurt
+DK-139C,2RB5-378,R,Airbus,A220-300 + variants,CAE,D,Frankfurt
+DK-140,2RB5-378,R,Airbus,A320 + variants,CAE,D,Frankfurt am Main
+DK-141,xx,R,Saab,A300-B4 600,CAE,CG,Berlin
+DK-142A/B,2W02-706,R,Airbus,A310-300,CAE,CG,Berlin
+DK-144,2NB6-001,R,Boeing,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Filderstadt-Sielmingen
+DK-146,SM SBV 12/09,R,Boeing,Generic Multi Engine Piston,Mechtronix,Type II,Filderstadt-Bernhausen
+DK-147,2,R,Fokker/Fairchild,Generic Multi Engine Turbine + variants,ENTROL,Type II MCC,Taufkirchen
+DK-148,2RYE-643,R,Boeing,A330-200,Thales Training and Simulation,D,Schiphol-Oost
+DK-149E,2UAP,R,Airbus,EC135P2+,ENTROL,3,Lelystad
+DK-151,CAE-001,R,Fokker/Fairchild,A350-900,L3 CTS Ltd,D,Paris CDG
+DK-152,2RVG-593,R,Embraer,A340-300 + variants,Thomson Training & Simulation,D,Paris CDG
+DK-154,2RVG-593,R,Embraer,A330-200,T-CSF,D,Paris CDG
+DK-155,2RE6-440,R,ATR,A330-200,Thomson Training & Simulation,D,Paris CDG
+DK-156,2RE6-278,R,ATR,A330-200,T-CSF,D,Paris CDG
+DK-157B,2WB1,I,Airbus,72-500 + variants,Thomson Training & Simulation,D,Paris CDG
+DK-158A,2TJF,R,Airbus,1900 + variants,6MOUV,2,Aix en Provence
+DK-158B,2TJF,R,Airbus,B737-800 + variants,CAE,D,Dublin
+DK-158C,2TJF,R,Airbus,B737-800 + variants,CAE,D,Dublin
+DK-160,2WAP,R,Boeing,A320 + variants,CAE,D,Schwechat
+DK-161,2R85-350,R,Boeing,B737-800 + variants,CAE,D,Warsaw
+DK-162A,2R85-530,R,Boeing,Generic Multi Engine Piston + variants,Alsim,Type II,Poznan
+DK-162B,2R85-530,R,Boeing,Generic Single Engine Piston + variants,Alsim,Type II,Poznan
+DK-163,1,R,Lockheed,Generic Single Engine Piston,Alsim,Type II,Poznan
+DK-166,2RKL,R,Airbus,Generic Multi Engine Turbine + variants,Alsim,Type II,Poznam
+DK-169A,2U3Q-1,S,Airbus,Generic Single Engine Piston,Alsim,Type II,Mielec
+DK-169B,2U3Q,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Mielec
+DK-172A/B,T3789,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Mielec
+DK-181A,T4237,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Mielec
+DK-181B,T4273,R,Airbus,Generic Multi Engine Jet,Alsim,Type II MCC,Mielec
+DK-186A/B,2RJY,R,Airbus,A320-200,Thales Training and Simulation,D,Frankfurt
+DK-187A,2U37,R,Airbus,Generic Multi Engine Jet,ENTROL,Type II MCC,Augsburg
+DK-187B,2U37,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Ganderkesee
+DK-188A,8430,R,Boeing,Generic Multi Engine Piston,Alsim,Type II,Ganderkesee
+DK-188B,8430,R,Boeing,BK 117D-2 + variants,INDRA,D,Weßling
+DK-189B,105040-1522,R,Airbus,EC135 T3H + variants,INDRA,D,Weßling
+DK-190,T4683,R,Airbus,B787-9,L3 CTS Ltd,D,Schiphol
+DK-191,T3251,R,Airbus,Generic Single Engine Piston + variants,Alsim,Type II,Luxembourg - Findel
+DK-192,2RF1-337,R,Bombardier,A320-200,CAE,D,Paris CDG
+DK-194,2RF1-337,R,Canadair,A320-200,Exail,1,Paris CDG
+DK-195,2RF1-337,R,Bombardier,Falcon 50,FSI,CG,Paris Le Bourget Airport
+DK-196,T3406,R,Airbus,C650 Citation III,FSI,CG,Monterotondo (RM)
+DK-197,2RL2,R,De Havilland - Canada,A320-200 + variants,CAE,DG,Monterotondo
+DK1202,S241116,I,Airbus,Generic Single Engine Piston + variants,Alsim,2,Valbrembo
+EL-01,ALX-08,R,Not Applicable,Generic Multi Engine Piston + variants,Alsim,Type II,Valbrembo
+EL-02,ALX-08,R,Not Applicable,Not Applicable,Alsim,Type II MCC,Forlì airport
+EL-03,S 812,R,Not Applicable,Not Applicable,Alsim,Type II,Forlì airport
+EL-04,148-60145-C-EX,R,Not Applicable,Not Applicable,Alsim,Type II,Forlì airport
+EL-05,148-60145-C-EX,R,Not Applicable,Not Applicable,ENTROL,Type II,Padova airport
+EL-06,148-60145-C-EX,R,Not Applicable,Not Applicable + variants,ENTROL,Type II,Padova airport
+EL-07,ALX-33,R,Not Applicable,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Güttenbach
+EL-08,ALX-33,R,Not Applicable,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Manching
+EL-09,ALX-33,R,Not Applicable,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Mainz/Germany
+EL-10,ALX-33,R,Not Applicable,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Mainz/Germany
+EL-11,FMX 0297,R,Not Applicable,BD-100 -1A10 (Challenger 300) + variants,AXIS Flight Training Systems GmbH,D,Neusiedl am See
+EL-12,S/N 119-60118,R,Not Applicable,BK 117D-3,Reiser Simulation and Training,D,Sola/Norway
+EL-13,244-60232-M-1EX,R,Not Applicable,Not Applicable + variants,ELITE Simulation Solutions AG,Type II,
+EL-14,ALX-08,R,Not Applicable,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Airport Zilina (LZZI)
+EL-15,A250-24,R,Not Applicable,Generic Single Engine Piston + variants,ENTROL,Type II,Chelm
+EL-16,A250-24,R,Not Applicable,Generic Multi Engine Piston + variants,ENTROL,Type II,Chelm
+EL-17,A250-24,R,Not Applicable,A330-300,CAE,D,Frankfurt/Main
+EL-18,SN_2018-07,R,Not Applicable,B777-200 + variants,CAE,D,Berlin
+EL-19,A250-33,I,Not Applicable,B787-9,L3Harris,D,Frankfurt/Main
+EL-20,A250-33,I,Not Applicable,B787-9,L3Harris,D,Frankfurt
+EL-21,A250-33,I,Not Applicable,Generic Multi Engine Turbine,AEROSIMULATORS,Type II MCC,Mülheim
+EL-22,A250-34,I,Not Applicable,EC 135 T + variants,CAE Elektronik GmbH,A,Bueckeburg
+EL-23,A250-34,I,Not Applicable,Generic Multi Engine Turbine,Aerotask GmbH,Type II MCC,Bremen
+EL-24,A250-34,I,Not Applicable,A350-900,CAE,D,Helsinki airport
+EL-25,ALX-90,R,Not Applicable,A320-200,CAE,D,Schiphol
+EL-26,ALX-90,R,Not Applicable,AW139 + variants,CAE,D,Vantaa
+EL-27,ALX-90,R,Not Applicable,AW139 + variants,6MOUV,CG,Atlantic Airways Aviation Academy
+EL-28,ALX-90,R,Not Applicable,Falcon 900 Ex EASy + variants,FSI,D,Paris Le Bourget
+EL-29,ALX-102,R,Not Applicable,EMB 120RT Brasilia + variants,FSI,CG,Paris Le Bourget Airport
+EL-30,ALX-102,R,Not Applicable,EMB190 + variants,FSI,1,Le Bourget Airport
+EL-31,ALX-102,R,Not Applicable,72 - 600 + variants,CAE,D,Toulouse Airport
+EL-32,ALX-102,R,Not Applicable,A220-300,CAE,D,Aeroporto Fiumicino
+EL-33,87,I,Not Applicable,Generic Multi Engine Piston + variants,Alsim,2,Aeroporto Roma Urbe
+EL-34,87,I,Not Applicable,Generic Multi Engine Jet,FTD.aero Sp.z o.o.,MCC,Aeroporto Roma Urbe
+ES-1A-011,CN235-S3-F-000-,R,Casa,Not Applicable,Multi Pilot Simulations BV,Type II MCC,Monterotondo (RM)
+ES-1A-011,CN.235/00001,R,Casa,Not Applicable,Aviatify B.V.,MCC,Collegno (TO)
+ES-1A-028,S/N 01,R,ATR,Not Applicable,Aviatify B.V.,MCC,Parco Leonardo
+ES-1A-032,A320GT01,I,Airbus,Generic Multi Engine Turbine + variants,Multi Pilot Simulations BV,Type II MCC,Bergamo
+FI-1A-002B,II 421-451/87,R,ATR,B737-800 + variants,Multi Pilot Simulations BV,2,Bergamo
+FI-1A-006A,5803,R,Beech,B737-800 + variants,CAE,D,Bergamo
+FI-1A-006B,5803,R,Beech,Generic Multi Engine Piston + variants,Diamond Simulation GmbH & Co KG,Type II,Graz
+FI-1A-008,2NQ4-253,R,Airbus,Generic Multi Engine Piston + variants,Diamond Simulation GmbH & Co KG,Type II,Bad Voeslau
+FI-1A-012,1,R,Airbus,72 - 600,AXIS Flight Training Systems GmbH,D,Neusiedl am See
+FI-1A-015,110167-1379,R,Airbus,EC135 T3H,Reiser Simulation and Training,D,Sola/Norway
+FI-1A-016,SN-00002618,R,Airbus,Not Applicable + variants,Diamond Aircraft Industries GmbH.,Interim level C,Roskilde airport
+FI-1A-017,109975-1391,R,Airbus,EC135 T3H,Reiser Simulation and Training,D,Frankfurt
+FI-1A-018,31029,R,Airbus,A320-200,Multi Pilot Simulations BV,Type II MCC,Essen
+FI-1A-019,SN-FFS-2152,R,ATR,300,FSI,CG,Pori
+FI-1A-019,SN-FFS-2152,R,ATR,200,FSI,CG,Pori
+FI-1H-125,81830,R,Airbus Helicopters,300,Frasca Internatinal Inc.,2,Pori
+FI-1H-139,2E2B-1190,R,Agusta Westland,Generic Multi Engine Turbine,Frasca Internatinal Inc.,Type II MCC,Pori
+FI-1H-145,1,R,Airbus Helicopters,Generic Multi Engine Piston,Diamond Simulation GmbH & Co KG,Type II,Tampere-Pirkkala
+FI-1H-169,77733,R,Leonardo Spa Helicopter,Generic Multi Engine Piston,Diamond Simulation GmbH & Co KG,Type II,Tampere-Pirkkala
+FI-1H-239,74521,R,Agusta Westland,AW139 + variants,TRU Simulation,D,Helsinki airport
+FI-2A-207,2RZG-645,R,Airbus,Falcon 10,Singer,AG,Paris Le Bourget Airport
+FI-2A-208,2RZG-645,R,Airbus,A330-200 + variants,CAE,D,Paris CDG
+FI-2A-212,MPS-A212,R,Airbus,A330-200,CAE,D,LIRF
+FI-2A-216,6332-001,R,Beech,Generic Multi Engine Turbine,Mechtronix,Type II MCC,Venegono (VA)
+FI-2A-218,8918-001,R,Embraer,Generic Multi Engine Piston,Mechtronix,Type II,Venegono (VA)
+FI-2A-219,8919-001,R,Embraer,Generic Single Engine Piston,Mechtronix,Type II,Venegono (VA)
+FI-2A-279,11479,R,Diamond Aircraft,Not Applicable,Alsim,MCC,Venegono Inferiore
+FI-2A-280,11480,R,Diamond Aircraft,Not Applicable,Alsim,2,Venegono Inferiore
+FI-2H-252H,7417-001,R,Eurocopter,Not Applicable,Alsim,2,Venegono Inferiore
+FI-3A-212,MPS-A212,R,Not Applicable,Not Applicable + variants,ELITE Simulation Solutions AG,Type II MCC,Trento
+FI-3A-216,6332-001,R,Not Applicable,AW 169,Leonardo Spa Helicopter,2,Pratica di Mare
+FI-3A-218,8918-001,R,Not Applicable,EMB190,CAE,D,Schwechat
+FI-3A-219,8919-001,R,Not Applicable,A320-200,AIRBUS SA,D,Vienna
+FI-3A-223,MPS-A223,R,Not Applicable,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Interim level C,Krems
+FI-3A-279,11479,R,Not Applicable,Generic Multi Engine Turbine,ELITE Simulation Solutions AG,Interim level C,Krems
+FI-3A-280,11480-001,R,Not Applicable,EC135 T3H,Reiser Simulation and Training,3,Hörsching (LOWL)
+FI-3A-301,SN-FFT-2036,R,Not Applicable,Not Applicable,Reiser Simulation and Training,Type III MCC,Hörsching (LOWL)
+FI-3A-310,A05G5,R,Not Applicable,Generic Single Engine Piston,Alsim,Type II,Pozna
+FI-3A-311,DSIM-001E17,R,Not Applicable,Generic Multi Engine Piston,Alsim,Type II,Pozna
+FI-3A-312,DSIM-002E17,R,Not Applicable,Generic Single Engine Piston,Alsim,Type II,Pozna
+FI-3A-342,DSIM-DA42NG9031,R,Not Applicable,Jetstream 32,Reflectone,BG,Lelystad
+FI-3A-343,DSIM-DA42NG8016,R,Not Applicable,AVRO RJ + variants,Reflectone,DG,Malpensa
+FR-101,8357,R,Fokker/Fairchild,A320-200 + variants,L3 CTS Ltd,D,Malpensa airport
+FR-103,T4175,R,Boeing,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Salzburg
+FR-104,FFS 2,R,ATR,CESSNA XLS + variants,AXIS Flight Training Systems GmbH,D,Neusiedl am See
+FR-107,1001,R,Airbus Helicopters,Generic Single Engine Piston,Alsim,Type II,Poznan
+FR-108,46494869-040,R,Boeing,Generic Single Engine Piston,Alsim,Type II,Poznan
+FR-109,46 670 503,R,Eurocopter,Generic Multi Engine Piston,Alsim,Type II,Poznan
+FR-1102,2U7Z-1334,R,Airbus,Generic Multi Engine Jet,Alsim,Type II MCC,Poznan
+FR-1102,2U7Z-1334,R,Airbus,EC 175B,INDRA,D,Marseille Airport  - France
+FR-1103,8702,R,Dassault,AW139,Leonardo Spa Helicopter,D,Cervia (RA)
+FR-1104,46 670 498/499,R,Eurocopter,Not Applicable + variants,Alsim,2,Bresso (MI)
+FR-1105,SN-00002624,R,ATR,Not Applicable + variants,Alsim,2,Bresso (MI)
+FR-1106,L-1697-1,R,Boeing,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Graz
+FR-1108,112797,R,ATR,Generic Multi Engine Piston + variants,ELITE Simulation Solutions AG,Type II,Graz
+FR-1109,8699,R,Embraer,Generic Multi Engine Piston,Bartolini Air Simulators,Type II,Lódz
+FR-1111,L1943,R,Airbus,Generic Multi Engine Piston,Bartolini Air Simulators,Type II,Lodz
+FR-1112,2RTQ-572,R,Airbus,Generic Multi Engine Jet + variants,Multi Pilot Simulations BV,Type II MCC,Pori
+FR-1113,SN 18007,R,Pilatus,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Biale Blota
+FR-1114,56271647AA00,R,Airbus Helicopters,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Biale Blota
+FR-1115,A7924,R,McDonnell-Douglas/Boeing,Generic Single Engine Piston + variants,Diamond Simulation GmbH & Co KG,Type II,"Pilotu iela 6, Lidosta “Riga”, Marupes nov., LV – 1053, Latvia"
+FR-1116,121165-1887,R,Airbus,Not Applicable + variants,MAESTRALE S.r.l.,MCC,Caiolo (BG)
+FR-1116,121165-1887,R,Airbus,EC 135 + variants,ENTROL,3,Verona
+FR-1117,46670500FFS2,R,Airbus Helicopters,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Würselen
+FR-1118,120348-1366,R,Airbus,A220-300 + variants,CAE,D,"Pilotu iela 6, Lidosta, Marupes nov. Riga, LV-1053 Latvia"
+FR-1118,120348-1366,R,Airbus,A320-200,Multi Pilot Simulations BV,1,Helsinki airport
+FR-1120,8629,R,Embraer,Generic Multi Engine Jet,Multi Pilot Simulations BV,Type II MCC,Helsinki airport
+FR-1121,123564-1899,R,Airbus,A 109 E,CAE,MCC,Sesto Calende
+FR-1122,122107-1989,R,Airbus,Not Applicable + variants,FTD.aero Sp.z o.o.,Type II MCC,"Poprad, Slovakia"
+FR-1123,FFS2064,R,Boeing,A 109 E,CAE,3,Sesto Calende
+FR-1124,FFS-21-02,R,Airbus,BD500-1A10 + variants,CAE,D,"Lidosta “Riga”, Marupes novad"
+FR-1125,FFS-21-02,R,Airbus,A220-300 + variants,CAE,D,"Lidosta “Riga”, Marupes novad"
+FR-1126,18048,R,Pilatus,Generic Multi Engine Piston + variants,Diamond Simulation GmbH & Co KG,Type II,"Lidosta “Riga”, Marupes novad."
+FR-1128,131633,R,Airbus,Not Applicable + variants,Alsim,Type II,
+FR-1129,131929,I,Airbus,Generic Single Engine Piston + variants,Alsim,Type II,Gliwice
+FR-112A,7798,R,Dassault,Generic Multi Engine Piston,Alsim,Type II,Gliwice
+FR-112B,7798,R,Dassault,Generic Single Engine Piston,Alsim,Type II,Kijewo Krolewskie
+FR-113,9341,R,Embraer,Generic Multi Engine Piston,Alsim,Type II,Kijewo Krolewskie
+FR-1130,128176,R,Airbus,Generic Multi Engine Jet,Alsim,Type II MCC,Kijewo Krolewskie
+FR-1131,133034,I,Airbus,Generic Single Engine Piston + variants,Alsim,Type II,Warsaw
+FR-1132,132494,I,Airbus,Generic Multi Engine Piston + variants,Alsim,Type II,Warsaw
+FR-1133,132494,I,Airbus,Generic Multi Engine Jet + variants,Alsim,Type II MCC,Warsaw
+FR-1134,CFAA01024,I,Airbus,Generic Single Engine Piston + variants,Alsim,Type II,Warsaw
+FR-1135,CFAA01024,I,Airbus,Generic Multi Engine Piston + variants,Alsim,Type II,Warsaw
+FR-114,SM SBV 08/3,R,Airbus,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II MCC,Portoroz
+FR-114,SM SBV 08/3,R,Airbus,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II MCC,Portoroz
+FR-115,T4843,R,ATR,Generic Multi Engine Turbine,ELITE Simulation Solutions AG,Type II MCC,Portoroz
+FR-116,8624,R,Canadair,Generic Single Engine Piston + variants,ELITE Simulation Solutions AG,Type II,GLIWICE
+FR-117,MSN 175 FFS-001,R,Eurocopter,Generic Multi Engine Piston + variants,ELITE Simulation Solutions AG,Type II,GLIWICE
+FR-118,402,R,Dassault,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,GLIWICE
+FR-119B,S/N 7422/115,R,Dassault,Generic Multi Engine Piston + variants,ELITE Simulation Solutions AG,Type II,Kijewo Krolewskie
+FR-123,H N°001,R,Eurocopter,Generic Single Engine Piston + variants,ELITE Simulation Solutions AG,Type II,Kijewo Krolewskie
+FR-125,2TM6-993,R,ATR,Not Applicable,ELITE Simulation Solutions AG,Type II MCC,Hamburg
+FR-126,REALITY H N° 4,R,Eurocopter,A320-200 + variants,AIRBUS SA,D,LIRF
+FR-126A,2UEL-959,R,Airbus,Not Applicable,ENTROL,Type II MCC,Rieti
+FR-126A,2UEL-959,R,Airbus,Not Applicable,Alsim,Type II MCC,Bresso (MI)
+FR-126B,2UEL-959,R,Airbus,Not Applicable + variants,Alsim,Type II,Bresso (MI)
+FR-129,8367,R,Embraer,Not Applicable + variants,Alsim,Type II,Bresso (MI)
+FR-136,FFS2,R,ATR,Not Applicable + variants,Alsim,Type II,Bresso (MI)
+FR-137,FFS 2,R,ATR,Not Applicable + variants,SoftekSim,Type II,"Skultes iela 50/15, Skulte, M?rupes pag., M?rupes nov., LV-2108"
+FR-138,FFS 2,R,ATR,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Chelm
+FR-140,46494869-040,R,Boeing,Generic Multi Engine Turbine,ELITE Simulation Solutions AG,Type II,Chelm
+FR-145A,2RK4-391,R,Airbus,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Chelm
+FR-146B,8639,R,Dassault,EC135P2+,CAE,3,Warsaw
+FR-147,21,R,Dassault,Generic Multi Engine Jet,Alsim,Type II MCC,Trzebownisko
+FR-150,FFS1,R,Eurocopter,Generic Multi Engine Piston,Alsim,Type II,Trzebownisko
+FR-151,841,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Trzebownisko
+FR-152A,841,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Trzebownisko
+FR-152B,841,R,Airbus,Generic Multi Engine Jet,Alsim,Type II MCC,Trzebownisko
+FR-152C,841,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Trzebownisko
+FR-154,18,R,Boeing,Generic Single Engine Piston,Alsim,Type II,Trzebownisko
+FR-155,1,R,Eurocopter,Generic Single Engine Piston,Alsim,Type II,Trzebownisko
+FR-156A,T7067,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Deblin
+FR-158,19,R,Dassault,Generic Multi Engine Piston,Alsim,Type II,Deblin
+FR-159,7798,R,Dassault,RRJ95 + variants,L3Harris,D,Tessera
+FR-160C,2 UEL-959,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Ljubljana
+FR-160C,2 UEL-959,R,Airbus,Generic Multi Engine Piston,Alsim,Type II,Ljubljana
+FR-160D,2 UEL-959,R,Airbus,Legacy 650 + variants,FSI,D,Paris Le Bourget Airport
+FR-160D,2 UEL-959,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Dublin
+FR-163,S/N 8624,R,Bombardier,A400M + variants,Thales Training and Simulation,1,"Wunstorf, Germany"
+FR-175,FFS 1,R,Eurocopter,A320-200 + variants,CAE,D,Dublin
+FR-178,T4525,R,Boeing,Generic Multi Engine Jet + variants,Mechtronix,Type II MCC,Dublin
+FR-181,46 670 498,R,Eurocopter,B737-800,Multi Pilot Simulations BV,Type II MCC,Dublin
+FR-182,T7141-B777N16,R,Boeing,B737-800 + variants,Multi Pilot Simulations BV,1,Dublin
+FR-182,T7141-B777N16,R,Boeing,Generic Multi Engine Piston,Alsim,Type II,Dublin
+FR-183,T4522,R,Boeing,Generic Multi Engine Turbine,Alsim,Type II,Dublin
+FR-184A,S29-2RTF-573,R,Airbus,Generic Multi Engine Turbine + variants,Euramec N.V.,Type II,
+FR-184B,S29-2RTF-573,R,Airbus,A320-200,CAE,1,Dublin
+FR-184C,S29-2RTF-573,R,Airbus,ATR 72 + variants,AXIS Flight Training Systems GmbH,D,Dublin
+FR-192,S/N 8585,R,Embraer,A330-200,CAE,1,Dublin
+FR-193B,S/N 8577 -  707,R,Dassault,DA 42,Alsim,Type II,Cork
+FR-195 A,2RJG-532,R,Airbus,Not Applicable + variants,Mechtronix,Type II MCC,Roma Urbe
+FR-195B,2RJG 532,R,Airbus,Generic Multi Engine Piston + variants,ELITE Simulation Solutions AG,Type II,Megara Airport
+FR-196A,T7069,R,Airbus,Generic Single Engine Piston + variants,Redbird Flight Simulations,Type II,Megara Airport
+FR-196B,T7069,R,Airbus,ATR 72 + variants,AXIS Flight Training Systems GmbH,D,Dublin
+FR-197,2T04-066L,R,Airbus,DA 42,Flight Simulation Solution BAS320,Type II,Cork
+FR-209,DS863682/859351,R,Eurocopter,Generic Multi Engine Turbine + variants,Mechtronix,Type II MCC,Kosice
+FR-2105,12640-001,R,Cessna,B777-200ER,CAE,D,Fiumicino
+FR-2106,46,R,Eurocopter,B737-800 + variants,SIM Industries,D,Monterotondo (RM)
+FR-2107,EFPT-121917-001,R,Boeing,Not Applicable + variants,Leonardo Spa Helicopter,2,Pratica di Mare
+FR-2108,6M701A-01,R,Beech,Not Applicable + variants,Frasca Internatinal Inc.,Type II MCC,LIRF
+FR-2121,J7784,R,Embraer,Generic Single Engine Piston,ELITE Simulation Solutions AG,Type II,Egelsbach
+FR-2122,122108-1912,R,Airbus,Generic Single Engine Piston + variants,Alsim,Type II,Kavala
+FR-2123,124582-1941,R,Airbus,Generic Multi Engine Piston + variants,Alsim,Type II,Kavala
+FR-2124,61,R,Airbus,Generic Multi Engine Turbine,Alsim,Type II MCC,Kavala
+FR-2125,A18-136,S,Piaggio,Generic Single Engine Piston + variants,Alsim,Type II,Kavala
+FR-214,REALITY  H N°4,R,Eurocopter,Generic Single Engine Piston + variants,Alsim,Type II,KAVALA
+FR-215,1001,R,Airbus Helicopters,Generic Multi Engine Piston + variants,Alsim,Type II,KAVALA
+FR-223,N°001,R,Eurocopter,Not Applicable,Alsim,Type II,KAVALA
+FR-255,N°001,R,Eurocopter,Not Applicable + variants,Alsim,Type II,KAVALA
+HR.FSTD.06C,225-60217-C-3EX,R,Not Applicable,Not Applicable + variants,Alsim,Type II,KAVALA
+HR.FSTD.06C,225-60217-C-3EX,R,Not Applicable,Not Applicable + variants,Alsim,Type II MCC,KAVALA
+HR.FSTD.06C,225-60217-C-3EX,R,Not Applicable,Generic Single Engine Piston,Alsim,Type I,Pirkkala
+HR.FSTD.06C,225-60217-C-3EX,R,Not Applicable,Generic Single Engine Piston + variants,Alsim,Type II,THESSALONIKI
+HR.FSTD.06C,225-60217-C-3EX,R,Not Applicable,Generic Single Engine Piston + variants,Alsim,Type II,THESSALONIKI
+IE 104,2NN9/AL32,R,Airbus,Generic Multi Engine Piston + variants,Alsim,Type II,THESSALONIKI
+IE 104,Airbus A320,,,Generic Multi Engine Turbine + variants,Alsim,Type II MCC,THESSALONIKI
+IE 110,BAe 146/RJ Series,,,Generic Single Engine Piston + variants,ELITE Simulation Solutions AG,Type II,"Meteoron 2, Koropi"
+IE 117,ATR 72-500,,,Generic Multi Engine Piston + variants,ELITE Simulation Solutions AG,Type II,"Meteoron 2, Koropi"
+IE 122,FFS-ATR-10,R,ATR,Generic Single Engine Piston,ENTROL,Type II,Markopoulo
+IE 201,2TDE,R,Airbus,Generic Multi Engine Piston,ENTROL,Type II,Markopoulo
+IE 201,A320-214,,,SENECA V,ELITE Simulation Solutions AG,Type II,Cork
+IE 202,2TDE,R,Airbus,Generic Single Engine Piston,Alsim,Type II,Markopoulo
+IE 202,A330-200,,,Generic Single Engine Piston,Alsim,Type II,Markopoulo
+IE 203,MPS-B126,I,Boeing,Generic Multi Engine Piston,Alsim,Interim level C,Markopoulo
+IE 301,NFC/001/1019,R,Beech,Generic Multi Engine Turbine,Alsim,Type II MCC,Markopoulo
+IE 301,Multi Engine Piston (BE76),,,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,MEGARA AIRPORT
+IE 303,160-60157-C-4EX,R,Piper,Not Applicable + variants,ELITE Simulation Solutions AG,Type II MCC,"Meteoron 2, Koropi"
+IE 303,Multi Engine Piston (Piper Seneca),,,Generic Multi Engine Jet + variants,PearWilliams,Type II MCC,Megara Airport
+IE 305,SN-00002165,R,Not Applicable,A320-200 + variants,CAE,D,Roma
+IE 305,Generic Twin Jet,,,B737-800,Multi Pilot Simulations BV,Type II MCC,Cork
+IE 309,MPS-B112,R,Boeing,Not Applicable + variants,ELITE Simulation Solutions AG,Type II,Hannover
+IE 309,Boeing 737-800W,,,Be 76 Duchess,Frasca Internatinal Inc.,Type II,"Weston, Dublin"
+IE 310,MPS-B126,I,Boeing,A340-300,CAE,DG,Frankfurt
+IE 311,ALX-79,R,Not Applicable,A340-600,CAE,D,CAE Centre Madrid
+IE 312,ALX-79,R,Not Applicable,Generic Single Engine Piston,Mechtronix,Type II,Helsinki-Malmi airport
+IE 313,ALX-79,R,Not Applicable,72-500,CAE,D,CAE Centre Amsterdam
+IE 314,A42MKII-12,R,Diamond Aircraft,42-300 + variants,CAE,C,CAE Centre Amsterdam
+IE-123,FFS-ATR-05,R,ATR,A320-200 + variants,CAE,D,
+IE-315,DSIM-DA42NG-800,I,Diamond Aircraft,A330-200 + variants,CAE,D,CAE Copenhagen
+IT-002,45837864,R,Airbus,A340-300,CAE,D,CAE Copenhagen
+IT-004,A7924,R,McDonnell-Douglas/Boeing,SAAB SF340,CAE,CG,CAE Centre Stockholm
+IT-007,4425/001,R,Not Applicable,A321-200 + variants,AIRBUS SA,D,CAE Centre Barcelona
+IT-019,2RS7-439,R,Boeing,A330-200 + variants,CAE,D,CAE Copenhagen
+IT-025A,A2MG15,R,Not Applicable,A330-200 + variants,CAE,D,CAE Copenhagen
+IT-030A,2EAH-549,R,Agusta Westland,ATR 72 + variants,CAE,D,CAE Centre Madrid
+IT-030B,2EAH-549,R,Agusta,A320-200 + variants,CAE,D,CAE Centre Oslo
+IT-030C,2EAH-549,R,Agusta,B737-800 + variants,CAE,D,CAE Centre Brussels
+IT-032,2EFS-628,R,Agusta Westland,B737-700,FSI,D,CAE Centre Palma de Mallorca
+IT-036A,SN-FFT-2091,R,Not Applicable,B737-800,FSI,D,CAE Centre Palma de Mallorca
+IT-036B,SN-FFT-2091,R,Not Applicable,A320-200 + variants,CAE,D,CAE Centre Milano
+IT-036C,SN-FFT-2091,R,Not Applicable,A320-200 + variants,CAE,D,CAE Centre Milano
+IT-056,D-SIM-DA42,R,Not Applicable,A320-200 + variants,CAE,D,CAE Centre Milano
+IT-058,2R34-312,R,Airbus,A320-200 + variants,CAE,D,CAE Centre Milano
+IT-059A,ALX-09,R,Not Applicable,B737-800 + variants,CAE,D,CAE Centre Barcelona
+IT-059B,ALX-09,R,Not Applicable,A320-200,CAE,D,
+IT-059C,ALX-09,R,Not Applicable,Generic Multi Engine Jet,FTD.aero Sp.z o.o.,Type II MCC,Poznan
+IT-060,H11-003,R,Not Applicable,A330-200 + variants,AIRBUS SA,D,CAE Centre Madrid
+IT-061,2THC,R,Airbus,A320-200 + variants,CAE,D,CAE Centre Madrid
+IT-063A,176-60173-M-3EX,R,Not Applicable,A330-200 + variants,CAE,D,CAE Centre Madrid
+IT-066,2183,R,Not Applicable,B737-700,CAE,D,CAE Centre Copenhagen
+IT-067,2UGC,R,Airbus,CL600-2B19 + variants,CAE,D,CAE Centre Madrid
+IT-068,2ERJ-1035,R,Agusta Westland,CRJ-1000,CAE,D,CAE Centre Madrid
+IT-069,T464,R,SUKHOI CIVIL AVIATION COMPANY,A320-200 + variants,CAE,D,CAE Centre Brussels
+IT-071,H11-005,R,Not Applicable,A320-200 + variants,CAE,D,CAE Centre Barcelona
+IT-072,2ETM-1137,R,Agusta Westland,A320-200 + variants,CAE,D,CAE Centre Milano
+IT-073B,ALX-023,R,Not Applicable,A320-200 + variants,CAE,D,CAE Centre Milano
+IT-073C,ALX-023,R,Not Applicable,Generic Multi Engine Piston,ELITE Simulation Solutions AG,Type II,Innsbruck
+IT-073C,ALX-023,R,Not Applicable,A320-200,Multi Pilot Simulations BV,Type I,Oude Meer
+IT-074A,ALX-040,R,Not Applicable,EMB190,CAE,D,CAE Centre Amsterdam
+IT-074B,ALX-040,R,Not Applicable,CL600-2B19 + variants,CAE,D,CAE Centre Copenhagen
+IT-075,H-21-025,R,Not Applicable,CANADAIR RJ900 + variants,CAE,D,CAE Centre Madrid
+IT-077A,ALX-22,R,Not Applicable,B737-700,CAE,D,CAE Centre Stockholm
+IT-079A,ALX-45,R,Not Applicable,SAAB 2000,FSI,DG,CAE Centre Copenhagen
+IT-079B,ALX-45,R,Not Applicable,EMB 170 + variants,CAE,D,CAE Centre Amsterdam
+IT-079C,ALX-45,R,Not Applicable,Bandeirante EMB 110 + variants,CAE,D,CAE Centre Amsterdam
+IT-080,104377-1355,R,Agusta Westland,A350-900 + variants,CAE,D,CAE Centre Madrid
+IT-081,WX8-002,R,Boeing,A320-200,SIM Industries,D,CAE Centre Madrid
+IT-082A,ALX-69,S,Not Applicable,F100,CAE,D,CAE Centre Amsterdam
+IT-082B,ALX-69,R,Not Applicable,B757-200,CAE,D,CAE Centre Brussels
+IT-082C,ALX-69,R,Not Applicable,B767-300 + variants,CAE,D,CAE Centre Brussels
+IT-083,L1774-1,R,Airbus,B737-800,CAE,D,CAE Centre Oslo
+IT-084,2,R,British Aerospace/AVRO,B767-300 + variants,CAE,D,CAE Centre Brussels
+IT-085,H-39-041,R,Not Applicable,B787-9 + variants,CAE,D,CAE Centre Madrid
+IT-086,A18-040,R,Not Applicable,B787-9 + variants,CAE,D,CAE Centre Madrid
+IT-087,TA69STSA-FTD-00,S,Leonardo Spa Helicopter,A320-200,6MOUV,D,CAE Centre Madrid
+IT-088,SN-00002640,R,Canadair,A320-200 + variants,CAE,D,CAE Centre Amsterdam
+IT-089,5842,R,Cessna,A320-200 + variants,CAE,D,CAE Centre Amsterdam
+IT-090,C-310,R,Not Applicable,B737-800 + variants,SIM Industries,D,CAE Centre Amsterdam
+IT-092A,ALX-86,R,Not Applicable,A330-200 + variants,Thomson Training & Simulation,D,CAE Centre Madrid
+IT-092B,ALX-86,R,Not Applicable,A320-200,CAE,D,CAE Centre Stockholm
+IT-092C,ALX-86,R,Not Applicable,DHC8-100,CAE,CG,CAE Centre Oslo
+IT-092D,ALX-86,R,Not Applicable,DHC8-300,CAE,CG,CAE Centre Oslo
+IT-093,SM SBV08/5,R,Boeing,A320-200 + variants,CAE,D,CAE Centre Stockholm
+IT-094A,ALX-93,R,Not Applicable,A330-200,CAE,D,CAE Centre London Gatwick
+IT-094B,ALX-93,R,Not Applicable,B737-800 + variants,CAE,D,CAE Centre Amsterdam
+IT-094C,ALX-93,R,Not Applicable,72-500,INDRA,D,
+IT-095A,A32-059,R,Not Applicable,A330-200,CAE,D,CAE Centre Brussels
+IT-095B,A32-059,R,Not Applicable,CANADAIR RJ900 + variants,CAE,D,CAE Centre Copenhagen
+IT-095C,A32-059,R,Not Applicable,DHC8-400,CAE,D,CAE Centre Stockholm
+IT-096A,ALX-100,R,Not Applicable,L382 G + variants,Reflectone,BG,CAE Centre Brussels
+IT-096B,ALX-100,R,Not Applicable,A330-200,CAE,D,CAE Centre Brussels
+IT-096C,ALX-100,R,Not Applicable,A330-200,CAE,D,CAE Centre Brussels
+IT-096D,ALX-100,R,Not Applicable,A320-200 + variants,CAE,D,CAE Centre Manchester
+IT-097A,A250-78,R,Not Applicable,A320-200 + variants,CAE,D,CAE Centre Manchester
+IT-097B,A250-78,R,Not Applicable,B737-800 + variants,CAE,D,CAE Centre Oslo
+IT-098A,ALX-83,R,Not Applicable,ATP Jetstream 61,Reflectone,BG,CAE Centre Copenhagen
+IT-098B,ALX-83,R,Not Applicable,DHC8-300,CAE,D,CAE Centre Madrid
+IT-098C,ALX-83,R,Not Applicable,A340-300,Thomson Training & Simulation,D,CAE Centre Madrid
+IT-100,TA39STSA-FTD-00,R,Agusta Westland,A330-200 + variants,CAE,D,CAE Copenhagen
+IT-101,H-64-081,R,ERICKSON,F50,CAE,CG,CAE Stockholm
+IT-102,FTD-ATR-12,R,ATR,EMB 170,CAE,D,CAE Centre Amsterdam
+IT-103,5965,R,Cessna,A320-200 + variants,Thales Training and Simulation,D,CAE Centre Barcelona
+IT-104,TA69STSA-FTD-00,R,Leonardo Spa Helicopter,A320-200,Thomson Training & Simulation,DG,CAE Centre Madrid
+IT-105,AL4x-15,R,Not Applicable,A320-200 + variants,Thales Training and Simulation,D,CAE Centre Barcelona
+IT-106,5,R,Airbus,EMB190,CAE,D,CAE Centre Amsterdam
+IT-107A,92,R,Not Applicable,A340-600,CAE,D,CAE Centre Burgess Hill
+IT-107B,92,R,Not Applicable,Generic Multi Engine Piston + variants,Alsim,Type II,Megara Airport
+IT-108,B73M-F2M-05-202,R,Not Applicable,S-61 N,Rediffusion,Special Category,"Stockholm, Arlanda"
+IT-109,106,R,Eurocopter,Not Applicable + variants,Alsim,Type II,Kozani
+IT-109,106,R,Eurocopter,Not Applicable + variants,Alsim,Type II,KOZANI
+IT-110,105,R,Airbus Helicopters,Not Applicable + variants,Alsim,Type II,KOZANI
+IT-111,TA39STSA-FFS-00,S,Agusta Westland,Not Applicable + variants,Alsim,Type II,KOZANI
+IT-112,1891,R,Not Applicable,Not Applicable + variants,Alsim,Type II,Kozani
+IT-113,1965,R,Not Applicable,Not Applicable + variants,Alsim,Type II,Kozani
+IT-114,2401,I,Not Applicable,A320-200,CAE,1,Helsinki airport
+IT-115,124410-1855,R,Airbus,Generic Multi Engine Turbine,AIRBUS SA,Type II MCC,Forlì
+IT-116A,ALX-117,R,Not Applicable,Generic Single Engine Piston,Mechtronix,Type II,Pogány (Hungary)
+IT-116B,ALX-117,R,Not Applicable,BK 117D-2,Reiser Simulation and Training,D,"Sola - Stavanger, Norway"
+IT-116C,ALX-117,R,Not Applicable,Generic Multi Engine Piston,Alsim,2,Ragusa
+IT-118,A32X/F2M/01/202,I,Not Applicable,A321-100,Thomson Training & Simulation,D,Tessera
+IT-119,1,I,Agusta,CN-235,CASA,CG,
+IT-120,2THC,I,Airbus,ATR 72 + variants,GMI ( George Moody Inc),CG,Vantaa
+IT-121,2THC,I,Airbus,Not Applicable + variants,Alsim,,Catania
+LU-004A,A250-93,I,Not Applicable,A340-300,CAE,DG,
+LU-006,A12 SN 154,I,Air Tractor Inc.,A340-300,CAE,1,
+LVA.FSTD.02,DSIM-CONVNG-001,R,Not Applicable,DC9 80,Rediffusion,CG,
+LVA.FSTD.03,DSIM-CONVNG-001,R,Not Applicable,B767-300,CAE,D,
+LVA.FSTD.04,118428-1926,R,Bombardier,A330-200,CAE,D,
+LVA.FSTD.05,118428-1926,R,Airbus,L382 G + variants,Reflectone,BG,
+LVA.FSTD.06,2006-022,R,Not Applicable,A320-200,CAE,D,
+LVA.FSTD.07,133564 - 1942,I,Airbus,AVRO RJ,Reflectone,DG,
+MT-EPA100,A01-075,R,Not Applicable,B737-800,CAE,D,
+MT-FR642,111037,R,Boeing,B757-200,CAE,D,
+MT-FR658,119539-1950,R,Airbus,B767-300,CAE,D,
+MT-FR659,116491-1738,R,Boeing,A320-200,CAE,D,
+MT-FR800,CAE 126224,R,Boeing,A330-200,CAE,D,
+MT-FR801,CAE 126360,R,Boeing,CN-235,CASA,CG,
+MT-FR821,CAE 131491,I,Boeing,Generic Single Engine Piston + variants,ELITE Simulation Solutions AG,Type II,
+MT-FR822,CAE 131493,I,Boeing,A300-B4,CAE,C,
+MT-FR841,CAE 131495,I,Boeing,B737-300,CAE,CG,
+MT-FR842,CAE 131496,I,Boeing,B737-500,CAE,CG,
+MT-FR867,CAE 125952-1991,R,Boeing,A330-300,Thomson Training & Simulation,D,
+MT-FR868,CAE 125955,R,Boeing,ATR 42,CAE,C,
+MT-FR900,MPS M502,R,Boeing,ATR 72,CAE,D,
+MT-FR951,MPS B113,R,Boeing,A320-200,INDRA,D,
+MT-FR956,MPS B119,R,Boeing,DO 328-100,Thomson Training & Simulation,BG,
+MT-FR991,MPS  M506,R,Boeing,A330-300,Thomson Training & Simulation,D,
+MT-FRA101,MPS M502,R,Not Applicable,A340-300,Thales Training and Simulation,D,
+MT-FRA138,MPS B113,R,Not Applicable,B737-200,LMT,Special Category,
+MT-FRA144,MPS B119,R,Not Applicable,EC 135 + variants,CAE Elektronik GmbH,A,Bueckeburg
+MT-FRA189,MPS  M506,R,Not Applicable,Not Applicable,6MOUV,Interim level C,
+NL-147,61125346-040,R,Boeing,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Lucko (Zagreb)
+NL-153,6122-3860-040,R,Airbus,A340-300,CAE,D,Zurich-Airport
+NL-179,2T13-711,R,Boeing,AS 332 L1,Thales Training and Simulation,D,Emmen
+NL-179,2T13-711,R,Boeing,EC 135 P + variants,Thales Training and Simulation,D,Emmen
+NL-187,FFS 15 L3 T4975,R,Boeing,ERJ 190-300  E2,FSI,D,Opfikon
+NL-210,Reflectone 5563,R,BAe/AVRO,PC-12 + variants,Frasca Internatinal Inc.,2,CH - Stans
+NL-226,248-60234-S-3EX,I,Not Applicable,PC-12 + variants,Frasca Internatinal Inc.,Type II MCC,Stans
+NL-230,MPS-A211,R,Airbus,A220-100 + variants,CAE,D,Zurich-Opfikon
+NL-240,80170,I,Airbus Helicopters,AW109SP,Agusta Westland,B,Zurich-Kloten
+NL-247,L-3 L2053,I,Boeing,Not Applicable,Diamond Simulation GmbH & Co KG,Type II,Opfikon
+NL-248,H11-061,R,Airbus Helicopters,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Lucko (Zagreb)
+NL-249,116568-1831,R,Embraer,A340-300,CAE,D,Zurich-Airport
+NL-250,CAE 121078-1832,I,Embraer,AS 332 L1,Thales Training and Simulation,D,Emmen
+NL-267,127909,I,Airbus,EC 135 P + variants,Thales Training and Simulation,D,Emmen
+NL-268,CAE 128964,I,Airbus,ERJ 190-300  E2,FSI,D,Opfikon
+NL-78,2NG3,R,Boeing,PC-12 + variants,Frasca Internatinal Inc.,2,CH - Stans
+NL-787,L1115,R,Boeing,PC-12 + variants,Frasca Internatinal Inc.,Type II MCC,Stans
+NO-101,7833,R,Sikorsky,A220-100 + variants,CAE,D,Zurich-Opfikon
+PL-04-01,ALX-30,R,Not Applicable,AW109SP,Agusta Westland,B,Zurich-Kloten
+PL-04-02,ALX-30,R,Not Applicable,Not Applicable,Diamond Simulation GmbH & Co KG,Type II,Opfikon
+PL-04-03,ALX-30,R,Not Applicable,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Lucko (Zagreb)
+PL-04-04,ALX-30,R,Not Applicable,A340-300,CAE,D,Zurich-Airport
+PL-05-01,ALX-31,R,Not Applicable,AS 332 L1,Thales Training and Simulation,D,Emmen
+PL-05-02,ALX-31,R,Not Applicable,EC 135 P + variants,Thales Training and Simulation,D,Emmen
+PL-05-03,ALX-31,R,Not Applicable,ERJ 190-300  E2,FSI,D,Opfikon
+PL-05-04,ALX-31,R,Not Applicable,PC-12 + variants,Frasca Internatinal Inc.,2,CH - Stans
+PL-11,B738/F2M/01/201,I,Not Applicable,PC-12 + variants,Frasca Internatinal Inc.,Type II MCC,Stans
+PL-12-01,AL-250-35,R,Not Applicable,A220-100 + variants,CAE,D,Zurich-Opfikon
+PL-12-02,AL-250-35,R,Not Applicable,AW109SP,Agusta Westland,B,Zurich-Kloten
+PL-13-01,Elite S923,R,Not Applicable,Not Applicable,Diamond Simulation GmbH & Co KG,Type II,Opfikon
+PL-13-02,Elite S923,R,Not Applicable,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Lucko (Zagreb)
+PL-13-03,Elite S923,R,Not Applicable,A340-300,CAE,D,Zurich-Airport
+PL-139-01,S812,R,Not Applicable,AS 332 L1,Thales Training and Simulation,D,Emmen
+PL-139-02,S812,R,Not Applicable,EC 135 P + variants,Thales Training and Simulation,D,Emmen
+PL-14,119659-1806,R,Boeing,ERJ 190-300  E2,FSI,D,Opfikon
+PL-140-01,ALX-27,R,Not Applicable,PC-12 + variants,Frasca Internatinal Inc.,2,CH - Stans
+PL-140-03,ALX-27,R,Not Applicable,PC-12 + variants,Frasca Internatinal Inc.,Type II MCC,Stans
+PL-140-07,ALX-27,R,Not Applicable,A220-100 + variants,CAE,D,Zurich-Opfikon
+PL-15,BAS  FBXP 06/10,R,Not Applicable,AW109SP,Agusta Westland,B,Zurich-Kloten
+PL-16-01,A250-58,R,Not Applicable,Not Applicable,Diamond Simulation GmbH & Co KG,Type II,Opfikon
+PL-16-02,A250-58,R,Not Applicable,Generic Multi Engine Turbine + variants,ELITE Simulation Solutions AG,Type II MCC,Lucko (Zagreb)
+PL-16-03,A250-58,R,Not Applicable,A340-300,CAE,D,Zurich-Airport
+PL-17-01,AL4X-05,R,Not Applicable,AS 332 L1,Thales Training and Simulation,D,Emmen
+PL-17-02,AL4X-05,R,Not Applicable,EC 135 P + variants,Thales Training and Simulation,D,Emmen
+PL-21-01,EN4000X sn071,R,Not Applicable,ERJ 190-300  E2,FSI,D,Opfikon
+PL-21-02,EN4000X sn071,R,Not Applicable,PC-12 + variants,Frasca Internatinal Inc.,2,CH - Stans
+PL-22-01,A250-97,R,Not Applicable,PC-12 + variants,Frasca Internatinal Inc.,Type II MCC,Stans
+PL-22-02,A250-97,R,Not Applicable,A220-100 + variants,CAE,D,Zurich-Opfikon
+PL-22-03,A 250-97,R,Not Applicable,AW109SP,Agusta Westland,B,Zurich-Kloten
+PL-25,BAS FBXP 06/10,R,Not Applicable,Not Applicable,Diamond Simulation GmbH & Co KG,Type II,Opfikon
+PL-32-01,S812,R,Not Applicable,,,FNPT II,Charleroi Airport - Charleroi
+PL-32-02,S812,R,Not Applicable,,,FNPT II,Charleroi Airport - Charleroi
+PL-48-01,AL-250-42,R,Not Applicable,,,FNPT II,Charleroi Airport - Charleroi
+PL-48-02,AL-250-42,R,Not Applicable,,,FNPT II,Charleroi Airport - Charleroi
+PL-51-01,ALX-61,R,Not Applicable,,,FNPT II,945b Nieuwpoortsesteenweg - Oostende
+PL-51-02,ALX-61,R,Not Applicable,,,FNPT II - MCC,101 Kalkaertstraat - Oostende
+PL-51-03,ALX-61,R,Not Applicable,,,FNPT II,Charleroi Airport - Charleroi
+PL-51-04,ALX-61,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-55,EC135 FTD 001 S,R,Airbus Helicopters,,,FNPT II,Antwerp Airport - Antwerpen
+PL-60-01,ALX-49,R,Not Applicable,,,FNPT II,Charleroi Airport - Charleroi
+PL-60-02,ALX-49,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-60-03,ALX-49,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-7-01,ALX-82,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-7-02,ALX-82,R,Not Applicable,,,FNPT II - MCC,Antwerp Airport - Antwerpen
+PL-7-03,ALX-82,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-9-01,ALX-84,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-9-02,ALX-84,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-9-03,ALX-84,R,Not Applicable,,,FNPT-II MCC,Antwerp Airport - Antwerp
+PL-9-04,ALX-84,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-97-01,S923,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerpen
+PL-97-02,S923,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerp
+PL-97-03,S923,R,Not Applicable,,,FNPT II,Antwerp Airport - Antwerp
+SI-304A,AL-250-44,R,Not Applicable,,,FNPT II,945b Nieuwpoortsesteenweg - Oostende
+SI-304B,AL250-44,R,Not Applicable,,,FNPT II,
+SK.002.A,SN-FFT-2068,R,Not Applicable,,,FNPT II MCC,
+SK.002.B,SN-FFT-2068,R,Not Applicable,,,FNPT II MEP,
+SK.004,204-60198-T-3EX,R,Not Applicable,,,FNPT II MCC,
+SK.006.A,SN-FFT-2013,R,Not Applicable,,,FNPT II,
+SK.007,FBT22CMU2S0423,I,Not Applicable,,,FNPT II,
+SLO-301A,S923/2460032-C,R,Not Applicable,,,FNPT II MCC,"Aer Lingus, Dublin Airport"
+SLO-301B,S923/2460032-C,R,Not Applicable,,,D,"Simtech Aviation, Dublin Airport"
+SLO-301C,S923/2460032-C,R,Not Applicable,,,BG,"Simtech Aviation, Dublin Airport"
+SRB/001A ,Generic MEP,,,,,D,"Aer Lingus, Dublin Airport"
+SRB/001B,Generic JET,,,,,FTD 1,"Aer Lingus, Dublin Airport"
+SRB/002A ,Generic MEP,,,,,FTD 1,"National Flight Centre, Weston"
+SRB/002B ,Generic MET,,,,,FNPT II,"Atlantic Flight Training, Cork Airport"
+SRB/003A ,Generic SEP,,,,,FNPT II,"Simtech Aviation, Dublin Airport"
+SRB/003B,Generic MEP,,,,,FNPT II MCC,"Atlantic Flight Training Academy, Eastgate Business Park, Cork."
+SRB/003C,Generic MET,,,,,FNPT II MCC,
+ES‐3A‐040,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR PA‐31T),,,,,FNPT Level II MCC,GRUPAIRMED S.A.
+ES‐3H‐009,GENERIC MULTI‐ENGINE TURBINE (SIMILAR AS‐355),,,,,FNPT Level II MCC,DIRECCIÓN GENERAL DE TRÁFICO
+ES‐3A‐022,GENERIC SINGLE‐ENGINE PISTON (SIMILAR B‐33),,,,,FNPT Level II,EUROPEAN AVIATION COLLEGUE
+ES‐3A‐023,GENERIC MULTI‐ENGINE PISTON (SIMILAR B‐58),,,,,FNPT Level II,EUROPEAN AVIATION COLLEGUE
+ES‐3A‐002,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR B‐200),,,,,FNPT Level II MCC,AEROTEC
+ES‐3A‐011,GENERIC MULTI‐ENGINE PISTON,,,,,FNPT Level I,AEROTEC
+ES‐1A‐034,C‐295,,,,,FFS Level D,AIRBUS MILITARY
+ES‐1A‐032,A320‐200,,,,,FFS Level D,GLOBAL TRAINING AVIATION
+ES‐2A‐004,B737‐800W,,,,,FTD Level 2,FTE JEREZ
+ES‐3A‐037,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR B737‐800W),,,,,FNPT Level II MCC,FTE JEREZ
+ES‐3A‐012,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,EUROPEAN FLYERS
+ES‐3A‐028,GENERIC SINGLE‐ENGINE PISTON (SIMILAR C‐172),,,,,FNPT Level I,EUROPEAN FLYERS
+ES‐3A‐024,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR B‐200),,,,,FNPT Level II MCC,AERODYNAMICS MÁLAGA
+ES‐2H‐001,BELL 412 HP,,,,,FTD Level 3,BABCOCK MCS
+ES‐3A‐032,GENERIC MULTI‐ENGINE PISTON (SIMILAR DA‐42),,,,,FNPT Level II,FUNDACIÓN REGO
+ES‐3H‐005,GENERIC SINGLE‐ENGINE TURBINE (SIMILAR BELL 206B),,,,,FNPT Level II,
+ES‐2H‐002,BELL 412 HP,,,,,FTD Level 3,
+ES‐1A‐028,ATR‐72/500,,,,,FFS Level D,
+ES‐3A‐042,GENERIC MULTI‐ENGINE PISTON (SIMILAR P‐2006 T),,,,,FNPT Level II,
+ES‐1A‐011,C‐235,,,,,FFS Level CG,
+ES‐3A‐021,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR B‐200),,,,,FNPT Level II MCC,
+ES‐3A‐038,GENERIC MULTI‐ENGINE PISTON (SIMILAR DA‐42),,,,,FNPT Level II,
+ES‐3A‐039,GENERIC MULTI‐ENGINE PISTON (SIMILAR DA‐42),,,,,FNPT Level II,
+ES‐1A‐036,A400‐M,,,,,FFS Level D,
+ES‐3A‐027,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR B‐200),,,,,FNPT Level II MCC,
+ES‐3A‐098,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR B‐200),,,,,FNPT Level II MCC,
+ES‐1H‐001,BELL 412 HP,,,,,FFS Level B,
+ES‐2A‐005,AT‐802F,,,,,FTD Level 3,
+ES‐3A‐029,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR B‐200),,,,,FNPT Level II MCC,
+ES‐3A‐044,GENERIC MULTI‐ENGINE PISTON (SIMILAR DA‐42),,,,,FNPT Level II,
+ES‐3A‐045,GENERIC MULTI‐ENGINE PISTON (SIMILAR P‐2006 T),,,,,FNPT Level II,
+ES‐3A‐046,GENERIC SINGLE‐ENGINE PISTON (SIMILAR PA‐28),,,,,FNPT Level II,
+ES‐3A‐047,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐44),,,,,FNPT Level II,
+ES‐3A‐048,GENERIC MULTI‐ENGINE TURBOPROP (SIMILAR B‐200),,,,,FNPT Level II MCC,
+ES‐3A‐049,GENERIC TURBOFAN MEDIUM WEIGHT,,,,,FNPT Level II MCC,
+ES‐3A‐050,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐44),,,,,FNPT Level II,
+ES‐1H‐002,EC‐135,,,,,FFS Level D,
+ES‐2H‐003,EC‐135,,,,,FTD Level 3,
+ES‐3A‐051,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐3A‐052,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐1A‐037,ATR‐72/600,,,,,FFS Level D,
+ES‐3A‐053,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐3A‐054,GENERIC TURBOFAN MEDIUM WEIGHT,,,,,FNPT Level II MCC,
+ES‐3H‐011,GENERIC MULTI‐ENGINE TURBINE (SIMILAR EC‐135),,,,,FNPT Level II MCC,
+ES‐1A‐038,A330‐MRTT,,,,,FFS Level D,
+ES‐3A‐055,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐34),,,,,FNPT Level II,
+ES‐3A‐056,GENERIC SINGLE‐ENGINE PISTON (SIMILAR TB‐20),,,,,FNPT Level I,
+ES‐3H‐012,GENERIC MULTI‐ENGINE TURBINE (SIMILAR EC‐135),,,,,FNPT Level III MCC,
+ES‐3A‐057,GENERIC SINGLE‐ENGINE PISTON (SIMILAR P‐2010),,,,,FNPT Level I,
+ES‐3A‐058,GENERIC MULTI‐ENGINE PISTON (SIMILAR P‐2006 T),,,,,FNPT Level II,
+ES‐2A‐006,A320,,,,,FTD Level 1,
+ES‐3A‐059,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐1A‐039,B737‐800,,,,,FFS Level D,
+ES‐3A‐060,GENERIC SINGLE‐ENGINE PISTON (SIMILAR TB‐20),,,,,FNPT Level II,
+ES‐3A‐061,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐34),,,,,FNPT Level II,
+ES‐3A‐062,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐3A‐066,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐3A‐067,GENERIC MULTI‐ENGINE PISTON (SIMILAR DA‐42 VI),,,,,FNPT Level II,
+ES‐3A‐069,GENERIC MULTI‐ENGINE PISTON (SIMILAR P‐2006 T),,,,,FNPT Level II,
+ES‐3A‐068,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐3A‐070,GENERIC MULTI‐ENGINE PISTON (SIMILAR DA‐42 NG),,,,,FNPT Level II MCC,
+ES‐3A‐071,GENERIC MULTI‐ENGINE PISTON (SIMILAR P‐2006 T),,,,,FNPT Level II MCC,
+ES‐3A‐072,GENERIC SINGLE ENGINE PISTON LIGHT WEIGHT (MTOW 1.370 KG),,,,,FNPT Level I,
+ES‐3A‐073,GENERIC SINGLE ENGINE PISTON LIGHT WEIGHT (MTOW 2.110 KG),,,,,FNPT Level II,
+ES‐3A‐074,GENERIC TURBOFAN MEDIUM WEIGHT (MTOW 77.000 KG),,,,,FNPT Level II MCC,
+ES‐1A‐040,A320‐214,,,,,FFS Level D,
+ES‐1A‐041,B757‐200,,,,,FFS BG,
+ES‐1A‐042,A400‐M,,,,,FFS Level D,
+ES‐1A‐043,A400‐M,,,,,FFS Level D,
+ES‐3A‐076,GENERIC MULTI‐ENGINE PISTON (SIMILAR DA‐42 VI),,,,,FNPT Level II MCC,
+ES‐1A‐044,A330CEO,,,,,FFS Level D,
+ES‐1A‐045,A330NEO,,,,,FFS Level D,
+ES‐3A‐077,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR B737),,,,,FNPT Level II MCC,
+ES‐3A‐078,GENERIC SINGLE ENGINE PISTON,,,,,FNPT Level II,
+ES‐3A‐079,GENERIC MULTI‐ENGINE PISTON,,,,,FNPT Level II,
+ES‐3A‐080,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐3A‐081,GENERIC SINGLE‐ENGINE PISTON (SIMILAR TB‐20),,,,,FNPT Level II,
+ES‐3A‐082,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐34),,,,,FNPT Level II,
+ES‐3A‐083,GENERIC SINGLE ENGINE PISTON LIGHT WEIGHT (MTOW 1.370 KG),,,,,FNPT Level I,
+ES‐3A‐084,GENERIC MULTI‐ENGINE PISTON LIGHT WEIGHT (MTOW 2.110 KG),,,,,FNPT Level II,
+ES‐3A‐085,GENERIC TURBOFAN MEDIUM WEIGHT (MTOW 77.000 KG),,,,,FNPT Level II MCC,
+ES‐3A‐086,GENERIC MULTI‐ENGINE PISTON (SIMILAR P‐2006 T),,,,,FNPT Level II,
+ES‐3A‐087,GENERIC SINGLE‐ENGINE PISTON (SIMILAR PA‐28),,,,,FNPT Level II,
+ES‐3A‐090,GENERIC SINGLE‐ENGINE PISTON (SIMILAR TB‐20),,,,,FNPT Level II,
+ES‐3A‐091,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐34),,,,,FNPT Level II,
+ES‐3A‐092,GENERIC TURBOFAN MEDIUM WEIGHT (MTOW 77.000 KG),,,,,FNPT Level II MCC,
+ES‐3A‐093,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐34),,,,,FNPT Level II,
+ES‐3A‐094,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐2H‐005,EC‐135,,,,,FTD Level 2,
+ES‐3A‐095,GENERIC SINGLE‐ENGINE PISTON (SIMILAR B76),,,,,FNPT Level II MCC,
+ES‐1A‐046,C‐295,,,,,FFS Level D,
+ES‐1A‐047,A330‐243,,,,,FFS Level D,
+ES‐3A‐096,GENERIC MULTI‐ENGINE PISTON (SIMILAR P‐2006 T),,,,,FNPT Level II,
+ES‐3A‐097,GENERIC SINGLE‐ENGINE PISTON (SIMILAR C172),,,,,FNPT Level II,
+ES‐1A‐048,A400‐M,,,,,FFS Level D,
+ES‐3H‐013,GENERIC MULTI‐ENGINE TURBINE (SIMILAR EC‐135),,,,,FNPT Level 2 MCC,
+ES‐3A‐099,GENERIC MULTI‐ENGINE PISTON (SIMILAR PA‐34),,,,,FNPT Level II,
+ES‐3A‐100,GENERIC TURBOFAN MEDIUM WEIGHT (SIMILAR A320),,,,,FNPT Level II MCC,
+ES‐1A‐049,A400‐M,,,,,FFS Level D,

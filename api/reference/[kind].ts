@@ -9,6 +9,8 @@ import {
   getAircraftByRegistration,
   upsertFstdDevice,
   getIcaoType,
+  searchSimulators,
+  addSimulator,
 } from "../../src/db/referenceRepository.js";
 import { lookupExternalAircraft } from "../../src/http/aircraftLookup.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
@@ -87,16 +89,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(200).json({ aircraft: await listAircraft(q) });
         return;
       }
+      if (kind === "simulators") {
+        res.status(200).json({ simulators: await searchSimulators(q) });
+        return;
+      }
       res.status(404).json({ error: "Unknown reference kind." });
       return;
     }
 
     if (req.method === "POST") {
+      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      // A pilot may add a simulator that is not yet listed, so this is not
+      // gated to administrators like the other reference data.
+      if (kind === "simulators") {
+        const s = SimulatorShape.parse(body);
+        const id = await addSimulator(s);
+        res.status(201).json({ id });
+        return;
+      }
       if (!claims.roles.includes("ADMIN")) {
         res.status(403).json({ error: "Administrator role required to edit reference data." });
         return;
       }
-      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
       if (kind === "airports") {
         const a = AirportShape.parse(body);
         await upsertAirport(a);
@@ -137,6 +151,14 @@ const AirportShape = z.object({
   icao: z.string().regex(/^[A-Za-z]{4}$/),
   name: z.string().min(1),
   country: z.string().optional(),
+});
+
+// A pilot-added simulator: EASA code, the aircraft model and the FSTD type.
+const SimulatorShape = z.object({
+  easaCode: z.string().min(1),
+  aircraftType: z.string().min(1),
+  qualification: z.string().min(1),
+  serialNumber: z.string().optional(),
 });
 
 const AircraftShape = z.object({

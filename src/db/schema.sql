@@ -258,6 +258,26 @@ CREATE TABLE IF NOT EXISTS fstd_devices (
   created_at           timestamptz NOT NULL DEFAULT now()
 );
 
+-- Certified simulators (FSTDs) the pilot can log a session against, picked by
+-- autocomplete on the EASA code or serial number. Seeded from the bundled list
+-- (npm run seed:simulators); users may also add a device that is not yet listed.
+-- easa_code is not unique in the source data (a code can cover several devices),
+-- so the key is synthetic and easa_code/serial_number are indexed for search.
+CREATE TABLE IF NOT EXISTS simulators (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  easa_code             text NOT NULL,
+  serial_number         text,
+  aircraft_type         text,
+  qualification         text,
+  eval_type             text,
+  aircraft_manufacturer text,
+  sim_manufacturer      text,
+  location              text,
+  created_at            timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_simulators_easa_code ON simulators (lower(easa_code));
+CREATE INDEX IF NOT EXISTS idx_simulators_serial ON simulators (lower(serial_number));
+
 -- Permitted signer roles (FOCA 2.4.1). A named constraint so it can be updated
 -- on an existing database; the older inline constraint is dropped if present.
 ALTER TABLE signatures DROP CONSTRAINT IF EXISTS signatures_signer_role_check;
