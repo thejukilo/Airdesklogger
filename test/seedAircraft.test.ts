@@ -44,8 +44,10 @@ describe("aircraft CSV import", () => {
 
 describe("aircraft enrichment from icao_types", () => {
   const icao = new Map<string, IcaoModelInfo>([
-    ["A210", { aircraftModel: "Aquila A-210", engineCount: 1 }],
-    ["C172", { aircraftModel: null, engineCount: 1 }], // ambiguous model: register model wins
+    ["A210", { aircraftModel: "Aquila A-210", engineCount: 1, allowedCategories: ["AEROPLANE"] }],
+    ["C172", { aircraftModel: null, engineCount: 1, allowedCategories: ["AEROPLANE"] }], // ambiguous model
+    ["GLID", { aircraftModel: null, engineCount: null, allowedCategories: ["SAILPLANE"] }],
+    ["DG40", { aircraftModel: "Diamond DA40", engineCount: 1, allowedCategories: ["AEROPLANE", "SAILPLANE"] }],
   ]);
 
   it("takes the model and engine count from icao_types for a specific type", () => {
@@ -59,5 +61,17 @@ describe("aircraft enrichment from icao_types", () => {
     enrichFromIcaoTypes(recs, icao);
     expect(recs.find((a) => a.registration === "HB-CAT")).toMatchObject({ model: "F172H", engineCount: 1 });
     expect(recs.find((a) => a.registration === "HB-1000")?.model).toBe("L 33 SOLO");
+  });
+
+  it("corrects the category from the type (a register-tagged AEROPLANE glider becomes a SAILPLANE)", () => {
+    const recs = fromAircraftCsv("registration,model,icao_type,category\nD-1234,ASW 15,GLID,AEROPLANE\n");
+    enrichFromIcaoTypes(recs, icao);
+    expect(recs[0]?.category).toBe("SAILPLANE");
+  });
+
+  it("keeps a category the type allows (a motor-glider logged as an aeroplane stays one)", () => {
+    const recs = fromAircraftCsv("registration,model,icao_type,category\nHB-2345,DA40,DG40,AEROPLANE\n");
+    enrichFromIcaoTypes(recs, icao);
+    expect(recs[0]?.category).toBe("AEROPLANE");
   });
 });

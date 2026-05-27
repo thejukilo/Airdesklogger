@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { getPool, closePool } from "./pool.js";
 import { parseCsv } from "./seedAirports.js";
+import { allowedCategoriesForType } from "../data/icaoTypes.js";
 import type { AircraftRecord } from "./referenceRepository.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -110,20 +111,30 @@ export function fromAircraftCsv(text: string): AircraftRecord[] {
 export interface IcaoModelInfo {
   aircraftModel: string | null;
   engineCount: number | null;
+  /** The Part-FCL categories the type may be logged under (first is default). */
+  allowedCategories?: AircraftRecord["category"][];
 }
 
 /**
- * Fill the model and engine count from the matching icao_types row, except for
- * the generic glider/balloon codes which keep the register's own model. The
- * icao_types model is only set for unambiguous codes (the seed nulls codes that
- * span several models), so an ambiguous type also keeps the register's model.
+ * Enrich each record from its matching icao_types row:
+ *  - the category is corrected to the type's, since the type is authoritative
+ *    (registers that do not distinguish sailplanes list a glider as an
+ *    aeroplane); a category the type already allows is kept (a motor-glider may
+ *    be either an aeroplane or a sailplane);
+ *  - the model and engine count are taken from the type, except for the generic
+ *    glider/balloon codes which keep the register's own model. The icao_types
+ *    model is only set for unambiguous codes (the seed nulls codes that span
+ *    several models), so an ambiguous type also keeps the register's model.
  */
 export function enrichFromIcaoTypes(records: AircraftRecord[], icao: Map<string, IcaoModelInfo>): AircraftRecord[] {
   for (const rec of records) {
     const code = rec.icaoType?.trim().toUpperCase();
-    if (!code || GENERIC_CODES.has(code)) continue;
+    if (!code) continue;
     const info = icao.get(code);
     if (!info) continue;
+    const allowed = info.allowedCategories;
+    if (allowed?.length && !allowed.includes(rec.category)) rec.category = allowed[0]!;
+    if (GENERIC_CODES.has(code)) continue;
     if (info.aircraftModel) rec.model = info.aircraftModel;
     if (info.engineCount != null) rec.engineCount = info.engineCount;
   }
@@ -131,12 +142,13 @@ export function enrichFromIcaoTypes(records: AircraftRecord[], icao: Map<string,
 }
 
 async function loadIcaoModelMap(): Promise<Map<string, IcaoModelInfo>> {
-  const { rows } = await getPool().query("SELECT code, aircraft_model, engine_count FROM icao_types");
+  const { rows } = await getPool().query("SELECT code, aircraft_model, engine_count, description, role FROM icao_types");
   const map = new Map<string, IcaoModelInfo>();
   for (const r of rows) {
     map.set(r.code as string, {
       aircraftModel: (r.aircraft_model as string) ?? null,
       engineCount: (r.engine_count as number) ?? null,
+      allowedCategories: allowedCategoriesForType(r.description as string, (r.role as string) ?? null),
     });
   }
   return map;
