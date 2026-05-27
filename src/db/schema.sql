@@ -231,6 +231,18 @@ CREATE TABLE IF NOT EXISTS aircraft (
 
 CREATE INDEX IF NOT EXISTS idx_aircraft_registration ON aircraft (registration);
 
+-- Bring an aircraft table created before these columns existed up to date
+-- (CREATE TABLE IF NOT EXISTS does not alter an existing table). The unique
+-- index backs the ON CONFLICT (registration, valid_from) upsert used by imports.
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS icao_type text;
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS variant text;
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS engine_type text;
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS engine_count integer;
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS multi_pilot boolean NOT NULL DEFAULT false;
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS balloon_group text;
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS valid_from date NOT NULL DEFAULT '1970-01-01';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aircraft_reg_valid_from ON aircraft (registration, valid_from);
+
 -- ICAO Doc 8643 type designators. A registration lookup gives an aircraft's
 -- ICAO type code (e.g. EC35, PC12, BALL); this table says what that code is
 -- (LandPlane, Helicopter, Balloon, ...), which classifies the Part-FCL category
