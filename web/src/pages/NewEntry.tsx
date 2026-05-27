@@ -19,17 +19,33 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** "a"/"an" for a category label, so the prominent messages read correctly. */
+const indefinite = (label: string) => (/^[aeiou]/i.test(label) ? "an" : "a");
+
 /** One pill in the category chooser at the top of the page. */
-function CategoryTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function CategoryTab({
+  active,
+  disabled,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
       className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
-        active
-          ? "border-brand-600 bg-brand-600 text-white"
-          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        disabled
+          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+          : active
+            ? "border-brand-600 bg-brand-600 text-white"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
       }`}
     >
       {label}
@@ -416,6 +432,7 @@ export function NewEntry() {
   // allows (a motor-glider permits aeroplane or sailplane), warn and block: the
   // registration is authoritative for the category.
   const categoryMismatch = regAllowed.length > 0 && !regAllowed.includes(f.category);
+  const aircraftNotFound = aircraftMsg === "Not found; enter the type manually.";
 
   // EASA times the flight from first movement (block) for aeroplanes, but from
   // rotor start to rotor stop for helicopters (AMC1 FCL.050 (g)). Balloons log
@@ -480,7 +497,7 @@ export function NewEntry() {
     e.preventDefault();
     setError(null);
     if (categoryMismatch) {
-      setError(`${reg} must be logged as a ${regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not a ${CATEGORY_LABELS[f.category]}. Correct the category or the registration.`);
+      setError(`${reg} must be logged as ${indefinite(CATEGORY_LABELS[regAllowed[0]!]!)} ${regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not ${indefinite(CATEGORY_LABELS[f.category]!)} ${CATEGORY_LABELS[f.category]}. Correct the category or the registration.`);
       return;
     }
     if (seriesExceeds) {
@@ -567,6 +584,7 @@ export function NewEntry() {
           <CategoryTab
             key={c}
             active={!simulator && f.category === c}
+            disabled={regAllowed.length > 0 && !regAllowed.includes(c)}
             label={CATEGORY_LABELS[c]!}
             onClick={() => {
               setSimulator(false);
@@ -575,9 +593,33 @@ export function NewEntry() {
           />
         ))}
         {!editing && (
-          <CategoryTab active={simulator} label="Simulator session" onClick={() => setSimulator(true)} />
+          <CategoryTab
+            active={simulator}
+            disabled={regAllowed.length > 0}
+            label="Simulator session"
+            onClick={() => setSimulator(true)}
+          />
         )}
       </div>
+
+      {!simulator && categoryMismatch && (
+        <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+          {reg} must be logged as {indefinite(CATEGORY_LABELS[regAllowed[0]!]!)}{" "}
+          {regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not {indefinite(CATEGORY_LABELS[f.category]!)}{" "}
+          {CATEGORY_LABELS[f.category]}. Choose the highlighted category above.
+        </div>
+      )}
+      {!simulator && !categoryMismatch && aircraftMsg && (
+        <div
+          className={`rounded-md border px-4 py-3 text-sm font-medium ${
+            aircraftNotFound
+              ? "border-amber-300 bg-amber-50 text-amber-800"
+              : "border-sky-300 bg-sky-50 text-sky-800"
+          }`}
+        >
+          {aircraftMsg}
+        </div>
+      )}
 
       {simulator ? (
         <SimulatorSession />
@@ -617,14 +659,7 @@ export function NewEntry() {
               spellCheck={false}
               required
             />
-            {aircraftMsg && <p className="mt-1 text-xs text-slate-500">{aircraftMsg}</p>}
           </div>
-          {categoryMismatch && (
-            <p className="text-xs text-red-600">
-              {reg} must be logged as a {regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not a{" "}
-              {CATEGORY_LABELS[f.category]}. Change the category above.
-            </p>
-          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
             {isPowered && (
