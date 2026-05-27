@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
@@ -372,12 +372,21 @@ export function NewEntry() {
     return Object.keys(d).length > 0 ? d : null;
   }
 
+  // The model last auto-filled from a lookup, so it can be cleared again if the
+  // registration is removed (but a model the pilot typed is left alone).
+  const autofilledModel = useRef<string | null>(null);
   // Auto-fill aircraft details a moment after the registration stops changing.
   const reg = f.registration.trim().toUpperCase();
   useEffect(() => {
     if (reg.length < 2) {
       setAircraftMsg(null);
       setRegAllowed([]);
+      setF((prev) =>
+        prev.makeModelVariant && prev.makeModelVariant === autofilledModel.current
+          ? { ...prev, makeModelVariant: "" }
+          : prev,
+      );
+      autofilledModel.current = null;
       return;
     }
     const t = setTimeout(async () => {
@@ -389,6 +398,7 @@ export function NewEntry() {
             : null;
           const allowed = allowedCategories?.length ? allowedCategories : known ? [known] : [];
           setRegAllowed(allowed);
+          if (match.model) autofilledModel.current = match.model;
           const detail = subtype ? `${match.model} (${subtype})` : match.model;
           setF((prev) => {
             // Keep the pilot's category when the type already permits it (a

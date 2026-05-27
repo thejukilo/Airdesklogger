@@ -36,7 +36,8 @@ export function Field({
       <span className="mb-1 block font-medium text-slate-700">{label}</span>
       <input
         {...props}
-        className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+        // min-height keeps empty native date/time inputs from collapsing on iOS.
+        className="block min-h-[2.625rem] w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
       />
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
