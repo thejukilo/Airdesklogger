@@ -61,6 +61,17 @@ describe("ICAO types CSV seed parsing", () => {
     expect(out.find((t) => t.code === "GLID")?.aircraftModel).toBeNull();
   });
 
+  it("keeps a model only when the code is unambiguous, nulling codes with several models", () => {
+    const csv =
+      "ICAO aircraft type designator,description,aircraft_model,role,engine_type,Engines\n" +
+      "A210,Landplane,Aquila A-210,General Aviation,Piston,1\n" +
+      "C172,Landplane,Cessna T-41 Mescalero,Military Trainer,Piston,1\n" +
+      "C172,Landplane,Cessna 172 Skyhawk,General Aviation,Piston,1\n";
+    const out = fromIcaoTypesCsv(csv);
+    expect(out.find((t) => t.code === "A210")?.aircraftModel).toBe("Aquila A-210");
+    expect(out.find((t) => t.code === "C172")?.aircraftModel).toBeNull(); // two models -> ambiguous
+  });
+
   it("rejects a CSV without the required columns", () => {
     expect(() => fromIcaoTypesCsv("foo,bar\n1,2\n")).toThrow();
   });

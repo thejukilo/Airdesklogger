@@ -5,6 +5,7 @@
   "outputDirectory": "web/dist",
   "functions": {
     "api/admin/seed-icao-types.ts": { "includeFiles": "src/data/icaoTypes.csv" },
+    "api/admin/seed-aircraft.ts": { "includeFiles": "src/data/aircraftSwiss.csv" },
     "api/admin/seed-simulators.ts": { "includeFiles": "src/data/simulators.csv" }
   },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]

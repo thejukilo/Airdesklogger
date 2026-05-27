@@ -171,6 +171,16 @@ function Dashboard() {
           </Button>
           <Button
             variant="ghost"
+            onClick={() => run("aircraft", async () => {
+              const r = await api.adminSeedAircraft();
+              return `Seeded ${r.seeded} aircraft.`;
+            })}
+            disabled={busy !== null}
+          >
+            {busy === "aircraft" ? "Seeding aircraft..." : "Seed aircraft register"}
+          </Button>
+          <Button
+            variant="ghost"
             onClick={() => run("simulators", async () => {
               const r = await api.adminSeedSimulators();
               return `Seeded ${r.seeded} simulators.`;

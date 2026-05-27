@@ -60,6 +60,17 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
     const s = v.trim();
     return s && s !== "-" && !s.startsWith("_") && s.toLowerCase() !== "null" ? s : null;
   };
+  // A code can list several models (C172 covers five). Only keep a model when it
+  // is unambiguous; otherwise leave it null so a registration-level model wins.
+  const modelsByCode = new Map<string, Set<string>>();
+  if (modelCol !== -1) {
+    for (const r of rows) {
+      const code = (r[codeCol] ?? "").trim().toUpperCase();
+      const model = clean(r[modelCol] ?? "");
+      if (!code || !model) continue;
+      (modelsByCode.get(code) ?? modelsByCode.set(code, new Set()).get(code)!).add(model);
+    }
+  }
   const seen = new Set<string>();
   const out: IcaoTypeSeed[] = [];
   for (const r of rows) {
@@ -68,10 +79,11 @@ export function fromIcaoTypesCsv(text: string): IcaoTypeSeed[] {
     if (!code || !description || seen.has(code)) continue;
     seen.add(code);
     const count = countCol === -1 ? NaN : Number((r[countCol] ?? "").trim());
+    const models = modelsByCode.get(code);
     out.push({
       code,
       description,
-      aircraftModel: modelCol === -1 ? null : clean(r[modelCol] ?? ""),
+      aircraftModel: models && models.size === 1 ? [...models][0]! : null,
       role: roleCol === -1 ? null : clean(r[roleCol] ?? ""),
       engineType: engCol === -1 ? null : clean(r[engCol] ?? ""),
       engineCount: Number.isInteger(count) && count > 0 ? count : null,
