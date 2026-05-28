@@ -37,7 +37,7 @@ export function Field({
       <input
         {...props}
         // min-height keeps empty native date/time inputs from collapsing on iOS.
-        className="block min-h-[2.625rem] w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+        className="block min-h-[2.625rem] w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
       />
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>

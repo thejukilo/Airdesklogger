@@ -79,10 +79,15 @@ export function Register() {
       <Card>
         <form onSubmit={onSubmit} className="space-y-4">
           {error && <Alert>{error}</Alert>}
-          <p className="rounded-md bg-brand-50 px-3 py-2 text-xs text-slate-600">
-            Your name, date of birth and address are required: EASA rules require these details so the
-            electronic logbook record can be tied to you as a physical person.
-          </p>
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <strong className="block font-semibold">Enter your details carefully</strong>
+            <span className="mt-0.5 block">
+              EASA rules tie every logbook record to one physical person. As soon as you log your first
+              flight, your <strong>first name</strong>, <strong>last name</strong> and{" "}
+              <strong>date of birth</strong> are permanently locked - they cannot be changed afterwards,
+              even by support. Address and licence number stay editable.
+            </span>
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="First name" value={form.firstName} onChange={set("firstName")} required />
             <Field label="Last name" value={form.lastName} onChange={set("lastName")} required />

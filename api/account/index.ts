@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { getUserById, updateProfile } from "../../src/db/authRepository.js";
+import { getUserById, pilotHasEntries, updateProfile, IdentityLockedError } from "../../src/db/authRepository.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 import type { UserRow } from "../../src/db/authRepository.js";
 
@@ -24,7 +24,7 @@ const Body = z.object({
   mfaRequiredForLogin: z.boolean().optional(),
 });
 
-function publicProfile(u: UserRow) {
+function publicProfile(u: UserRow, identityLocked: boolean) {
   return {
     id: u.id,
     email: u.email,
@@ -43,6 +43,7 @@ function publicProfile(u: UserRow) {
     roles: u.roles,
     mfaEnabled: u.mfaEnabled,
     mfaRequiredForLogin: u.mfaRequiredForLogin,
+    identityLocked,
   };
 }
 
@@ -56,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(404).json({ error: "Account not found." });
         return;
       }
-      res.status(200).json(publicProfile(user));
+      res.status(200).json(publicProfile(user, await pilotHasEntries(claims.sub)));
       return;
     }
 
@@ -67,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       const updated = await updateProfile(claims.sub, parsed.data);
-      res.status(200).json(publicProfile(updated));
+      res.status(200).json(publicProfile(updated, await pilotHasEntries(claims.sub)));
       return;
     }
 
@@ -75,6 +76,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   } catch (err) {
     if (err instanceof AuthError) {
       res.status(err.status).json({ error: err.message });
+      return;
+    }
+    if (err instanceof IdentityLockedError) {
+      res.status(409).json({ error: err.message });
       return;
     }
     throw err;

@@ -323,6 +323,8 @@ export interface Profile {
   roles: string[];
   mfaEnabled: boolean;
   mfaRequiredForLogin: boolean;
+  /** True once any flight has been logged: name and DOB become read-only. */
+  identityLocked: boolean;
 }
 
 export function getProfile(): Promise<Profile> {

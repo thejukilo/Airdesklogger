@@ -28,6 +28,9 @@ export function Account() {
   const [profile, setProfile] = useState(emptyProfile);
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  // True once a flight has been logged: forename, surname and DOB are frozen
+  // server-side, and we mirror that in the UI as disabled inputs.
+  const [identityLocked, setIdentityLocked] = useState(false);
 
   const [mfaLogin, setMfaLogin] = useState(false);
   const [savingMfaLogin, setSavingMfaLogin] = useState(false);
@@ -52,6 +55,7 @@ export function Account() {
           paperSize: p.paperSize ?? "A4",
         });
         setMfaLogin(p.mfaRequiredForLogin);
+        setIdentityLocked(p.identityLocked);
       })
       .catch((err) => setProfileMsg(err instanceof Error ? err.message : "Could not load your profile."));
   }, []);
@@ -145,11 +149,41 @@ export function Account() {
         </div>
         <form onSubmit={saveProfile} className="space-y-4">
           {profileMsg && <p className="text-sm text-slate-600">{profileMsg}</p>}
+          <div className={`rounded-md border px-3 py-2 text-xs ${
+            identityLocked
+              ? "border-amber-200 bg-amber-50 text-amber-900"
+              : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}>
+            <strong className="block font-semibold">
+              {identityLocked ? "Identity locked" : "Important: your identity will lock once you log a flight"}
+            </strong>
+            <span className="mt-0.5 block">
+              {identityLocked
+                ? "First name, last name and date of birth can no longer be changed because flights have been logged under this account. This protects the regulatory chain that ties every signed entry to a single physical person."
+                : "EASA logbook records must stay tied to one physical person. As soon as your first flight is logged, first name, last name and date of birth become permanent. Double-check them now."}
+            </span>
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="First name" value={profile.firstName} onChange={setP("firstName")} />
-            <Field label="Last name" value={profile.lastName} onChange={setP("lastName")} />
+            <Field
+              label="First name"
+              value={profile.firstName}
+              onChange={setP("firstName")}
+              disabled={identityLocked}
+            />
+            <Field
+              label="Last name"
+              value={profile.lastName}
+              onChange={setP("lastName")}
+              disabled={identityLocked}
+            />
             <div className="sm:max-w-[14rem]">
-              <Field label="Date of birth" type="date" value={profile.dateOfBirth} onChange={setP("dateOfBirth")} />
+              <Field
+                label="Date of birth"
+                type="date"
+                value={profile.dateOfBirth}
+                onChange={setP("dateOfBirth")}
+                disabled={identityLocked}
+              />
             </div>
             <Field label="Pilot licence number" value={profile.licenseNumber} onChange={setP("licenseNumber")} />
           </div>

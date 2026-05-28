@@ -149,6 +149,26 @@ export interface ProfileUpdate {
  */
 export async function updateProfile(userId: string, p: ProfileUpdate): Promise<UserRow> {
   const blank = (s: string | undefined) => (s && s.trim() !== "" ? s.trim() : null);
+
+  // Regulatory: once any flight is logged against the pilot, the identity used
+  // to sign that record (forename, surname, date of birth) is frozen so the
+  // logbook cannot be re-attributed to a different person. A no-op submission
+  // (same value) is allowed; an attempt to change to a new value is rejected.
+  const changesIdentity =
+    p.firstName !== undefined || p.lastName !== undefined || p.dateOfBirth !== undefined;
+  if (changesIdentity) {
+    const current = await getUserById(userId);
+    const same = (a: string | null | undefined, b: string | undefined) =>
+      b === undefined || (blank(b) ?? "") === (a ?? "");
+    const identityChanges =
+      !same(current?.firstName, p.firstName) ||
+      !same(current?.lastName, p.lastName) ||
+      !same(current?.dateOfBirth, p.dateOfBirth);
+    if (identityChanges && (await pilotHasEntries(userId))) {
+      throw new IdentityLockedError();
+    }
+  }
+
   const sets: string[] = [];
   const params: unknown[] = [userId];
   const add = (column: string, value: unknown, cast = "") => {
@@ -202,6 +222,27 @@ export async function addRole(userId: string, role: Role): Promise<Role[]> {
   const roles = Array.from(new Set<Role>([...user.roles, role]));
   await getPool().query("UPDATE pilots SET roles = $2, updated_at = now() WHERE id = $1", [userId, roles]);
   return roles;
+}
+
+/**
+ * True once the pilot has any (non-voided) flight entry. Identity fields - first
+ * name, last name, date of birth - become read-only at that point so the
+ * countersigned record can never be re-attributed to someone else.
+ */
+export async function pilotHasEntries(userId: string): Promise<boolean> {
+  const { rows } = await getPool().query(
+    "SELECT 1 FROM flight_entries WHERE pilot_id = $1 AND voided = false LIMIT 1",
+    [userId],
+  );
+  return rows.length > 0;
+}
+
+/** Thrown by updateProfile when a caller tries to edit a locked identity field. */
+export class IdentityLockedError extends Error {
+  constructor() {
+    super("Your name and date of birth cannot be changed once flights have been logged.");
+    this.name = "IdentityLockedError";
+  }
 }
 
 /** Counts and on-disk size for the admin dashboard. */
