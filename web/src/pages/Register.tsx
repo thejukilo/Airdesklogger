@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Button, Card, Field } from "../components/ui";
+import { AddressAutocomplete } from "../components/AddressAutocomplete";
 
 export function Register() {
   const [form, setForm] = useState({
@@ -102,6 +103,17 @@ export function Register() {
             required
           />
           <Field label="Date of birth" type="date" max={today} value={form.dateOfBirth} onChange={set("dateOfBirth")} required />
+          <AddressAutocomplete
+            countryHint="ch"
+            onSelect={(a) =>
+              setForm((f) => ({
+                ...f,
+                addressStreet: a.street || f.addressStreet,
+                addressZip: [a.zip, a.place].filter(Boolean).join(" ") || f.addressZip,
+                addressCountry: a.country || f.addressCountry,
+              }))
+            }
+          />
           <Field label="Street / no." value={form.addressStreet} onChange={set("addressStreet")} required />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="ZIP / place" value={form.addressZip} onChange={set("addressZip")} required />
