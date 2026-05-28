@@ -11,7 +11,7 @@ import {
   createEntry,
   createSignoffRequest,
   getSignoffRequestByToken,
-  signEntryExternal,
+  signEntriesExternal,
   getEntryMeta,
   getEntrySignatures,
   getLedger,
@@ -65,7 +65,7 @@ describe.skipIf(!hasDb)("external one-time-link sign-off (integration)", () => {
     const created = await createEntry(input, validateEntry(input).derived!, holder.id);
 
     const { token } = await createSignoffRequest({
-      entryId: created.entryId,
+      entryIds: [created.entryId],
       signerName: "External Examiner",
       signerEmail: "examiner@example.com",
       capacity: "EXAMINER",
@@ -73,12 +73,13 @@ describe.skipIf(!hasDb)("external one-time-link sign-off (integration)", () => {
     });
 
     const resolved = await getSignoffRequestByToken(token);
-    expect(resolved?.entryId).toBe(created.entryId);
+    expect(resolved?.entryIds).toEqual([created.entryId]);
     expect(resolved?.capacity).toBe("EXAMINER");
 
-    await signEntryExternal(token, {
+    await signEntriesExternal(token, {
       signerName: "Sam Examiner",
       signerLicense: "FE-2024",
+      signedPlace: "LSGG",
       signatureImage: "data:image/png;base64,iVBORw0KGgo=",
     });
 
@@ -88,10 +89,11 @@ describe.skipIf(!hasDb)("external one-time-link sign-off (integration)", () => {
     expect(sigs[0]!.signerName).toBe("Sam Examiner");
     expect(sigs[0]!.signerRole).toBe("EXAMINER");
     expect(sigs[0]!.signerLicense).toBe("FE-2024");
+    expect(sigs[0]!.signedPlace).toBe("LSGG");
     expect(sigs[0]!.signatureImage).toContain("data:image/png");
 
     // The token is single-use and the entry is now locked.
-    await expect(signEntryExternal(token, { signerName: "Someone Else" })).rejects.toThrow();
+    await expect(signEntriesExternal(token, { signerName: "Someone Else" })).rejects.toThrow();
     expect(await getSignoffRequestByToken(token)).toBeNull();
 
     expect(verifyChain(await getLedger()).valid).toBe(true);

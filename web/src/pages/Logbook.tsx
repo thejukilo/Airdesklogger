@@ -69,6 +69,20 @@ export function Logbook() {
   const [openId, setOpenId] = useState("");
   const isSigner = (user?.roles ?? []).some((r) => SIGNER_ROLES.includes(r));
   const listRef = useRef<HTMLDivElement>(null);
+  // Pilot can select unlocked entries and ask one signer to countersign the batch.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [requestOpen, setRequestOpen] = useState(false);
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelected(new Set());
+  }
 
   const totalMinutes = entries.reduce((sum, e) => sum + (Number(e.content.columns?.total) || 0), 0);
   const totalLandings = entries.reduce(
@@ -138,6 +152,29 @@ export function Logbook() {
 
       {error && <Alert>{error}</Alert>}
 
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between rounded-md border border-brand-200 bg-brand-50 px-3 py-2 text-sm">
+          <span className="font-medium text-brand-800">
+            {selected.size} {selected.size === 1 ? "entry" : "entries"} selected
+          </span>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={clearSelection}>Clear</Button>
+            <Button onClick={() => setRequestOpen(true)}>Request sign-off</Button>
+          </div>
+        </div>
+      )}
+
+      {requestOpen && (
+        <BulkSignoffDialog
+          entryIds={[...selected]}
+          onClose={() => setRequestOpen(false)}
+          onSuccess={() => {
+            setRequestOpen(false);
+            clearSelection();
+          }}
+        />
+      )}
+
       <div ref={listRef} className="scroll-mt-4" />
       <Card>
         {loading ? (
@@ -149,6 +186,20 @@ export function Logbook() {
             <table className="w-full whitespace-nowrap text-sm">
               <thead>
                 <tr className="border-b text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="px-2 py-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all unlocked entries"
+                      checked={
+                        entries.filter((e) => !e.locked).length > 0 &&
+                        entries.filter((e) => !e.locked).every((e) => selected.has(e.id))
+                      }
+                      onChange={(ev) => {
+                        const open = entries.filter((e) => !e.locked).map((e) => e.id);
+                        setSelected(ev.target.checked ? new Set(open) : new Set());
+                      }}
+                    />
+                  </th>
                   <th className="px-2 py-2 font-medium">Date</th>
                   <th className="px-2 py-2 font-medium">Aircraft</th>
                   <th className="px-2 py-2 font-medium">From</th>
@@ -178,6 +229,15 @@ export function Logbook() {
                       className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
                       onClick={() => navigate(`/entry/${e.id}`)}
                     >
+                      <td className="px-2 py-2" onClick={(ev) => ev.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select entry ${c?.date ?? ""}`}
+                          checked={selected.has(e.id)}
+                          disabled={e.locked}
+                          onChange={() => toggleSelected(e.id)}
+                        />
+                      </td>
                       <td className="px-2 py-2">{c?.date}</td>
                       <td className="px-2 py-2">
                         {fstd ? (
@@ -227,11 +287,19 @@ export function Logbook() {
               const c = e.content.columns;
               const fstd = c?.fstd;
               return (
-                <li key={e.id}>
+                <li key={e.id} className="flex gap-2 rounded-lg border bg-white p-3 active:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select entry ${c?.date ?? ""}`}
+                    className="mt-1 h-4 w-4 flex-none"
+                    checked={selected.has(e.id)}
+                    disabled={e.locked}
+                    onChange={() => toggleSelected(e.id)}
+                  />
                   <button
                     type="button"
                     onClick={() => navigate(`/entry/${e.id}`)}
-                    className="w-full rounded-lg border bg-white p-3 text-left active:bg-slate-50"
+                    className="flex-1 text-left"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{c?.date}</span>
@@ -294,6 +362,113 @@ export function Logbook() {
           </form>
         </Card>
       )}
+    </div>
+  );
+}
+
+const CAPACITY_LABELS: Record<string, string> = {
+  INSTRUCTOR: "Instructor",
+  EXAMINER: "Examiner",
+  SUPERVISING_PIC: "Supervising PIC",
+  ATO: "ATO",
+  DTO: "DTO",
+  HOT: "Head of training",
+  AIRPORT: "Airport",
+  OTHER: "Other",
+};
+
+/** Modal: ask one signer to countersign every entry in a batch with one link. */
+function BulkSignoffDialog({
+  entryIds,
+  onClose,
+  onSuccess,
+}: {
+  entryIds: string[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [capacity, setCapacity] = useState("INSTRUCTOR");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [result, setResult] = useState<{ link: string; emailed: boolean; emailConfigured: boolean; entryCount: number } | null>(null);
+
+  async function submit() {
+    setErr(null);
+    if (!name.trim() || !email.trim()) {
+      setErr("Signer name and email are required.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api.requestSignoffBatch({
+        entryIds,
+        signerName: name.trim(),
+        signerEmail: email.trim(),
+        capacity,
+      });
+      setResult({ link: r.link, emailed: r.emailed, emailConfigured: r.emailConfigured, entryCount: r.entryCount });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not request sign-off.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {result ? (
+          <div className="space-y-3 text-sm">
+            <h2 className="text-base font-semibold">
+              Sign-off requested for {result.entryCount} {result.entryCount === 1 ? "entry" : "entries"}
+            </h2>
+            <p className="text-slate-600">
+              {result.emailed
+                ? "We emailed the signer the one-time link. You can also share it directly:"
+                : result.emailConfigured
+                  ? "We could not send the email; share the link directly:"
+                  : "Email isn't configured on this server, so share the link directly:"}
+            </p>
+            <div className="rounded-md bg-slate-50 p-2 font-mono text-xs break-all">{result.link}</div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(result.link)}>Copy link</Button>
+              <Button onClick={onSuccess}>Done</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <h2 className="text-base font-semibold">Request sign-off</h2>
+            <p className="text-sm text-slate-600">
+              One signer will countersign {entryIds.length} {entryIds.length === 1 ? "entry" : "entries"} with a single
+              signature. They'll get a one-time link.
+            </p>
+            {err && <Alert>{err}</Alert>}
+            <Field label="Signer name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Field label="Signer email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Capacity</span>
+              <select
+                className="block min-h-[2.625rem] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+              >
+                {Object.entries(CAPACITY_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+              <Button onClick={submit} disabled={busy}>{busy ? "Sending..." : "Send request"}</Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

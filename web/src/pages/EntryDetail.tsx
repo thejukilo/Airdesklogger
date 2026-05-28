@@ -291,7 +291,10 @@ export function EntryDetail() {
                   <div className="font-medium">{ROLE_LABELS[s.signerRole] ?? s.signerRole}</div>
                   <div className="text-slate-500">
                     {s.signerName}
-                    {s.signerLicense ? ` (${s.signerLicense})` : ""} &middot; {s.signedAt}
+                    {s.signerLicense ? ` (${s.signerLicense})` : ""}
+                    {s.signedPlace ? ` · at ${s.signedPlace}` : ""}
+                    {" · "}
+                    {s.signedAt}
                   </div>
                 </div>
                 {s.signatureImage && <img src={s.signatureImage} alt="signature" className="h-12 rounded border bg-white" />}

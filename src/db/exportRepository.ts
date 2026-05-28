@@ -19,6 +19,8 @@ export interface ExportSignature {
   signerName: string;
   signerRole: SignerRole;
   signedAt: string;
+  signerLicense: string | null;
+  signedPlace: string | null;
   valid: boolean;
 }
 
@@ -46,9 +48,25 @@ function reviveColumns(columns: Record<string, unknown>): DerivedColumns {
   };
 }
 
-function toRow(content: Record<string, unknown>, signed: boolean, signatureMissing: boolean): LogbookEntryForPdf {
+function toRow(
+  content: Record<string, unknown>,
+  signed: boolean,
+  signatureMissing: boolean,
+  signatures: ExportSignature[],
+): LogbookEntryForPdf {
   const columns = reviveColumns(content.columns as Record<string, unknown>);
   const aircraft = content.aircraft as { makeModelVariant?: string; registration?: string } | undefined;
+  // Per FOCA 2.4.3 the signer's name and licence appear with the entry; we
+  // build a compact summary the PDF can print alongside the remarks.
+  const signedSummary = signatures
+    .filter((s) => s.valid)
+    .map((s) => {
+      const lic = s.signerLicense ? ` (${s.signerLicense})` : "";
+      const place = s.signedPlace ? ` at ${s.signedPlace}` : "";
+      const date = s.signedAt.slice(0, 10);
+      return `${s.signerName}${lic}${place} on ${date}`;
+    })
+    .join("; ");
   return {
     ...columns,
     aircraftType: aircraft?.makeModelVariant ?? "",
@@ -57,6 +75,7 @@ function toRow(content: Record<string, unknown>, signed: boolean, signatureMissi
     remarks: (content.remarks as string) ?? "",
     signed,
     signatureMissing,
+    ...(signedSummary ? { signedSummary } : {}),
   };
 }
 
@@ -122,8 +141,8 @@ export async function loadLogbookForExport(
 
   const { rows: sigRows } = await pool.query(
     `SELECT s.entry_id, s.version_no, s.signer_role, s.content_hash, s.signature, s.public_key, s.signed_at,
-            s.signer_id, p.name AS signer_name
-       FROM signatures s JOIN pilots p ON p.id = s.signer_id
+            s.signer_id, COALESCE(s.signer_name, p.name) AS signer_name, s.signer_license, s.signed_place
+       FROM signatures s LEFT JOIN pilots p ON p.id = s.signer_id
       WHERE s.entry_id = ANY($1::uuid[])
       ORDER BY s.signed_at ASC`,
     [ids],
@@ -162,6 +181,8 @@ export async function loadLogbookForExport(
       signerName: s.signer_name,
       signerRole: s.signer_role,
       signedAt: new Date(s.signed_at).toISOString().replace(/\.\d{3}Z$/, "Z"),
+      signerLicense: (s.signer_license as string) ?? null,
+      signedPlace: (s.signed_place as string) ?? null,
       valid,
     });
     signaturesByEntry.set(s.entry_id, list);
@@ -189,7 +210,7 @@ export async function loadLogbookForExport(
     const signatureMissing = (Boolean(columns.signatureRequired) || anySignature.has(e.id)) && !signed;
     return {
       entryId: e.id as string,
-      row: toRow(e.content, signed, signatureMissing),
+      row: toRow(e.content, signed, signatureMissing, signatures),
       signatures,
       history: historyByEntry.get(e.id) ?? [],
     };

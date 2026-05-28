@@ -96,7 +96,7 @@ function remarksText(e: LogbookEntryForPdf): string {
     if (d.lowVisibilityLandingType) parts.push(`(low-vis: ${d.lowVisibilityLandingType})`);
   }
   if (e.signatureMissing) parts.push("(SIGNATURE MISSING)");
-  else if (e.signed) parts.push("(signed off)");
+  else if (e.signed) parts.push(`(signed off: ${e.signedSummary ?? "yes"})`);
   return parts.join(" ");
 }
 
@@ -151,6 +151,8 @@ export interface LogbookEntryForPdf extends DerivedColumns {
   signed?: boolean;
   /** True when the entry needs a signature (required, or invalidated by an edit) but has none. */
   signatureMissing?: boolean;
+  /** Human-readable summary of who signed (name, licence, place, date) when present. */
+  signedSummary?: string;
 }
 
 export interface PdfOptions {

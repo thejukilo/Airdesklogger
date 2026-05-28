@@ -331,3 +331,15 @@ CREATE TABLE IF NOT EXISTS signoff_requests (
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_signoff_requests_entry ON signoff_requests(entry_id);
+
+-- The place the entry was signed at (an aerodrome name or freeform location)
+-- and the support for a single signoff request to cover several entries (a bulk
+-- sign-off): one signer countersigns a batch with one signature.
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signed_place text;
+ALTER TABLE signoff_requests ALTER COLUMN entry_id DROP NOT NULL;
+CREATE TABLE IF NOT EXISTS signoff_request_entries (
+  request_id uuid NOT NULL REFERENCES signoff_requests(id) ON DELETE CASCADE,
+  entry_id   uuid NOT NULL REFERENCES flight_entries(id),
+  PRIMARY KEY (request_id, entry_id)
+);
+CREATE INDEX IF NOT EXISTS idx_signoff_request_entries_entry ON signoff_request_entries(entry_id);

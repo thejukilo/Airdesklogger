@@ -104,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           contacts.map(async (c) => {
             try {
               const { token } = await createSignoffRequest({
-                entryId,
+                entryIds: [entryId],
                 signerName: c.name,
                 signerEmail: c.email,
                 capacity: c.role as SignerRole,

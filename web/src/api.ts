@@ -359,6 +359,7 @@ export interface EntryDetail {
     signedAt: string;
     signatureImage: string | null;
     signerLicense: string | null;
+    signedPlace: string | null;
   }>;
 }
 
@@ -368,7 +369,7 @@ export function getEntry(id: string): Promise<EntryDetail> {
 
 export function signEntry(
   id: string,
-  body: { code: string; role: string; signatureImage?: string },
+  body: { code: string; role: string; signatureImage?: string; signedPlace?: string },
 ): Promise<{ locked: boolean }> {
   return request(`/entries/${id}/sign`, { method: "POST", body: JSON.stringify(body) });
 }
@@ -376,22 +377,32 @@ export function signEntry(
 export function requestSignoff(
   entryId: string,
   input: { signerName: string; signerEmail: string; capacity: string },
-): Promise<{ link: string; expiresAt: string; emailed: boolean; emailConfigured: boolean }> {
+): Promise<{ link: string; expiresAt: string; emailed: boolean; emailConfigured: boolean; entryCount: number }> {
   return request(`/entries/${entryId}/request-signoff`, { method: "POST", body: JSON.stringify(input) });
+}
+
+/** Request one signing link covering multiple entries (FOCA 2.4.2 bulk sign-off). */
+export function requestSignoffBatch(
+  input: { entryIds: string[]; signerName: string; signerEmail: string; capacity: string },
+): Promise<{ link: string; expiresAt: string; emailed: boolean; emailConfigured: boolean; entryCount: number }> {
+  return request(`/entries/batch/request-signoff`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface PublicSignoffEntry {
+  id: string;
+  date: string | null;
+  departurePlace: string | null;
+  arrivalPlace: string | null;
+  total: number | null;
+  picName: string | null;
+  aircraft: string;
+  locked: boolean;
 }
 
 export interface PublicSignoff {
   capacity: string;
   signerName: string;
-  entry: {
-    date: string | null;
-    departurePlace: string | null;
-    arrivalPlace: string | null;
-    total: number | null;
-    picName: string | null;
-    aircraft: string;
-    locked: boolean;
-  };
+  entries: PublicSignoffEntry[];
 }
 
 export function getSignoffPublic(token: string): Promise<PublicSignoff> {
@@ -400,8 +411,8 @@ export function getSignoffPublic(token: string): Promise<PublicSignoff> {
 
 export function submitSignoffPublic(
   token: string,
-  input: { signerName: string; signerLicense?: string; signatureImage?: string },
-): Promise<{ locked: boolean }> {
+  input: { signerName: string; signerLicense?: string; signatureImage?: string; signedPlace?: string },
+): Promise<{ locked: boolean; entryIds: string[] }> {
   return request(`/signoff/${token}`, { method: "POST", body: JSON.stringify(input) });
 }
 

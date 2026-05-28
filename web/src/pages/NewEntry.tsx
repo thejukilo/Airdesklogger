@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
-import { Alert, Button, Card, Field, Select } from "../components/ui";
+import { Button, Card, Field, Select } from "../components/ui";
 import { ATTRIBUTE_GROUPS, ATTRIBUTE_LABELS, CATEGORY_LABELS, attributeAllowedForCategory } from "../labels";
 import { SimulatorSession } from "./SimulatorSession";
 
@@ -631,20 +631,38 @@ export function NewEntry() {
         </div>
       )}
 
+      {editing && editLocked && (
+        <div className="rounded-md border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+          <strong className="block">This entry is signed.</strong>
+          Saving any change to it removes the sign-off and reopens the entry; the signer will need
+          to countersign again. Only edit if you really need to.
+        </div>
+      )}
+
+      {error && (
+        // Fixed at the top so a save error is visible regardless of how far the
+        // pilot has scrolled (the Save button is at the bottom of a long form).
+        <div className="fixed left-1/2 top-4 z-40 w-[min(36rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border-2 border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 shadow-lg">
+          <div className="flex items-start gap-3">
+            <span className="flex-1">{error}</span>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setError(null)}
+              className="rounded px-2 text-red-700 hover:bg-red-100"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {simulator ? (
         <SimulatorSession />
       ) : (
       <form onSubmit={onSubmit} className="space-y-4">
-        {error && <Alert>{error}</Alert>}
-
         {editing && (
           <Section title="Change">
-            {editLocked && (
-              <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                This entry is signed. Saving your changes removes the sign-off and reopens it for the
-                instructor to sign again.
-              </p>
-            )}
             <Field
               label="Reason for change (optional)"
               value={reason}

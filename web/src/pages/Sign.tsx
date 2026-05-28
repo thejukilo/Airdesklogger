@@ -23,7 +23,8 @@ function hhmm(v: number | null): string {
 
 /**
  * Public signing page for an external instructor or examiner. No account is
- * needed; the one-time token in the URL authorises signing this one entry.
+ * needed; the one-time token in the URL authorises signing the entries in the
+ * batch (one link can cover several flights, countersigned with one signature).
  */
 export function Sign() {
   const { token = "" } = useParams();
@@ -35,6 +36,7 @@ export function Sign() {
   const pad = useRef<SignaturePadHandle>(null);
   const [name, setName] = useState("");
   const [license, setLicense] = useState("");
+  const [place, setPlace] = useState("");
   const [signError, setSignError] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
 
@@ -64,6 +66,7 @@ export function Sign() {
       await api.submitSignoffPublic(token, {
         signerName: name.trim(),
         ...(license.trim() ? { signerLicense: license.trim() } : {}),
+        ...(place.trim() ? { signedPlace: place.trim() } : {}),
         signatureImage: pad.current?.toDataURL(),
       });
       setDone(true);
@@ -85,7 +88,7 @@ export function Sign() {
         {done ? (
           <Card>
             <p className="text-sm text-emerald-700">
-              Thank you. The entry has been signed and is now locked. You can close this page.
+              Thank you. {data && data.entries.length > 1 ? `All ${data.entries.length} entries have been signed` : "The entry has been signed"} and locked. You can close this page.
             </p>
           </Card>
         ) : (
@@ -93,21 +96,27 @@ export function Sign() {
             <>
               <Card>
                 <p className="mb-3 text-sm text-slate-600">
-                  You have been asked to countersign this flight entry as{" "}
-                  <strong>{ROLE_LABELS[data.capacity] ?? data.capacity}</strong>.
+                  You have been asked to countersign{" "}
+                  {data.entries.length === 1 ? "this flight" : <strong>{data.entries.length} flights</strong>} as{" "}
+                  <strong>{ROLE_LABELS[data.capacity] ?? data.capacity}</strong>. One signature
+                  will apply to {data.entries.length === 1 ? "the entry" : "all of them"}.
                 </p>
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                  <dt className="text-slate-500">Date (UTC)</dt>
-                  <dd className="text-right">{data.entry.date}</dd>
-                  <dt className="text-slate-500">Aircraft</dt>
-                  <dd className="text-right">{data.entry.aircraft}</dd>
-                  <dt className="text-slate-500">Route</dt>
-                  <dd className="text-right">{data.entry.departurePlace} to {data.entry.arrivalPlace}</dd>
-                  <dt className="text-slate-500">Total time</dt>
-                  <dd className="text-right">{hhmm(data.entry.total)}</dd>
-                  <dt className="text-slate-500">PIC</dt>
-                  <dd className="text-right">{data.entry.picName}</dd>
-                </dl>
+                <ul className="divide-y divide-slate-200 text-sm">
+                  {data.entries.map((e) => (
+                    <li key={e.id} className="py-2">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-medium">{e.date}</span>
+                        <span className="text-slate-500">{e.aircraft}</span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 text-slate-500">
+                        <span>
+                          {e.departurePlace} to {e.arrivalPlace}
+                        </span>
+                        <span>{hhmm(e.total)} - PIC: {e.picName ?? "-"}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </Card>
 
               <Card>
@@ -115,6 +124,7 @@ export function Sign() {
                   {signError && <Alert>{signError}</Alert>}
                   <Field label="Your full name" value={name} onChange={(e) => setName(e.target.value)} required />
                   <Field label="Licence / certificate number (optional)" value={license} onChange={(e) => setLicense(e.target.value)} />
+                  <Field label="Place" value={place} onChange={(e) => setPlace(e.target.value)} hint="Where you are signing (e.g. LSGG, the aerodrome or city)." />
                   <div>
                     <div className="mb-1 flex items-center justify-between text-sm">
                       <span className="font-medium text-slate-700">Signature</span>
@@ -124,9 +134,11 @@ export function Sign() {
                     </div>
                     <SignaturePad ref={pad} />
                   </div>
-                  <p className="text-xs text-slate-500">Signing permanently locks the entry.</p>
+                  <p className="text-xs text-slate-500">
+                    Signing permanently locks {data.entries.length === 1 ? "the entry" : `all ${data.entries.length} entries`}.
+                  </p>
                   <Button onClick={submit} disabled={signing}>
-                    {signing ? "Signing..." : "Sign and lock"}
+                    {signing ? "Signing..." : data.entries.length === 1 ? "Sign and lock" : `Sign and lock all ${data.entries.length}`}
                   </Button>
                 </div>
               </Card>

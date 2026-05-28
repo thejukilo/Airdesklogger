@@ -27,6 +27,8 @@ const Body = z.object({
   entryIds: z.array(z.string()).optional(),
   // Optional drawn signature image (PNG data URL). Capped so a request stays small.
   signatureImage: z.string().startsWith("data:image/").max(300_000).optional(),
+  // The place the signer is signing at (an aerodrome name or freeform location).
+  signedPlace: z.string().max(200).optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -86,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const results = [];
     for (const entryId of targets) {
-      results.push(await signOne(entryId, user, role as SignerCapacity, keys, parsed.data.signatureImage));
+      results.push(await signOne(entryId, user, role as SignerCapacity, keys, parsed.data.signatureImage, parsed.data.signedPlace));
     }
 
     const allOk = results.every((r) => r.ok);
@@ -120,6 +122,7 @@ async function signOne(
   role: SignerCapacity,
   keys: { privateKey: string; publicKey: string },
   signatureImage?: string,
+  signedPlace?: string,
 ): Promise<SignResult> {
   const meta = await getEntryMeta(entryId);
   if (!meta) return { entryId, ok: false, status: 404, error: "Entry not found." };
@@ -146,6 +149,7 @@ async function signOne(
       ...(user.email ? { signerEmail: user.email } : {}),
       ...(license ? { signerLicense: license } : {}),
       ...(signatureImage ? { signatureImage } : {}),
+      ...(signedPlace ? { signedPlace } : {}),
     },
     signEntry,
   );

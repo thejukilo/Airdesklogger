@@ -3,21 +3,24 @@ import { z } from "zod";
 import {
   getSignoffRequestByToken,
   getCurrentVersion,
-  signEntryExternal,
+  signEntriesExternal,
 } from "../../src/db/repository.js";
 
 /**
- * Public, token-authenticated signing for an external signer (no account).
- *   GET  returns what the signer needs to see: the capacity asked of them and a
- *        summary of the entry. The token is the authentication.
- *   POST signs and locks the entry. The signer's full name is required; a licence
- *        number is optional. The token is single-use.
- * No session is required; possession of the unguessable token authorises this
- * one entry only.
+ * Public, token-authenticated signing for an external signer (no account). One
+ * link can cover several entries; the signer countersigns the batch with one
+ * signature, recording the place they signed at.
+ *
+ *   GET  returns the capacity asked of them and a summary of every entry in the
+ *        batch. The token is the authentication.
+ *   POST signs and locks every entry in the batch. The signer's full name is
+ *        required; a licence number and the place are optional. The token is
+ *        single-use.
  */
 const Body = z.object({
   signerName: z.string().min(1),
   signerLicense: z.string().optional(),
+  signedPlace: z.string().optional(),
   signatureImage: z.string().startsWith("data:image/").max(300_000).optional(),
 });
 
@@ -30,13 +33,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(404).json({ error: "This signing link is invalid, already used, or expired." });
       return;
     }
-    const version = await getCurrentVersion(request.entryId);
-    const cols = (version?.content?.columns ?? {}) as Record<string, unknown>;
-    const aircraft = (version?.content?.aircraft ?? {}) as { makeModelVariant?: string; registration?: string };
-    res.status(200).json({
-      capacity: request.capacity,
-      signerName: request.signerName,
-      entry: {
+    const entries = [];
+    for (const entryId of request.entryIds) {
+      const version = await getCurrentVersion(entryId);
+      const cols = (version?.content?.columns ?? {}) as Record<string, unknown>;
+      const aircraft = (version?.content?.aircraft ?? {}) as { makeModelVariant?: string; registration?: string };
+      entries.push({
+        id: entryId,
         date: cols.date ?? null,
         departurePlace: cols.departurePlace ?? null,
         arrivalPlace: cols.arrivalPlace ?? null,
@@ -44,7 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         picName: version?.content?.picName ?? null,
         aircraft: `${aircraft.makeModelVariant ?? ""} (${aircraft.registration ?? ""})`,
         locked: Boolean(version?.locked),
-      },
+      });
+    }
+    res.status(200).json({
+      capacity: request.capacity,
+      signerName: request.signerName,
+      entries,
     });
     return;
   }
@@ -56,12 +64,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
     try {
-      const { entryId } = await signEntryExternal(token, {
+      const { entryIds } = await signEntriesExternal(token, {
         signerName: parsed.data.signerName,
         ...(parsed.data.signerLicense ? { signerLicense: parsed.data.signerLicense } : {}),
+        ...(parsed.data.signedPlace ? { signedPlace: parsed.data.signedPlace } : {}),
         ...(parsed.data.signatureImage ? { signatureImage: parsed.data.signatureImage } : {}),
       });
-      res.status(200).json({ locked: true, entryId });
+      res.status(200).json({ locked: true, entryIds });
     } catch (err) {
       res.status(409).json({ error: err instanceof Error ? err.message : "Could not sign." });
     }
