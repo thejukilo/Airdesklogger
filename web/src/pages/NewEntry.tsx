@@ -456,14 +456,14 @@ export function NewEntry() {
   // EASA times the flight from first movement (block) for aeroplanes, but from
   // rotor start to rotor stop for helicopters (AMC1 FCL.050 (g)). Balloons log
   // a plain departure and arrival time.
-  const timeLabels =
+  const timeLabels: { off: string; on: string; total: string } =
     f.category === "HELICOPTER"
-      ? { off: "Rotor start", on: "Rotor stop" }
+      ? { off: "Rotor start", on: "Rotor stop", total: "Total rotor time" }
       : f.category === "BALLOON"
-        ? { off: "Departure time", on: "Arrival time" }
+        ? { off: "Departure time", on: "Arrival time", total: "Total flight time" }
         : f.category === "SAILPLANE"
-          ? { off: "Flight start", on: "Flight end" }
-          : { off: "Block off (start)", on: "Block on (end)" };
+          ? { off: "Flight start", on: "Flight end", total: "Total flight time" }
+          : { off: "Block off (start)", on: "Block on (end)", total: "Total block time" };
 
   // Show the airport name for entered ICAO codes.
   const dep = f.departurePlace.trim().toUpperCase();
@@ -753,6 +753,14 @@ export function NewEntry() {
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} required />
               <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} required />
+            </div>
+            <div className="mt-3 flex items-baseline justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
+              <span className="text-sm font-medium text-slate-700">{timeLabels.total}</span>
+              <span className="font-mono text-base font-semibold tabular-nums text-slate-900">
+                {computedBlock > 0
+                  ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
+                  : "--:--"}
+              </span>
             </div>
             <p className="mt-1 text-xs text-slate-500">
               Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
