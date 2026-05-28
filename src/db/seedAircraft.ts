@@ -205,6 +205,57 @@ export async function upsertAircraftBatch(records: AircraftRecord[], onConflict:
   return written;
 }
 
+/**
+ * Apply just the balloon_group column from a CSV against existing aircraft rows,
+ * matched by registration. Used as a one-off backfill after the column was
+ * added: it leaves every other field untouched and does not insert new rows.
+ * Returns the number of rows updated.
+ */
+export async function applyBalloonGroupsFromCsv(text: string): Promise<number> {
+  const rows = parseCsv(text);
+  const header = rows.shift();
+  if (!header) return 0;
+  const regCol = column(header, ["registration", "reg", "tail_number"]);
+  const groupCol = column(header, ["balloon_group", "balloongroup"]);
+  if (regCol === -1 || groupCol === -1) {
+    throw new Error("CSV needs at least 'registration' and 'balloon_group' columns.");
+  }
+  const pairs: Array<[string, string]> = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const reg = (r[regCol] ?? "").trim().toUpperCase();
+    const group = (r[groupCol] ?? "").trim().toUpperCase();
+    if (!reg || seen.has(reg) || !"ABCD".includes(group)) continue;
+    seen.add(reg);
+    pairs.push([reg, group]);
+  }
+  if (pairs.length === 0) return 0;
+
+  const pool = getPool();
+  let updated = 0;
+  const CHUNK = 1000;
+  for (let i = 0; i < pairs.length; i += CHUNK) {
+    const chunk = pairs.slice(i, i + CHUNK);
+    // Build a VALUES list and join on registration, so one statement covers
+    // the whole chunk.
+    const values: string[] = [];
+    const params: unknown[] = [];
+    chunk.forEach(([reg, group], j) => {
+      const b = j * 2;
+      values.push(`($${b + 1},$${b + 2})`);
+      params.push(reg, group);
+    });
+    const { rowCount } = await pool.query(
+      `UPDATE aircraft AS a SET balloon_group = v.group
+         FROM (VALUES ${values.join(",")}) AS v(reg, "group")
+        WHERE a.registration = v.reg AND a.category = 'BALLOON'`,
+      params,
+    );
+    updated += rowCount ?? 0;
+  }
+  return updated;
+}
+
 /** Seed a register file (bundled Swiss by default), enriching models from icao_types. */
 export async function seedAircraft(csvPath?: string, onConflict: ConflictMode = "update"): Promise<number> {
   const text = readFileSync(csvPath ?? resolveBundled("aircraftSwiss.csv"), "utf8");
