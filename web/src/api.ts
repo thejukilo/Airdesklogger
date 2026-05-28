@@ -4,6 +4,8 @@
  * and attached as a bearer on every request.
  */
 
+import { recordServerDate } from "./lib/clockSkew";
+
 const TOKEN_KEY = "airdesk.token";
 
 export function getToken(): string | null {
@@ -35,7 +37,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
+  const startedAt = Date.now();
   const res = await fetch(`/api${path}`, { ...init, headers });
+  recordServerDate(res.headers.get("date"), startedAt, Date.now());
   const text = await res.text();
 
   let body: { error?: string; issues?: Array<{ message?: string }> } = {};

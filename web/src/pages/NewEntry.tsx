@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Button, Card, Field, Select } from "../components/ui";
+import { SEVERE_SKEW_MS, useClockSkew } from "../lib/clockSkew";
 import { ATTRIBUTE_GROUPS, ATTRIBUTE_LABELS, CATEGORY_LABELS, attributeAllowedForCategory } from "../labels";
 import { SimulatorSession } from "./SimulatorSession";
 
@@ -275,6 +276,11 @@ export function NewEntry() {
   const location = useLocation();
   const { id: editId } = useParams();
   const editing = Boolean(editId);
+  // A wildly wrong system clock would otherwise pre-fill the "now" defaults
+  // (today's date, the current time) with junk. We let editing through because
+  // those forms load times from the existing entry rather than from new Date().
+  const clockSkew = useClockSkew();
+  const clockBlocked = !editing && Math.abs(clockSkew) >= SEVERE_SKEW_MS;
   // A simulator session is reached from the same chooser but uses a separate
   // form; an existing flight is never converted into one.
   const [simulator, setSimulator] = useState(!editing && Boolean((location.state as { simulator?: boolean } | null)?.simulator));
@@ -937,7 +943,14 @@ export function NewEntry() {
         {/* Sticky action bar on mobile so Save is always within reach. The extra
             bottom padding clears the iOS home indicator / browser bar. */}
         <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none">
-          <Button type="submit" disabled={busy} className="flex-1 py-2.5 md:flex-none md:py-2">{busy ? "Saving..." : editing ? "Save changes" : "Save entry"}</Button>
+          <Button
+            type="submit"
+            disabled={busy || clockBlocked}
+            title={clockBlocked ? "Your computer's clock is off by more than 30 minutes. Fix it before saving." : undefined}
+            className="flex-1 py-2.5 md:flex-none md:py-2"
+          >
+            {busy ? "Saving..." : editing ? "Save changes" : "Save entry"}
+          </Button>
           <Button type="button" variant="ghost" onClick={() => navigate(editing && editId ? `/entry/${editId}` : "/")} className="py-2.5 md:py-2">Cancel</Button>
         </div>
       </form>

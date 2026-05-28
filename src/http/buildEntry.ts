@@ -125,10 +125,14 @@ export async function prepareFlightEntry(
   if (localMode) input.enteredInLocalTime = true;
   if (timesLocal) input.timesLocal = true;
 
-  // The no-future-date guard only applies when the stored time is true UTC; a
-  // local time kept unconverted has no offset to compare against, so it is skipped.
+  // No-future-date guard. With true UTC times we allow 60s of NTP slack. With
+  // a local-time entry we don't know the user's offset; the most easterly real
+  // timezone is UTC+14 (Kiribati), so a local time stored as if-UTC can be at
+  // most 14 hours ahead of the corresponding real UTC. Anything beyond that is
+  // certainly in the future no matter where on earth the pilot is.
   const latestArrival = Math.max(...input.legs.map((l) => l.arrivalTime.getTime()));
-  if (!timesLocal && latestArrival > Date.now() + 60_000) {
+  const futureGraceMs = timesLocal ? 14 * 60 * 60 * 1000 + 60_000 : 60_000;
+  if (latestArrival > Date.now() + futureGraceMs) {
     return { ok: false, status: 422, body: { valid: false, issues: [{ field: "legs", message: "A flight cannot be logged with a date or time in the future." }] } };
   }
 
