@@ -99,6 +99,37 @@ function CategoryIcon({ category }: { category?: string }) {
 }
 
 /** Caret on the left of each row; rotates when its row is expanded. */
+/** Small native <select> to filter the logbook by aircraft category (or by
+ * synthetic-training sessions). The count label reads "12 of 47" so the pilot
+ * always sees how aggressive the filter is. */
+function CategoryFilter({
+  value, onChange, count, total,
+}: { value: string; onChange: (v: string) => void; count: number; total: number }) {
+  return (
+    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+      <span className="font-medium uppercase tracking-wide">Category</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+      >
+        <option value="">All ({total})</option>
+        <option value="AEROPLANE">Aeroplane</option>
+        <option value="HELICOPTER">Helicopter</option>
+        <option value="SAILPLANE">Sailplane</option>
+        <option value="BALLOON">Balloon</option>
+        <option value="FSTD">Synthetic (FSTD)</option>
+      </select>
+      {value && (
+        <>
+          <span className="tabular-nums text-slate-500">{count} of {total}</span>
+          <button type="button" onClick={() => onChange("")} className="text-slate-400 underline hover:text-slate-600">clear</button>
+        </>
+      )}
+    </label>
+  );
+}
+
 function Caret({ open }: { open: boolean }) {
   return (
     <svg
@@ -169,11 +200,27 @@ export function Logbook() {
     });
   }
   function toggleExpandAll() {
-    setExpanded((prev) => (prev.size > 0 ? new Set() : new Set(entries.map((e) => e.id))));
+    setExpanded((prev) => (prev.size > 0 ? new Set() : new Set(filteredEntries.map((e) => e.id))));
   }
 
-  const totalMinutes = entries.reduce((sum, e) => sum + (Number(e.content.columns?.total) || 0), 0);
-  const totalLandings = entries.reduce(
+  // Filter the list by aircraft category (or by synthetic-training sessions).
+  // The stats above and the bulk selection re-derive from the visible subset so
+  // a filter immediately reshapes the page.
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const filteredEntries = entries.filter((e) => {
+    if (!categoryFilter) return true;
+    const isFstd = Boolean(e.content.columns?.fstd);
+    if (categoryFilter === "FSTD") return isFstd;
+    if (isFstd) return false;
+    const cat = (e.content.columns?.category ?? "AEROPLANE").toUpperCase();
+    return cat === categoryFilter;
+  });
+
+  const totalMinutes = filteredEntries.reduce(
+    (sum, e) => sum + (Number(e.content.columns?.total) || 0) + (Number(e.content.columns?.fstd?.totalMinutes) || 0),
+    0,
+  );
+  const totalLandings = filteredEntries.reduce(
     (sum, e) => sum + (Number(e.content.columns?.dayLandings) || 0) + (Number(e.content.columns?.nightLandings) || 0),
     0,
   );
@@ -281,7 +328,8 @@ export function Logbook() {
           <p className="text-sm text-slate-500">No entries yet. Record your first flight.</p>
         ) : (
           <div className="hidden overflow-x-auto md:block">
-            <div className="flex justify-end pb-2">
+            <div className="flex items-center justify-between gap-3 pb-2">
+              <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} count={filteredEntries.length} total={entries.length} />
               <button
                 type="button"
                 onClick={toggleExpandAll}
@@ -298,11 +346,11 @@ export function Logbook() {
                       type="checkbox"
                       aria-label="Select all unlocked entries"
                       checked={
-                        entries.filter((e) => !e.locked).length > 0 &&
-                        entries.filter((e) => !e.locked).every((e) => selected.has(e.id))
+                        filteredEntries.filter((e) => !e.locked).length > 0 &&
+                        filteredEntries.filter((e) => !e.locked).every((e) => selected.has(e.id))
                       }
                       onChange={(ev) => {
-                        const open = entries.filter((e) => !e.locked).map((e) => e.id);
+                        const open = filteredEntries.filter((e) => !e.locked).map((e) => e.id);
                         setSelected(ev.target.checked ? new Set(open) : new Set());
                       }}
                     />
@@ -328,7 +376,10 @@ export function Logbook() {
                 </tr>
               </thead>
               <tbody className="font-mono text-[13px]">
-                {entries.map((e) => {
+                {filteredEntries.length === 0 && (
+                  <tr><td colSpan={19} className="px-3 py-6 text-center text-sm italic text-slate-400">No entries match this filter.</td></tr>
+                )}
+                {filteredEntries.map((e) => {
                   const c = e.content.columns;
                   const fstd = c?.fstd;
                   const open = expanded.has(e.id);
@@ -402,8 +453,13 @@ export function Logbook() {
 
         {/* Mobile: a stacked card per entry instead of the wide table. */}
         {!loading && entries.length > 0 && (
-          <ul className="space-y-3 md:hidden">
-            {entries.map((e) => {
+          <div className="md:hidden">
+            <div className="mb-3"><CategoryFilter value={categoryFilter} onChange={setCategoryFilter} count={filteredEntries.length} total={entries.length} /></div>
+            {filteredEntries.length === 0 && (
+              <p className="text-sm italic text-slate-400">No entries match this filter.</p>
+            )}
+          <ul className="space-y-3">
+            {filteredEntries.map((e) => {
               const c = e.content.columns;
               const fstd = c?.fstd;
               const open = expanded.has(e.id);
@@ -470,6 +526,7 @@ export function Logbook() {
               );
             })}
           </ul>
+          </div>
         )}
       </Card>
 
