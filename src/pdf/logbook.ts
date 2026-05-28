@@ -147,7 +147,11 @@ function fmtIsoDate(iso: string): string {
   return `${d}/${m}/${(y ?? "").slice(2)}`;
 }
 
-/** Remarks cell: free text, then any structured attributes, then a sign-off flag. */
+/** Remarks cell: free text plus a few entry-wide flags. Structured attributes
+ * (HESLO, mountain landings, comments on checks, etc.) move to their own
+ * appendix at the back; the row gets a click-through "attributes" tag drawn
+ * separately by drawGrid. NVIS time stays in the remarks cell because pilots
+ * are used to reading it there. */
 function remarksText(e: LogbookEntryForPdf): string {
   const parts: string[] = [];
   if (e.remarks) parts.push(e.remarks);
@@ -158,18 +162,16 @@ function remarksText(e: LogbookEntryForPdf): string {
   if (e.balloonFlightType) parts.push(e.balloonFlightType === "TETHERED" ? "(tethered)" : "(free flight)");
   if (e.inflations) parts.push(`(${e.inflations} inflation${e.inflations === 1 ? "" : "s"})`);
   if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
-  if (e.attributes.length) parts.push(`[${e.attributes.join(", ")}]`);
-  const d = e.attributeDetails;
-  if (d) {
-    if (d.hesloLevel) parts.push(`(HESLO ${d.hesloLevel})`);
-    if (d.hecLevel) parts.push(`(HEC ${d.hecLevel})`);
-    if (d.hoistCycles) parts.push(`(${d.hoistCycles} cycles)`);
-    if (d.mountainLandingGear) parts.push(`(mountain: ${d.mountainLandingGear.toLowerCase()})`);
-    if (d.lowVisibilityLandingType) parts.push(`(low-vis: ${d.lowVisibilityLandingType})`);
+  if (e.attributes.includes("nvis") && e.attributeDetails?.nvisMinutes) {
+    const m = e.attributeDetails.nvisMinutes;
+    parts.push(`(NVIS ${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")})`);
   }
-  // The signed / SIGNATURE MISSING flag is drawn separately as a clickable link
-  // in the remarks cell so it can jump to the sign-offs appendix.
   return parts.join(" ");
+}
+
+/** True if the entry has any structured attribute that warrants an appendix block. */
+function hasAppendixAttributes(e: LogbookEntryForPdf): boolean {
+  return e.attributes.some((a) => a !== "nvis");
 }
 
 const MARGIN = 28;
@@ -256,8 +258,17 @@ export interface AppendixSignoff {
   signatures: AppendixSignature[];
 }
 
+/** One block of an entry's structured attributes, printed in its own appendix. */
+export interface AppendixAttributeBlock {
+  entryId: string;
+  entryRef: string;
+  /** Pre-formatted lines, e.g. "HESLO 1 - 4 cycles", "Skill test - IR(H) initial". */
+  lines: string[];
+}
+
 export interface AuditAppendix {
   signoffs: AppendixSignoff[];
+  attributes?: AppendixAttributeBlock[];
   changeLog: Array<{ entry: string; text: string }>;
 }
 
@@ -311,7 +322,7 @@ export async function generateLogbookPdf(
   // page-by-page totals, since their columns and rules differ. The link
   // context collects per-row "signed" rects and per-entry appendix targets, so
   // we can wire one-click jumps from the row to the appendix block at the end.
-  const linkCtx: SignedLinkContext = { rowRects: new Map(), appendixTargets: new Map() };
+  const linkCtx: SignedLinkContext = { rowRects: new Map(), appendixTargets: new Map(), attrRowRects: new Map(), attrTargets: new Map() };
   const groups = groupByCategory(flights);
   if (groups.length === 0 && fstdSessions.length === 0) {
     drawPage(doc, font, bold, emptyPage(), 1, resolved, [], "", linkCtx);
@@ -340,6 +351,13 @@ export async function generateLogbookPdf(
         if (target) addInternalLink(doc, source.page, source.rect, target.page, target.y);
       }
     }
+    if (audit.attributes && audit.attributes.length > 0) {
+      drawAttributesAppendix(doc, font, bold, audit.attributes, opts.pilotName, portrait, linkCtx);
+      for (const [entryId, source] of linkCtx.attrRowRects) {
+        const target = linkCtx.attrTargets.get(entryId);
+        if (target) addInternalLink(doc, source.page, source.rect, target.page, target.y);
+      }
+    }
     // The change log is a mandatory part of the export (FOCA 2.3.7).
     drawAppendix(doc, font, bold, "CHANGE LOG", audit.changeLog, opts.pilotName, portrait);
   }
@@ -357,12 +375,18 @@ export async function generateLogbookPdf(
   return doc.save();
 }
 
-/** A scaled-grid drawing context shares state for the row->appendix back-link. */
+/** A scaled-grid drawing context shares state for the row->appendix back-link.
+ * Two independent maps so a row can jump to its sign-off block or its
+ * structured-attributes block without one knowing about the other. */
 interface SignedLinkContext {
   /** A row's "signed" cell, in the page's PDF coordinate space. */
   rowRects: Map<string, { page: PDFPage; rect: [number, number, number, number] }>;
-  /** Where in the appendix that entry's block starts. */
+  /** Where in the sign-offs appendix that entry's block starts. */
   appendixTargets: Map<string, { page: PDFPage; y: number }>;
+  /** A row's "attributes" cell, in PDF coordinate space. */
+  attrRowRects: Map<string, { page: PDFPage; rect: [number, number, number, number] }>;
+  /** Where in the attributes appendix that entry's block starts. */
+  attrTargets: Map<string, { page: PDFPage; y: number }>;
 }
 
 const SIGNOFF_ROLE_LABELS: Record<string, string> = {
@@ -436,6 +460,52 @@ async function drawSignoffsAppendix(
       if (!s.valid) meta.push("INVALID");
       p.drawText(meta.join("  -  "), { x: MARGIN + 8, y: y - 12, size: 7.5, font, color: GREY });
       y -= 40;
+    }
+    y -= 6;
+  }
+}
+
+/** Attributes appendix: one block per entry listing every structured attribute
+ * with its count, time, level or comment. Mirrors the sign-offs appendix layout
+ * so the export reads consistently and the row->appendix back-link works the
+ * same way. */
+function drawAttributesAppendix(
+  doc: PDFDocument,
+  font: PDFFont,
+  bold: PDFFont,
+  blocks: ReadonlyArray<AppendixAttributeBlock>,
+  pilotName: string,
+  page: { w: number; h: number },
+  ctx: SignedLinkContext,
+): void {
+  const top = page.h - MARGIN;
+  const bottom = MARGIN + 20;
+  const lineH = 12;
+  const drawHeader = (p: PDFPage) => {
+    p.drawText("ATTRIBUTES & ENDORSEMENTS", { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
+    p.drawText(`Holder: ${pilotName}    All times UTC`, { x: MARGIN, y: top - 26, size: 8, font, color: GREY });
+  };
+
+  let p = doc.addPage([page.w, page.h]);
+  drawHeader(p);
+  let y = top - 48;
+
+  for (const block of blocks) {
+    const blockH = 14 + block.lines.length * lineH + 8;
+    if (y - blockH < bottom) {
+      p = doc.addPage([page.w, page.h]);
+      drawHeader(p);
+      y = top - 48;
+    }
+    ctx.attrTargets.set(block.entryId, { page: p, y: y + 14 });
+    p.drawText(block.entryRef, { x: MARGIN, y, size: 10, font: bold, color: BLACK });
+    hline(p, MARGIN, page.w - MARGIN, y - 3, GREY, 0.4);
+    y -= 14;
+    for (const line of block.lines) {
+      p.drawText(clip(line, page.w - 2 * MARGIN - 12, 9, font), {
+        x: MARGIN + 8, y, size: 9, font, color: BLACK,
+      });
+      y -= lineH;
     }
     y -= 6;
   }
@@ -744,27 +814,45 @@ function drawGrid(
         c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "BALLOON" || c.group === "DATE";
       if (c.group === "REMARKS") {
         // Reserve a small strip at the right of the remarks cell for the
-        // "signed" / "missing" tag and draw the free-text part clipped to fit.
-        const TAG_W = e.signed || e.signatureMissing ? 36 : 0;
+        // "attributes" link and "signed" / "missing" tag. The free-text part
+        // is drawn clipped to fit the remaining width.
+        const hasAttrs = hasAppendixAttributes(e);
+        const signTagW = e.signed || e.signatureMissing ? 36 : 0;
+        const attrTagW = hasAttrs ? 38 : 0;
+        const TAG_W = signTagW + attrTagW;
         leftText(p, text, x, c.width - TAG_W, y, 6.5, font);
+        let rightCursor = x + c.width;
         if (e.signed) {
           const label = "signed";
           const lw = bold.widthOfTextAtSize(label, 6.5);
-          const lx = x + c.width - TAG_W + 2;
+          const lx = rightCursor - signTagW + 2;
           p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: LINK });
           p.drawLine({ start: { x: lx, y: y - 1 }, end: { x: lx + lw, y: y - 1 }, color: LINK, thickness: 0.4 });
-          // Record the clickable rect (in PDF page coords) so a later pass can
-          // wire it to the appendix block for this entry.
           if (linkCtx && toPdfRect && e.entryId) {
             linkCtx.rowRects.set(e.entryId, {
               page: p,
               rect: toPdfRect(lx - 1, y - 2, lw + 2, 9),
             });
           }
+          rightCursor -= signTagW;
         } else if (e.signatureMissing) {
           const label = "missing";
-          const lx = x + c.width - TAG_W + 2;
+          const lx = rightCursor - signTagW + 2;
           p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: MISSING });
+          rightCursor -= signTagW;
+        }
+        if (hasAttrs) {
+          const label = "attributes";
+          const lw = bold.widthOfTextAtSize(label, 6.5);
+          const lx = rightCursor - attrTagW + 2;
+          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: LINK });
+          p.drawLine({ start: { x: lx, y: y - 1 }, end: { x: lx + lw, y: y - 1 }, color: LINK, thickness: 0.4 });
+          if (linkCtx && toPdfRect && e.entryId) {
+            linkCtx.attrRowRects.set(e.entryId, {
+              page: p,
+              rect: toPdfRect(lx - 1, y - 2, lw + 2, 9),
+            });
+          }
         }
       } else if (leftAligned) {
         leftText(p, text, x, c.width, y, 6.5, font);

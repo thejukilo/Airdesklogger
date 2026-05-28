@@ -4,6 +4,7 @@ import { useAuth } from "../auth";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
 import { SignaturePad, type SignaturePadHandle } from "../components/SignaturePad";
+import { attributeChipSuffix } from "../lib/attributeDisplay";
 import {
   ATTRIBUTE_LABELS,
   CATEGORY_LABELS,
@@ -268,10 +269,6 @@ export function EntryDetail() {
           {c.function?.primary === "SAFETY_PILOT" ? (
             <Detail label="Took control" value={c.function?.tookControl ? "Yes" : "No"} />
           ) : null}
-          {cols?.attributeDetails?.hesloLevel ? <Detail label="HESLO level" value={String(cols.attributeDetails.hesloLevel)} /> : null}
-          {cols?.attributeDetails?.hecLevel ? <Detail label="HEC level" value={String(cols.attributeDetails.hecLevel)} /> : null}
-          {cols?.attributeDetails?.hoistCycles ? <Detail label="Cycles" value={String(cols.attributeDetails.hoistCycles)} /> : null}
-          {cols?.attributeDetails?.mountainLandingGear ? <Detail label="Mountain landing" value={cols.attributeDetails.mountainLandingGear} /> : null}
           {cols?.attributeDetails?.lowVisibilityLandingType ? <Detail label="Low-visibility landing" value={cols.attributeDetails.lowVisibilityLandingType} /> : null}
         </dl>
         {cols?.attributes && cols.attributes.length > 0 && (
@@ -280,7 +277,7 @@ export function EntryDetail() {
             <div className="flex flex-wrap gap-2">
               {cols.attributes.map((a) => (
                 <span key={a} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
-                  {ATTRIBUTE_LABELS[a] ?? a}
+                  {ATTRIBUTE_LABELS[a] ?? a}{attributeChipSuffix(a, cols)}
                 </span>
               ))}
             </div>

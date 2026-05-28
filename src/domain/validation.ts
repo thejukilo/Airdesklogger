@@ -60,6 +60,7 @@ function cleanAttributeDetails(
 ): AttributeDetails | undefined {
   if (!d) return undefined;
   const out: AttributeDetails = {};
+  // Legacy single-HESLO/HEC and low-visibility landing fields.
   if (d.hesloLevel !== undefined) out.hesloLevel = d.hesloLevel;
   if (d.hecLevel !== undefined) out.hecLevel = d.hecLevel;
   if (d.mountainLandingGear !== undefined) out.mountainLandingGear = d.mountainLandingGear;
@@ -72,6 +73,44 @@ function cleanAttributeDetails(
     } else if (d.hoistCycles > 0) {
       out.hoistCycles = d.hoistCycles;
     }
+  }
+  // Per-level counts and helicopter / aeroplane manoeuvre counts.
+  const counts: Array<[keyof AttributeDetails, number | undefined]> = [
+    ["mountainLandings", d.mountainLandings],
+    ["mountainLandingsOfficial", d.mountainLandingsOfficial],
+    ["mountainLandingsAbove2000", d.mountainLandingsAbove2000],
+    ["mountainLandingsAbove2700", d.mountainLandingsAbove2700],
+    ["goArounds", d.goArounds],
+    ["touchAndGo", d.touchAndGo],
+    ["hdfTakeoffs", d.hdfTakeoffs],
+    ["nvisMinutes", d.nvisMinutes],
+    ["heslo1Cycles", d.heslo1Cycles],
+    ["heslo2Cycles", d.heslo2Cycles],
+    ["heslo3Cycles", d.heslo3Cycles],
+    ["heslo4Cycles", d.heslo4Cycles],
+    ["hec1Cycles", d.hec1Cycles],
+    ["hec2Cycles", d.hec2Cycles],
+    ["hhoCycles", d.hhoCycles],
+  ];
+  for (const [field, value] of counts) {
+    if (value === undefined) continue;
+    if (!isNonNegInt(value)) {
+      issues.push({ field: `attributeDetails.${field}`, message: `${field} must be a non-negative integer.` });
+    } else if (value > 0) {
+      (out as Record<string, unknown>)[field] = value;
+    }
+  }
+  if (d.aerobaticLevel !== undefined) out.aerobaticLevel = d.aerobaticLevel;
+  const comments: Array<[keyof AttributeDetails, string | undefined]> = [
+    ["skillTestComment", d.skillTestComment],
+    ["proficiencyCheckComment", d.proficiencyCheckComment],
+    ["licenceProficiencyCheckComment", d.licenceProficiencyCheckComment],
+    ["languageProficiencyComment", d.languageProficiencyComment],
+    ["aocComment", d.aocComment],
+    ["demoFlightComment", d.demoFlightComment],
+  ];
+  for (const [field, value] of comments) {
+    if (value && value.trim() !== "") (out as Record<string, unknown>)[field] = value.trim();
   }
   return Object.keys(out).length > 0 ? out : undefined;
 }
@@ -195,6 +234,15 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     } else {
       effectiveBlock = input.flightTimeMinutes;
     }
+  }
+
+  // NVIS minutes record the portion of the flight flown on night-vision goggles
+  // and so can never exceed the flight's effective total time.
+  if (attributeDetails?.nvisMinutes !== undefined && attributeDetails.nvisMinutes > effectiveBlock) {
+    issues.push({
+      field: "attributeDetails.nvisMinutes",
+      message: "NVIS time cannot exceed the total flight time.",
+    });
   }
 
   if (issues.length > 0) return { valid: false, issues };

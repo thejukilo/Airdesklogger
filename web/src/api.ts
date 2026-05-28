@@ -120,11 +120,39 @@ export function resetPassword(token: string, password: string): Promise<{ ok: bo
 }
 
 export interface AttributeDetails {
+  // Legacy single-HESLO/HEC, kept for older entries.
   hesloLevel?: 1 | 2 | 3 | 4;
   hecLevel?: 1 | 2;
   hoistCycles?: number;
-  mountainLandingGear?: "SKI" | "WHEELS";
   lowVisibilityLandingType?: string;
+  // Aeroplane / helicopter mountain landings.
+  mountainLandingGear?: "SKI" | "WHEELS";
+  mountainLandings?: number;
+  mountainLandingsOfficial?: number;
+  mountainLandingsAbove2000?: number;
+  mountainLandingsAbove2700?: number;
+  // Aeroplane manoeuvres.
+  goArounds?: number;
+  touchAndGo?: number;
+  // Helicopter operations.
+  hdfTakeoffs?: number;
+  nvisMinutes?: number;
+  heslo1Cycles?: number;
+  heslo2Cycles?: number;
+  heslo3Cycles?: number;
+  heslo4Cycles?: number;
+  hec1Cycles?: number;
+  hec2Cycles?: number;
+  hhoCycles?: number;
+  // Sailplane / shared.
+  aerobaticLevel?: "BASIC" | "ADVANCED";
+  // Comments on checks.
+  skillTestComment?: string;
+  proficiencyCheckComment?: string;
+  licenceProficiencyCheckComment?: string;
+  languageProficiencyComment?: string;
+  aocComment?: string;
+  demoFlightComment?: string;
 }
 
 export interface EntryColumns {

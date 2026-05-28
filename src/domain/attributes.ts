@@ -15,6 +15,7 @@ export const ENTRY_ATTRIBUTES = [
   "proficiency_check",
   "operator_proficiency_check",
   "operator_line_check",
+  "licence_proficiency_check",
   "language_proficiency_check",
   "refresher_training",
   "training_flight",
@@ -27,6 +28,8 @@ export const ENTRY_ATTRIBUTES = [
   "course_completed",
   "instruction_training_course",
   "demonstration_of_ability_to_instruct",
+  "aoc",
+  "demo_flight",
   "solo",
   "cross_country",
   "series_of_flights",
@@ -34,8 +37,23 @@ export const ENTRY_ATTRIBUTES = [
   "low_visibility_landing",
   "sea_landings",
   "mountain_landings",
+  "mountain_landing_official",
+  "mountain_landing_2000",
+  "mountain_landing_2700",
+  "hdf",
+  "go_around",
+  "touch_and_go",
+  "nvis",
+  "tethered_flight",
   "heslo",
+  "heslo_1",
+  "heslo_2",
+  "heslo_3",
+  "heslo_4",
   "hec",
+  "hec_1",
+  "hec_2",
+  "hho",
 ] as const;
 
 export type EntryAttribute = (typeof ENTRY_ATTRIBUTES)[number];
@@ -48,8 +66,25 @@ export type EntryAttribute = (typeof ENTRY_ATTRIBUTES)[number];
 export const ATTRIBUTE_CATEGORY_RESTRICTIONS: Partial<Record<EntryAttribute, readonly AircraftCategory[]>> = {
   launch_privilege: ["SAILPLANE"],
   cloud_flying_privilege: ["SAILPLANE"],
+  demo_flight: ["SAILPLANE"],
+  tethered_flight: ["BALLOON"],
   heslo: ["HELICOPTER"],
+  heslo_1: ["HELICOPTER"],
+  heslo_2: ["HELICOPTER"],
+  heslo_3: ["HELICOPTER"],
+  heslo_4: ["HELICOPTER"],
   hec: ["HELICOPTER"],
+  hec_1: ["HELICOPTER"],
+  hec_2: ["HELICOPTER"],
+  hho: ["HELICOPTER"],
+  hdf: ["HELICOPTER"],
+  nvis: ["HELICOPTER"],
+  mountain_landing_official: ["HELICOPTER"],
+  mountain_landing_2000: ["HELICOPTER"],
+  mountain_landing_2700: ["HELICOPTER"],
+  go_around: ["AEROPLANE"],
+  touch_and_go: ["AEROPLANE"],
+  aoc: ["SAILPLANE", "BALLOON"],
 };
 
 /**
@@ -60,7 +95,10 @@ export const ATTRIBUTE_CATEGORY_RESTRICTIONS: Partial<Record<EntryAttribute, rea
 export const SAILPLANE_ATTRIBUTES: ReadonlySet<EntryAttribute> = new Set([
   "skill_test",
   "proficiency_check",
+  "licence_proficiency_check",
   "language_proficiency_check",
+  "aoc",
+  "demo_flight",
   "refresher_training",
   "training_flight",
   "familiarization",
@@ -95,9 +133,11 @@ export function isEntryAttribute(value: string): value is EntryAttribute {
 export const SIGNATURE_REQUIRED_ATTRIBUTES: ReadonlySet<EntryAttribute> = new Set([
   "skill_test",
   "proficiency_check",
+  "licence_proficiency_check",
   "operator_proficiency_check",
   "operator_line_check",
   "language_proficiency_check",
+  "aoc",
 ]);
 
 export function attributesRequiringSignature(

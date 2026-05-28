@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { useAuth } from "../auth";
 import { Alert, Button, Card, Field } from "../components/ui";
+import { attributeChipSuffix } from "../lib/attributeDisplay";
 import {
   ATTRIBUTE_LABELS,
   CATEGORY_LABELS,
@@ -591,7 +592,7 @@ function EntryDetailPanel({
           <div className="mt-2 flex flex-wrap gap-1.5">
             {c.attributes.map((a) => (
               <span key={a} className="rounded-full bg-slate-200/70 px-2.5 py-0.5 text-[11px] text-slate-700">
-                {ATTRIBUTE_LABELS[a] ?? a}
+                {ATTRIBUTE_LABELS[a] ?? a}{attributeChipSuffix(a, c)}
               </span>
             ))}
           </div>

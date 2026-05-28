@@ -66,11 +66,38 @@ const EntryShape = z.object({
   attributes: z.array(z.string()).optional(),
   attributeDetails: z
     .object({
+      // Legacy fields.
       hesloLevel: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
       hecLevel: z.union([z.literal(1), z.literal(2)]).optional(),
       hoistCycles: z.number().int().nonnegative().optional(),
-      mountainLandingGear: z.enum(["SKI", "WHEELS"]).optional(),
       lowVisibilityLandingType: z.string().optional(),
+      // Mountain landings.
+      mountainLandingGear: z.enum(["SKI", "WHEELS"]).optional(),
+      mountainLandings: z.number().int().nonnegative().optional(),
+      mountainLandingsOfficial: z.number().int().nonnegative().optional(),
+      mountainLandingsAbove2000: z.number().int().nonnegative().optional(),
+      mountainLandingsAbove2700: z.number().int().nonnegative().optional(),
+      // Aeroplane manoeuvre counts.
+      goArounds: z.number().int().nonnegative().optional(),
+      touchAndGo: z.number().int().nonnegative().optional(),
+      // Helicopter operations.
+      hdfTakeoffs: z.number().int().nonnegative().optional(),
+      nvisMinutes: z.number().int().nonnegative().optional(),
+      heslo1Cycles: z.number().int().nonnegative().optional(),
+      heslo2Cycles: z.number().int().nonnegative().optional(),
+      heslo3Cycles: z.number().int().nonnegative().optional(),
+      heslo4Cycles: z.number().int().nonnegative().optional(),
+      hec1Cycles: z.number().int().nonnegative().optional(),
+      hec2Cycles: z.number().int().nonnegative().optional(),
+      hhoCycles: z.number().int().nonnegative().optional(),
+      aerobaticLevel: z.enum(["BASIC", "ADVANCED"]).optional(),
+      // Comments on checks.
+      skillTestComment: z.string().optional(),
+      proficiencyCheckComment: z.string().optional(),
+      licenceProficiencyCheckComment: z.string().optional(),
+      languageProficiencyComment: z.string().optional(),
+      aocComment: z.string().optional(),
+      demoFlightComment: z.string().optional(),
     })
     .optional(),
 });

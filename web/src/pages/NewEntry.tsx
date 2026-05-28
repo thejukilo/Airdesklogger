@@ -3,7 +3,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Button, Card, Field, Select } from "../components/ui";
 import { SEVERE_SKEW_MS, useClockSkew } from "../lib/clockSkew";
-import { ATTRIBUTE_GROUPS, ATTRIBUTE_LABELS, CATEGORY_LABELS, attributeAllowedForCategory } from "../labels";
+import { CATEGORY_LABELS } from "../labels";
+import { ATTR_SPEC, type AttrCategory, type AttrGroup, type AttrItem, type AttrSubGroup } from "../lib/attributesSpec";
 import { SimulatorSession } from "./SimulatorSession";
 
 // The new-entry category chooser: the four flight categories plus the simulator
@@ -55,25 +56,422 @@ function CategoryTab({
 }
 
 /** A small "i" badge that reveals a styled note on hover or focus. */
-function InfoTip({ title, text }: { title: string; text: string }) {
+/* ────────────────────────── Attributes section ────────────────────────── */
+
+function specGroupItems(g: AttrGroup): AttrItem[] {
+  return [...(g.items ?? []), ...(g.subs ?? []).flatMap((s) => s.items)];
+}
+
+function specForCategory(category: string): AttrGroup[] {
+  return ATTR_SPEC[(category as AttrCategory)]?.groups ?? [];
+}
+
+function visibleKeysForCategory(category: string): Set<string> {
+  const out = new Set<string>();
+  for (const g of specForCategory(category)) for (const it of specGroupItems(g)) out.add(it.key);
+  return out;
+}
+
+/** A label that shows its explanatory note on hover (no separate icon needed). */
+function HoverLabel({ children, note }: { children: ReactNode; note?: string }) {
+  if (!note) return <span>{children}</span>;
   return (
-    <span className="group relative inline-flex align-middle">
-      <button
-        type="button"
-        aria-label={`About ${title}`}
-        className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-300 text-[10px] font-bold leading-none text-slate-700 hover:bg-slate-400"
-      >
-        i
-      </button>
+    <span className="group relative inline-flex cursor-help items-center">
+      <span className="underline decoration-dotted decoration-slate-400 underline-offset-2">{children}</span>
       <span
         role="tooltip"
-        className="pointer-events-none absolute left-0 top-6 z-30 hidden w-72 rounded-lg border border-slate-200 bg-white p-3 text-left text-xs leading-relaxed text-slate-600 shadow-xl group-hover:block group-focus-within:block"
+        className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-72 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-left text-[12px] font-normal normal-case leading-snug tracking-normal text-slate-100 shadow-lg group-hover:block group-focus-within:block"
       >
-        <span className="mb-1 block font-semibold text-slate-900">{title}</span>
-        {text}
+        {note}
       </span>
     </span>
   );
+}
+
+function AttrStepper({ value, onChange, max }: { value: number; onChange: (v: number) => void; max?: number }) {
+  return (
+    <span className="inline-flex h-[28px] items-stretch border border-slate-400 bg-white">
+      <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="w-7 border-r border-slate-400 bg-slate-100 text-base font-bold text-slate-700 hover:bg-slate-200">−</button>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={value || ""}
+        onChange={(e) => {
+          const n = Math.max(0, Number(e.target.value) || 0);
+          onChange(max !== undefined ? Math.min(max, n) : n);
+        }}
+        className="w-10 border-0 bg-transparent text-center text-sm font-semibold outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <button type="button" onClick={() => onChange((max !== undefined ? Math.min(max, value + 1) : value + 1))} className="w-7 border-l border-slate-400 bg-slate-100 text-base font-bold text-slate-700 hover:bg-slate-200">+</button>
+    </span>
+  );
+}
+
+function AttrSeg<T extends string>({ value, onChange, options }: { value: T | undefined; onChange: (v: T) => void; options: ReadonlyArray<{ value: string; label: string }> }) {
+  return (
+    <span className="inline-flex h-[28px] items-stretch border border-slate-400 bg-white">
+      {options.map((opt, i) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value as T)}
+            className={`px-2.5 text-xs font-semibold ${i > 0 ? "border-l border-slate-400" : ""} ${active ? "bg-sky-700 text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
+function AttrTimeInput({ value, onChange, placeholder = "HH:MM" }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={value}
+      onChange={(e) => onChange(autoFormatHHMM(e.target.value))}
+      placeholder={placeholder}
+      className="h-[28px] w-[72px] border border-slate-400 bg-white px-2 text-center text-sm font-semibold tabular-nums outline-none"
+    />
+  );
+}
+
+function AttrTextInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="block h-[28px] w-full max-w-md border border-slate-400 bg-white px-2 text-sm outline-none placeholder:italic placeholder:text-slate-400"
+    />
+  );
+}
+
+interface SelectionLine {
+  key: string;
+  label: string;
+  value?: string;
+}
+
+function attrItemValue(
+  item: AttrItem,
+  details: api.AttributeDetails,
+  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string },
+): string | undefined {
+  const input = item.input;
+  if (!input) return undefined;
+  if (input.kind === "count") {
+    const n = (details as Record<string, unknown>)[input.field] as number | undefined;
+    return n && n > 0 ? `× ${n}` : undefined;
+  }
+  if (input.kind === "time") {
+    if (input.entryField) {
+      // seriesTimeHHMM is the user-edited HH:MM string
+      return ctx.seriesTimeHHMM || undefined;
+    }
+    const n = (details as Record<string, unknown>)[input.field] as number | undefined;
+    return n && n > 0 ? fmtHHMM(n) : undefined;
+  }
+  if (input.kind === "segment") {
+    if (input.entryField) {
+      const v = input.field === "launchMethod" ? ctx.launchMethod : "";
+      return input.options.find((o) => o.value === v)?.label;
+    }
+    const v = (details as Record<string, unknown>)[input.field] as string | undefined;
+    return v ? input.options.find((o) => o.value === v)?.label : undefined;
+  }
+  if (input.kind === "text") {
+    const v = (details as Record<string, unknown>)[input.field] as string | undefined;
+    return v && v.trim() ? `— ${v.trim()}` : undefined;
+  }
+  return undefined;
+}
+
+function selectionForCategory(
+  category: string,
+  attributes: string[],
+  details: api.AttributeDetails,
+  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string },
+): SelectionLine[] {
+  const out: SelectionLine[] = [];
+  const isOn = (item: AttrItem) => {
+    if (item.entryToggle) {
+      const v = item.entryToggle.field === "balloonFlightType" ? ctx.balloonFlightType : "";
+      return v === item.entryToggle.whenValue;
+    }
+    return attributes.includes(item.key);
+  };
+  for (const g of specForCategory(category)) {
+    for (const it of specGroupItems(g)) {
+      if (!isOn(it)) continue;
+      const val = attrItemValue(it, details, ctx);
+      out.push({ key: it.key, label: it.label, ...(val !== undefined ? { value: val } : {}) });
+    }
+  }
+  return out;
+}
+
+interface AttributesSectionProps {
+  category: string;
+  attributes: string[];
+  details: api.AttributeDetails;
+  launchMethod: string;
+  balloonFlightType: string;
+  seriesTimeHHMM: string;
+  seriesExceeds: boolean;
+  computedBlockMinutes: number;
+  onToggleAttr: (key: string) => void;
+  onSetDetail: <K extends keyof api.AttributeDetails>(field: K, value: api.AttributeDetails[K]) => void;
+  onSetSeries: (v: string) => void;
+  onSetLaunch: (v: string) => void;
+  onSetBalloonType: (v: string) => void;
+}
+
+function AttributesSection(p: AttributesSectionProps) {
+  const groups = specForCategory(p.category);
+  if (groups.length === 0) return null;
+  const ctx = { launchMethod: p.launchMethod, balloonFlightType: p.balloonFlightType, seriesTimeHHMM: p.seriesTimeHHMM };
+  const lines = selectionForCategory(p.category, p.attributes, p.details, ctx);
+
+  const isOn = (item: AttrItem) => {
+    if (item.entryToggle) {
+      const v = item.entryToggle.field === "balloonFlightType" ? p.balloonFlightType : "";
+      return v === item.entryToggle.whenValue;
+    }
+    return p.attributes.includes(item.key);
+  };
+
+  const toggle = (item: AttrItem) => {
+    if (item.entryToggle && item.entryToggle.field === "balloonFlightType") {
+      p.onSetBalloonType(isOn(item) ? "FREE" : item.entryToggle.whenValue);
+      return;
+    }
+    p.onToggleAttr(item.key);
+  };
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-base font-semibold text-slate-800">Attributes &amp; endorsements</h2>
+
+      {/* Your selection panel */}
+      <div className="border border-slate-300 bg-white">
+        <div className="flex items-baseline justify-between bg-sky-700 px-3.5 py-2 text-white">
+          <span className="text-xs font-bold uppercase tracking-wider">Your selection</span>
+          <span className="text-[11px] opacity-90">{lines.length === 1 ? "1 item" : `${lines.length} items`}</span>
+        </div>
+        <div className="px-3.5 py-2.5 text-sm">
+          {lines.length === 0 ? (
+            <span className="italic text-slate-400">Nothing added yet. Tick from the categories below.</span>
+          ) : (
+            <ul className="flex flex-wrap gap-x-3 gap-y-1">
+              {lines.map((l, i) => (
+                <li key={l.key} className="inline-flex items-baseline gap-1">
+                  {i > 0 && <span className="text-slate-300">·</span>}
+                  <span className="font-semibold text-sky-700">{l.label}</span>
+                  {l.value && <span className="text-slate-700">{l.value}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Group accordions */}
+      {groups.map((g, gi) => (
+        <details key={g.title} open className="group/cat border border-slate-300 bg-white">
+          <summary className="flex cursor-pointer list-none items-center gap-2 bg-sky-700 px-3.5 py-2 text-white">
+            <span className="inline-block h-[9px] w-[9px] -translate-y-[1px] rotate-[-45deg] border-b-2 border-r-2 border-white transition-transform group-open/cat:translate-y-0 group-open/cat:rotate-45" aria-hidden="true" />
+            <span className="text-[13px] font-bold uppercase tracking-wider">{gi + 1}. {g.title}</span>
+          </summary>
+          <div className="px-3.5 pb-3 pt-2">
+            {g.note && <p className="mb-2 text-xs text-slate-600">{g.note}</p>}
+            {g.subs ? (
+              g.subs.map((sub, si) => (
+                <SubGroupBlock
+                  key={sub.title}
+                  sub={sub}
+                  first={si === 0}
+                  isOn={isOn}
+                  toggle={toggle}
+                  ctx={ctx}
+                  details={p.details}
+                  computedBlockMinutes={p.computedBlockMinutes}
+                  seriesExceeds={p.seriesExceeds}
+                  onSetDetail={p.onSetDetail}
+                  onSetSeries={p.onSetSeries}
+                  onSetLaunch={p.onSetLaunch}
+                />
+              ))
+            ) : (
+              <ItemsGrid
+                items={g.items ?? []}
+                isOn={isOn}
+                toggle={toggle}
+                details={p.details}
+                ctx={ctx}
+                computedBlockMinutes={p.computedBlockMinutes}
+                seriesExceeds={p.seriesExceeds}
+                onSetDetail={p.onSetDetail}
+                onSetSeries={p.onSetSeries}
+                onSetLaunch={p.onSetLaunch}
+              />
+            )}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+function SubGroupBlock({
+  sub, first, isOn, toggle, ctx, details, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch,
+}: {
+  sub: AttrSubGroup;
+  first: boolean;
+  isOn: (it: AttrItem) => boolean;
+  toggle: (it: AttrItem) => void;
+  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string };
+  details: api.AttributeDetails;
+  computedBlockMinutes: number;
+  seriesExceeds: boolean;
+  onSetDetail: <K extends keyof api.AttributeDetails>(field: K, value: api.AttributeDetails[K]) => void;
+  onSetSeries: (v: string) => void;
+  onSetLaunch: (v: string) => void;
+}) {
+  return (
+    <div className={first ? "" : "mt-3 border-t border-slate-200 pt-3"}>
+      <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-sky-700">{sub.title}</div>
+      <ItemsGrid
+        items={sub.items}
+        isOn={isOn}
+        toggle={toggle}
+        details={details}
+        ctx={ctx}
+        computedBlockMinutes={computedBlockMinutes}
+        seriesExceeds={seriesExceeds}
+        onSetDetail={onSetDetail}
+        onSetSeries={onSetSeries}
+        onSetLaunch={onSetLaunch}
+      />
+    </div>
+  );
+}
+
+function ItemsGrid({
+  items, isOn, toggle, details, ctx, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch,
+}: {
+  items: AttrItem[];
+  isOn: (it: AttrItem) => boolean;
+  toggle: (it: AttrItem) => void;
+  details: api.AttributeDetails;
+  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string };
+  computedBlockMinutes: number;
+  seriesExceeds: boolean;
+  onSetDetail: <K extends keyof api.AttributeDetails>(field: K, value: api.AttributeDetails[K]) => void;
+  onSetSeries: (v: string) => void;
+  onSetLaunch: (v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+      {items.map((item) => (
+        <div key={item.key} className="py-1.5">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={isOn(item)}
+              onChange={() => toggle(item)}
+              className="h-3.5 w-3.5 accent-sky-700"
+            />
+            <HoverLabel note={item.note}>{item.label}</HoverLabel>
+          </label>
+          {isOn(item) && item.input && (
+            <div className="ml-[22px] mt-1.5 flex flex-wrap items-center gap-2 text-sm">
+              {renderInput(item, details, ctx, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch)}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function renderInput(
+  item: AttrItem,
+  details: api.AttributeDetails,
+  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string },
+  computedBlockMinutes: number,
+  seriesExceeds: boolean,
+  onSetDetail: <K extends keyof api.AttributeDetails>(field: K, value: api.AttributeDetails[K]) => void,
+  onSetSeries: (v: string) => void,
+  onSetLaunch: (v: string) => void,
+): ReactNode {
+  const input = item.input!;
+  if (input.kind === "count") {
+    const value = (details as Record<string, unknown>)[input.field] as number | undefined;
+    return (
+      <>
+        <AttrStepper value={value ?? 0} onChange={(v) => onSetDetail(input.field as keyof api.AttributeDetails, v as api.AttributeDetails[keyof api.AttributeDetails])} />
+        <span className="text-xs text-slate-500">{input.unit}</span>
+      </>
+    );
+  }
+  if (input.kind === "time") {
+    if (input.entryField) {
+      // series-of-flights reduced total time
+      return (
+        <>
+          <AttrTimeInput value={ctx.seriesTimeHHMM} onChange={onSetSeries} />
+          <span className={`text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
+            {seriesExceeds
+              ? `Cannot exceed calculated ${fmtHHMM(computedBlockMinutes)}.`
+              : `reduced total time (calc. ${fmtHHMM(computedBlockMinutes) || "—"})`}
+          </span>
+        </>
+      );
+    }
+    const minutes = (details as Record<string, unknown>)[input.field] as number | undefined;
+    return (
+      <>
+        <AttrTimeInput
+          value={minutes ? fmtHHMM(minutes) : ""}
+          onChange={(v) => {
+            const mins = parseHHMM(v);
+            onSetDetail(input.field as keyof api.AttributeDetails, mins as api.AttributeDetails[keyof api.AttributeDetails]);
+          }}
+        />
+        <span className="text-xs text-slate-500">{input.label}</span>
+      </>
+    );
+  }
+  if (input.kind === "segment") {
+    if (input.entryField && input.field === "launchMethod") {
+      return <AttrSeg value={ctx.launchMethod} onChange={onSetLaunch} options={input.options} />;
+    }
+    const v = (details as Record<string, unknown>)[input.field] as string | undefined;
+    return (
+      <AttrSeg
+        value={v}
+        onChange={(nv) => onSetDetail(input.field as keyof api.AttributeDetails, nv as api.AttributeDetails[keyof api.AttributeDetails])}
+        options={input.options}
+      />
+    );
+  }
+  if (input.kind === "text") {
+    const v = (details as Record<string, unknown>)[input.field] as string | undefined;
+    return (
+      <AttrTextInput
+        value={v ?? ""}
+        onChange={(nv) => onSetDetail(input.field as keyof api.AttributeDetails, nv as api.AttributeDetails[keyof api.AttributeDetails])}
+        placeholder={input.placeholder ?? "Comment"}
+      />
+    );
+  }
+  return null;
 }
 
 /**
@@ -226,11 +624,7 @@ const empty = {
   picName: "SELF",
   remarks: "",
   attributes: [] as string[],
-  hesloLevel: "",
-  hecLevel: "",
-  hoistCycles: 0,
-  mountainLandingGear: "",
-  lowVisibilityLandingType: "",
+  attrDetails: {} as api.AttributeDetails,
 };
 
 /** Reverse-map a stored entry's content into the form fields, for editing. */
@@ -262,13 +656,49 @@ function fromContent(c: api.EntryContent): typeof empty {
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
     picName: c.picName ?? "SELF",
     remarks: c.remarks ?? "",
-    attributes: cols?.attributes ?? [],
-    hesloLevel: cols?.attributeDetails?.hesloLevel ? String(cols.attributeDetails.hesloLevel) : "",
-    hecLevel: cols?.attributeDetails?.hecLevel ? String(cols.attributeDetails.hecLevel) : "",
-    hoistCycles: cols?.attributeDetails?.hoistCycles ?? 0,
-    mountainLandingGear: cols?.attributeDetails?.mountainLandingGear ?? "",
-    lowVisibilityLandingType: cols?.attributeDetails?.lowVisibilityLandingType ?? "",
+    attributes: migrateLegacyAttributes(cols?.attributes ?? [], cols?.attributeDetails),
+    attrDetails: migrateLegacyDetails(cols?.attributes ?? [], cols?.attributeDetails),
   };
+}
+
+/**
+ * Older entries stored a single HESLO (or HEC) operation as `heslo` plus
+ * `hesloLevel` + `hoistCycles`. The new model has one attribute per level
+ * (`heslo_1` ... `heslo_4` and `hec_1`, `hec_2`) carrying its own cycle count.
+ * Migrate on read so old entries open in the new UI without surprises.
+ */
+function migrateLegacyAttributes(attrs: string[], d?: api.AttributeDetails): string[] {
+  if (!d) return [...attrs];
+  const out = new Set(attrs);
+  if (out.has("heslo") && d.hesloLevel) {
+    out.delete("heslo");
+    out.add(`heslo_${d.hesloLevel}`);
+  }
+  if (out.has("hec") && d.hecLevel) {
+    out.delete("hec");
+    out.add(`hec_${d.hecLevel}`);
+  }
+  return Array.from(out);
+}
+
+function migrateLegacyDetails(attrs: string[], d?: api.AttributeDetails): api.AttributeDetails {
+  const out: api.AttributeDetails = { ...(d ?? {}) };
+  if (attrs.includes("heslo") && d?.hesloLevel) {
+    const k = `heslo${d.hesloLevel}Cycles` as keyof api.AttributeDetails;
+    if (d.hoistCycles && !(out as Record<string, unknown>)[k]) {
+      (out as Record<string, unknown>)[k] = d.hoistCycles;
+    }
+  }
+  if (attrs.includes("hec") && d?.hecLevel) {
+    const k = `hec${d.hecLevel}Cycles` as keyof api.AttributeDetails;
+    if (d.hoistCycles && !(out as Record<string, unknown>)[k]) {
+      (out as Record<string, unknown>)[k] = d.hoistCycles;
+    }
+  }
+  delete out.hesloLevel;
+  delete out.hecLevel;
+  delete out.hoistCycles;
+  return out;
 }
 
 export function NewEntry() {
@@ -299,7 +729,6 @@ export function NewEntry() {
   const [arrName, setArrName] = useState<string | null>(null);
   // Attributes are optional, so the section is collapsed by default to stay out
   // of the way; it opens when the pilot has one to add.
-  const [showAttributes, setShowAttributes] = useState(false);
 
   useEffect(() => {
     if (!editId) return;
@@ -328,8 +757,6 @@ export function NewEntry() {
 
   const has = (key: string) => f.attributes.includes(key);
   const isSeries = has("series_of_flights");
-  const showDetails =
-    has("heslo") || has("hec") || has("mountain_landings") || has("low_visibility_landing") || isSeries;
 
   // Calculated flight time from the block times, used as the ceiling for a
   // series of flights (which may only be logged with a reduced time).
@@ -347,37 +774,55 @@ export function NewEntry() {
   // Only the attributes that apply to the chosen category. Sailplanes use a
   // strict whitelist; other categories use the per-attribute restrictions
   // (launch/cloud are sailplane-only, HESLO/HEC helicopter-only).
-  const visibleGroups = ATTRIBUTE_GROUPS.map((g) => ({
-    title: g.title,
-    items: g.items.filter((it) => attributeAllowedForCategory(it, f.category)),
-  })).filter((g) => g.items.length > 0);
-  const selectedLabels = f.attributes.map((k) => ATTRIBUTE_LABELS[k] ?? k);
-
   // When the category changes, drop any selected attribute that no longer
   // applies, so the entry does not carry (and the server does not reject) one.
   useEffect(() => {
-    const visible = new Set(
-      ATTRIBUTE_GROUPS.flatMap((g) => g.items)
-        .filter((it) => attributeAllowedForCategory(it, f.category))
-        .map((it) => it.key),
-    );
+    const visible = visibleKeysForCategory(f.category);
     if (f.attributes.some((k) => !visible.has(k))) {
       setF((prev) => ({ ...prev, attributes: prev.attributes.filter((k) => visible.has(k)) }));
     }
   }, [f.category]);
 
   function buildAttributeDetails(): api.AttributeDetails | null {
-    const d: api.AttributeDetails = {};
-    if (has("heslo") && f.hesloLevel) d.hesloLevel = Number(f.hesloLevel) as 1 | 2 | 3 | 4;
-    if (has("hec") && f.hecLevel) d.hecLevel = Number(f.hecLevel) as 1 | 2;
-    if ((has("heslo") || has("hec")) && Number(f.hoistCycles) > 0) d.hoistCycles = Number(f.hoistCycles);
-    if (has("mountain_landings") && f.mountainLandingGear) {
-      d.mountainLandingGear = f.mountainLandingGear as "SKI" | "WHEELS";
+    // Keep only fields whose attribute is currently selected, so unticking a
+    // chip cleanly removes its data from the entry.
+    const d = { ...f.attrDetails };
+    if (!has("mountain_landings")) {
+      delete d.mountainLandingGear;
+      delete d.mountainLandings;
     }
-    if (has("low_visibility_landing") && f.lowVisibilityLandingType) {
-      d.lowVisibilityLandingType = f.lowVisibilityLandingType;
-    }
+    if (!has("mountain_landing_official")) delete d.mountainLandingsOfficial;
+    if (!has("mountain_landing_2000")) delete d.mountainLandingsAbove2000;
+    if (!has("mountain_landing_2700")) delete d.mountainLandingsAbove2700;
+    if (!has("hdf")) delete d.hdfTakeoffs;
+    if (!has("nvis")) delete d.nvisMinutes;
+    if (!has("go_around")) delete d.goArounds;
+    if (!has("touch_and_go")) delete d.touchAndGo;
+    if (!has("heslo_1")) delete d.heslo1Cycles;
+    if (!has("heslo_2")) delete d.heslo2Cycles;
+    if (!has("heslo_3")) delete d.heslo3Cycles;
+    if (!has("heslo_4")) delete d.heslo4Cycles;
+    if (!has("hec_1")) delete d.hec1Cycles;
+    if (!has("hec_2")) delete d.hec2Cycles;
+    if (!has("hho")) delete d.hhoCycles;
+    if (!has("aerobatic_privilege")) delete d.aerobaticLevel;
+    if (!has("skill_test")) delete d.skillTestComment;
+    if (!has("proficiency_check")) delete d.proficiencyCheckComment;
+    if (!has("licence_proficiency_check")) delete d.licenceProficiencyCheckComment;
+    if (!has("language_proficiency_check")) delete d.languageProficiencyComment;
+    if (!has("aoc")) delete d.aocComment;
+    if (!has("demo_flight")) delete d.demoFlightComment;
     return Object.keys(d).length > 0 ? d : null;
+  }
+
+  /** Update a nested attribute-detail field. */
+  function setDetail<K extends keyof api.AttributeDetails>(field: K, value: api.AttributeDetails[K]) {
+    setF((prev) => {
+      const next: api.AttributeDetails = { ...prev.attrDetails };
+      if (value === undefined || value === "" || value === 0) delete next[field];
+      else next[field] = value;
+      return { ...prev, attrDetails: next };
+    });
   }
 
   // The model last auto-filled from a lookup, so it can be cleared again if the
@@ -853,96 +1298,21 @@ export function NewEntry() {
           </p>
         </Section>
 
-        <Section title="Attributes and endorsements">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-slate-600">
-              {selectedLabels.length > 0 ? selectedLabels.join(", ") : "None added (optional)."}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowAttributes((v) => !v)}
-              className="shrink-0 text-sm text-sky-700 underline"
-            >
-              {showAttributes ? "Done" : selectedLabels.length > 0 ? "Edit" : "Add"}
-            </button>
-          </div>
-
-          {showAttributes && (
-            <div className="mt-2 space-y-3">
-              {visibleGroups.map((g) => (
-                <div key={g.title}>
-                  <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">{g.title}</div>
-                  <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-3">
-                    {g.items.map((a) => (
-                      <div key={a.key} className="flex items-center gap-1.5 py-1 text-sm">
-                        <label className="flex items-center gap-2">
-                          <input type="checkbox" checked={has(a.key)} onChange={() => toggleAttr(a.key)} />
-                          {a.label}
-                        </label>
-                        {a.note && <InfoTip title={a.label} text={a.note} />}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <p className="text-xs text-slate-500">
-                A skill test, proficiency check or line check will require a sign-off.
-              </p>
-            </div>
-          )}
-
-          {showDetails && (
-            <div className="grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-3 sm:grid-cols-2">
-              {isSeries && (
-                <div>
-                  <Field
-                    label="Flight time (HH:MM)"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="HH:MM"
-                    value={f.seriesTime}
-                    onChange={(e) => set("seriesTime", autoFormatHHMM(e.target.value))}
-                    hint={seriesExceeds ? undefined : `Calculated ${fmtHHMM(computedBlock)}. You may only reduce it.`}
-                  />
-                  {seriesExceeds && (
-                    <p className="mt-1 text-xs text-rose-600">
-                      Cannot exceed the calculated {fmtHHMM(computedBlock)}; the time may only be reduced.
-                    </p>
-                  )}
-                </div>
-              )}
-              {has("heslo") && (
-                <Select label="HESLO level" value={f.hesloLevel} onChange={(e) => set("hesloLevel", e.target.value)}>
-                  <option value="">Not set</option>
-                  <option value="1">HESLO 1</option>
-                  <option value="2">HESLO 2</option>
-                  <option value="3">HESLO 3</option>
-                  <option value="4">HESLO 4</option>
-                </Select>
-              )}
-              {has("hec") && (
-                <Select label="HEC level" value={f.hecLevel} onChange={(e) => set("hecLevel", e.target.value)}>
-                  <option value="">Not set</option>
-                  <option value="1">HEC 1</option>
-                  <option value="2">HEC 2</option>
-                </Select>
-              )}
-              {(has("heslo") || has("hec")) && (
-                <Field label="Number of cycles" type="number" min={0} inputMode="numeric" value={f.hoistCycles} onChange={(e) => set("hoistCycles", Number(e.target.value))} />
-              )}
-              {has("mountain_landings") && (
-                <Select label="Mountain landing gear" value={f.mountainLandingGear} onChange={(e) => set("mountainLandingGear", e.target.value)}>
-                  <option value="">Not set</option>
-                  <option value="SKI">Ski</option>
-                  <option value="WHEELS">Wheels</option>
-                </Select>
-              )}
-              {has("low_visibility_landing") && (
-                <Field label="Low-visibility landing type" value={f.lowVisibilityLandingType} onChange={(e) => set("lowVisibilityLandingType", e.target.value)} hint="For example CAT II, CAT IIIA." />
-              )}
-            </div>
-          )}
-        </Section>
+        <AttributesSection
+          category={f.category}
+          attributes={f.attributes}
+          details={f.attrDetails}
+          launchMethod={f.launchMethod}
+          balloonFlightType={f.balloonFlightType}
+          seriesTimeHHMM={f.seriesTime}
+          seriesExceeds={seriesExceeds}
+          computedBlockMinutes={computedBlock}
+          onToggleAttr={toggleAttr}
+          onSetDetail={setDetail}
+          onSetSeries={(v) => set("seriesTime", v)}
+          onSetLaunch={(v) => set("launchMethod", v)}
+          onSetBalloonType={(v) => set("balloonFlightType", v)}
+        />
 
         <Section title="Remarks">
           <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />

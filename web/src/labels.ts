@@ -115,9 +115,34 @@ export const SIMULATOR_ATTRIBUTES = new Set<string>([
 
 export const ATTRIBUTES: AttributeDef[] = ATTRIBUTE_GROUPS.flatMap((g) => g.items);
 
-export const ATTRIBUTE_LABELS: Record<string, string> = Object.fromEntries(
-  ATTRIBUTES.map((a) => [a.key, a.label]),
-);
+// Labels for the new spec-driven attribute keys introduced for the redesigned
+// attributes section. Merged into ATTRIBUTE_LABELS below so the entry-detail
+// page and the logbook chips read them out of one map.
+const NEW_ATTRIBUTE_LABELS: Record<string, string> = {
+  hdf: "HDF (departure in fog)",
+  mountain_landing_official: "Mountain landing - official site",
+  mountain_landing_2000: "Mountain landing - above 2 000 m",
+  mountain_landing_2700: "Mountain landing - above 2 700 m",
+  go_around: "Go-around",
+  touch_and_go: "Touch and go",
+  nvis: "NVIS (night vision)",
+  tethered_flight: "Tethered flight",
+  heslo_1: "HESLO 1",
+  heslo_2: "HESLO 2",
+  heslo_3: "HESLO 3",
+  heslo_4: "HESLO 4",
+  hec_1: "HEC 1",
+  hec_2: "HEC 2",
+  hho: "HHO",
+  licence_proficiency_check: "LPC (licence prof. check)",
+  aoc: "AOC (assessment of competence)",
+  demo_flight: "Demo flight",
+};
+
+export const ATTRIBUTE_LABELS: Record<string, string> = {
+  ...Object.fromEntries(ATTRIBUTES.map((a) => [a.key, a.label])),
+  ...NEW_ATTRIBUTE_LABELS,
+};
 
 export const FUNCTION_LABELS: Record<string, string> = {
   PIC: "PIC",

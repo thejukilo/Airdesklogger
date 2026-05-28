@@ -90,11 +90,39 @@ export interface FunctionTime {
  * low-visibility landing.
  */
 export interface AttributeDetails {
+  // Legacy single-HESLO/HEC fields, kept for backward-compat with older entries.
   hesloLevel?: 1 | 2 | 3 | 4 | undefined;
   hecLevel?: 1 | 2 | undefined;
   hoistCycles?: number | undefined;
-  mountainLandingGear?: "SKI" | "WHEELS" | undefined;
   lowVisibilityLandingType?: string | undefined;
+  // Aeroplane / helicopter mountain landings: gear is aeroplane-only.
+  mountainLandingGear?: "SKI" | "WHEELS" | undefined;
+  mountainLandings?: number | undefined;
+  mountainLandingsOfficial?: number | undefined;
+  mountainLandingsAbove2000?: number | undefined;
+  mountainLandingsAbove2700?: number | undefined;
+  // Aeroplane manoeuvre counts.
+  goArounds?: number | undefined;
+  touchAndGo?: number | undefined;
+  // Helicopter operations.
+  hdfTakeoffs?: number | undefined;
+  nvisMinutes?: number | undefined;
+  heslo1Cycles?: number | undefined;
+  heslo2Cycles?: number | undefined;
+  heslo3Cycles?: number | undefined;
+  heslo4Cycles?: number | undefined;
+  hec1Cycles?: number | undefined;
+  hec2Cycles?: number | undefined;
+  hhoCycles?: number | undefined;
+  // Sailplane / shared.
+  aerobaticLevel?: "BASIC" | "ADVANCED" | undefined;
+  // Comments on checks.
+  skillTestComment?: string | undefined;
+  proficiencyCheckComment?: string | undefined;
+  licenceProficiencyCheckComment?: string | undefined;
+  languageProficiencyComment?: string | undefined;
+  aocComment?: string | undefined;
+  demoFlightComment?: string | undefined;
 }
 
 /**
