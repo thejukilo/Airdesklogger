@@ -241,6 +241,18 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const fm = functionMinutes({ primary: effectivePrimary, instructor: instructorMinutes }, total);
   const instructor = safetyNoControl ? 0 : loggedMinutes(instructorMinutes, safeCrew);
 
+  // Balloon time splits: a gas balloon goes into its own column, otherwise the
+  // hot-air time goes into the envelope-volume group (A/B/C/D) the balloon
+  // belongs to. Gas is detected from the make/model since the registry uses
+  // one ICAO code for all balloons; explicit "gas" wording in the model wins.
+  const isGasBalloon = category === "BALLOON" && /\bgas\b/i.test(input.aircraft.makeModelVariant);
+  const balloonGroup = category === "BALLOON" && !isGasBalloon ? (input.aircraft.balloonGroup ?? "").toUpperCase() : "";
+  const balloonGas = isGasBalloon ? total : 0;
+  const balloonGroupA = balloonGroup === "A" ? total : 0;
+  const balloonGroupB = balloonGroup === "B" ? total : 0;
+  const balloonGroupC = balloonGroup === "C" ? total : 0;
+  const balloonGroupD = balloonGroup === "D" ? total : 0;
+
   const derived: DerivedColumns = {
     kind: "FLIGHT",
     attributes,
@@ -252,6 +264,11 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     category,
     ...(input.launchMethod !== undefined ? { launchMethod: input.launchMethod } : {}),
     ...(input.balloonFlightType !== undefined ? { balloonFlightType: input.balloonFlightType } : {}),
+    ...(balloonGroupA ? { balloonGroupA } : {}),
+    ...(balloonGroupB ? { balloonGroupB } : {}),
+    ...(balloonGroupC ? { balloonGroupC } : {}),
+    ...(balloonGroupD ? { balloonGroupD } : {}),
+    ...(balloonGas ? { balloonGas } : {}),
     ...(input.inflations !== undefined ? { inflations: input.inflations } : {}),
     ...(input.flightTimeMinutes !== undefined ? { flightTimeMinutes: input.flightTimeMinutes } : {}),
     ...(input.function.instructorPosition !== undefined ? { instructorPosition: input.function.instructorPosition } : {}),

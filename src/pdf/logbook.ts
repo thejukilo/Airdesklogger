@@ -45,7 +45,7 @@ const NUM = (n: number) => (n > 0 ? String(n) : "");
 // HH:MM with Z for UTC, or L when the time is stored as local (could not be converted).
 const TIME = (d: Date, e: DerivedColumns) => d.toISOString().slice(11, 16) + (e.timesLocal ? "L" : "Z");
 
-const COLUMNS: LeafColumn[] = [
+const DEFAULT_COLUMNS: LeafColumn[] = [
   { group: "DATE", sub: "dd/mm/yy", width: 58, value: (e) => formatLogbookDate(e.departureTime) },
   { group: "DEPARTURE", sub: "Place", width: 44, value: (e) => e.departurePlace },
   { group: "DEPARTURE", sub: "Time", width: 38, value: (e) => TIME(e.departureTime, e) },
@@ -70,6 +70,40 @@ const COLUMNS: LeafColumn[] = [
   { group: "FUNCTION TIME", sub: "Instr", width: 40, value: (e) => MIN(e.instructor), totalKey: "instructor" },
   { group: "REMARKS", sub: "& endorsements", width: 150, value: () => "" },
 ];
+
+// Balloons have no engine class and no multi-pilot operation; instead the
+// flight time is split into the four hot-air envelope groups (BFCL.050) plus an
+// optional gas column for gas balloons. IFR doesn't apply.
+const BALLOON_COLUMNS: LeafColumn[] = [
+  { group: "DATE", sub: "dd/mm/yy", width: 58, value: (e) => formatLogbookDate(e.departureTime) },
+  { group: "DEPARTURE", sub: "Place", width: 44, value: (e) => e.departurePlace },
+  { group: "DEPARTURE", sub: "Time", width: 38, value: (e) => TIME(e.departureTime, e) },
+  { group: "ARRIVAL", sub: "Place", width: 44, value: (e) => e.arrivalPlace },
+  { group: "ARRIVAL", sub: "Time", width: 38, value: (e) => TIME(e.arrivalTime, e) },
+  { group: "BALLOON", sub: "Reg", width: 64, value: () => "" }, // filled below from content
+  { group: "TOTAL", sub: "time", width: 48, value: (e) => MIN(e.total), totalKey: "total" },
+  { group: "HOT-AIR GROUP", sub: "A", width: 38, value: (e) => MIN(e.balloonGroupA ?? 0), totalKey: "balloonGroupA" },
+  { group: "HOT-AIR GROUP", sub: "B", width: 38, value: (e) => MIN(e.balloonGroupB ?? 0), totalKey: "balloonGroupB" },
+  { group: "HOT-AIR GROUP", sub: "C", width: 38, value: (e) => MIN(e.balloonGroupC ?? 0), totalKey: "balloonGroupC" },
+  { group: "HOT-AIR GROUP", sub: "D", width: 38, value: (e) => MIN(e.balloonGroupD ?? 0), totalKey: "balloonGroupD" },
+  { group: "GAS", sub: "time", width: 40, value: (e) => MIN(e.balloonGas ?? 0), totalKey: "balloonGas" },
+  { group: "NAME PIC", sub: "", width: 78, value: () => "" },
+  { group: "LANDINGS", sub: "Day", width: 30, value: (e) => NUM(e.dayLandings), totalKey: "dayLandings" },
+  { group: "LANDINGS", sub: "Ngt", width: 30, value: (e) => NUM(e.nightLandings), totalKey: "nightLandings" },
+  { group: "OP. TIME", sub: "Day", width: 38, value: (e) => MIN(e.total - e.night), totalValue: (t) => MIN(t.total - t.night) },
+  { group: "OP. TIME", sub: "Night", width: 38, value: (e) => MIN(e.night), totalKey: "night" },
+  { group: "FUNCTION TIME", sub: "PIC", width: 40, value: (e) => MIN(e.pic), totalKey: "pic" },
+  { group: "FUNCTION TIME", sub: "Dual", width: 40, value: (e) => MIN(e.dual), totalKey: "dual" },
+  { group: "FUNCTION TIME", sub: "Instr", width: 40, value: (e) => MIN(e.instructor), totalKey: "instructor" },
+  { group: "REMARKS", sub: "& endorsements", width: 132, value: () => "" },
+];
+
+function columnsForCategory(label: string): LeafColumn[] {
+  return label === "Balloon" ? BALLOON_COLUMNS : DEFAULT_COLUMNS;
+}
+
+/** Default array kept for code paths that don't yet know the category. */
+const COLUMNS = DEFAULT_COLUMNS;
 
 function fmtIsoDate(iso: string): string {
   const [y, m, d] = iso.split("-");
@@ -501,7 +535,10 @@ function drawPage(
   const paper = opts.paperSize ?? "A4";
   const rowsPerPage = opts.rowsPerPage ?? rowsToFillPage(paper);
   const gridH = HEADER_H + rowsPerPage * ROW_H + 3 * TOTAL_ROW_H;
-  const contentW = CONTENT_W;
+  // Balloon pages have a different column block, so the grid width differs.
+  const cols = columnsForCategory(categoryLabel);
+  const gridW = cols.reduce((a, c) => a + c.width, 0);
+  const contentW = gridW + 2 * MARGIN;
   const contentH = gridH + SIG_H + 3 * MARGIN + 24;
 
   // The grid is drawn at its natural size, then scaled to fit a standard
@@ -540,15 +577,15 @@ function drawPage(
     (x + w) * scale + tx,
     (y + h) * scale + ty,
   ];
-  drawGrid(p, font, bold, gridTop, page, rowsPerPage, allEntries, linkCtx, toPdfRect);
+  drawGrid(p, font, bold, gridTop, page, rowsPerPage, allEntries, cols, gridW, linkCtx, toPdfRect);
   drawSignatureBlock(p, font, bold, gridTop - gridH - 14, contentW, opts.pilotName);
 
   p.pushOperators(popGraphicsState());
 }
 
-function colX(index: number): number {
+function colX(cols: LeafColumn[], index: number): number {
   let x = MARGIN;
-  for (let i = 0; i < index; i++) x += COLUMNS[i]!.width;
+  for (let i = 0; i < index; i++) x += cols[i]!.width;
   return x;
 }
 
@@ -586,6 +623,8 @@ function drawGrid(
   page: LogbookPage,
   rowsPerPage: number,
   allEntries: readonly LogbookEntryForPdf[],
+  cols: LeafColumn[],
+  gridW: number,
   linkCtx?: SignedLinkContext,
   toPdfRect?: (x: number, y: number, w: number, h: number) => [number, number, number, number],
 ): void {
@@ -594,40 +633,40 @@ function drawGrid(
   const totalsBottom = bodyBottom - 3 * TOTAL_ROW_H;
 
   // Header shading.
-  p.drawRectangle({ x: MARGIN, y: bodyTop, width: GRID_W, height: HEADER_H, color: SHADE });
+  p.drawRectangle({ x: MARGIN, y: bodyTop, width: gridW, height: HEADER_H, color: SHADE });
 
   // Group header row (merge adjacent leaves sharing a group label).
   let i = 0;
-  while (i < COLUMNS.length) {
-    const group = COLUMNS[i]!.group;
+  while (i < cols.length) {
+    const group = cols[i]!.group;
     let span = 1;
-    while (i + span < COLUMNS.length && COLUMNS[i + span]!.group === group) span++;
-    const x = colX(i);
-    const w = COLUMNS.slice(i, i + span).reduce((a, c) => a + c.width, 0);
+    while (i + span < cols.length && cols[i + span]!.group === group) span++;
+    const x = colX(cols, i);
+    const w = cols.slice(i, i + span).reduce((a, c) => a + c.width, 0);
     centeredText(p, group, x, w, bodyTop + HEADER_H - 11, 6.5, bold);
     i += span;
   }
   // Sub-header row.
-  COLUMNS.forEach((c, idx) => {
-    if (c.sub) centeredText(p, c.sub, colX(idx), c.width, bodyTop + 4, 6, font, GREY);
+  cols.forEach((c, idx) => {
+    if (c.sub) centeredText(p, c.sub, colX(cols, idx), c.width, bodyTop + 4, 6, font, GREY);
   });
 
   // Vertical lines. Group boundaries (and outer edges) run the full height;
   // internal sub-column boundaries start below the group-header band so they do
   // not slice through the merged group labels.
   const midDivider = bodyTop + 13;
-  for (let k = 0; k <= COLUMNS.length; k++) {
+  for (let k = 0; k <= cols.length; k++) {
     const isGroupBoundary =
-      k === 0 || k === COLUMNS.length || COLUMNS[k - 1]!.group !== COLUMNS[k]!.group;
-    vline(p, colX(k), isGroupBoundary ? gridTop : midDivider, totalsBottom);
+      k === 0 || k === cols.length || cols[k - 1]!.group !== cols[k]!.group;
+    vline(p, colX(cols, k), isGroupBoundary ? gridTop : midDivider, totalsBottom);
   }
   // Mid-header divider (between group row and sub-header row).
-  hline(p, MARGIN, MARGIN + GRID_W, midDivider);
+  hline(p, MARGIN, MARGIN + gridW, midDivider);
 
   // Horizontal lines: top, header bottom, each row, totals.
-  hline(p, MARGIN, MARGIN + GRID_W, gridTop);
-  hline(p, MARGIN, MARGIN + GRID_W, bodyTop);
-  for (let r = 0; r <= rowsPerPage; r++) hline(p, MARGIN, MARGIN + GRID_W, bodyTop - r * ROW_H);
+  hline(p, MARGIN, MARGIN + gridW, gridTop);
+  hline(p, MARGIN, MARGIN + gridW, bodyTop);
+  for (let r = 0; r <= rowsPerPage; r++) hline(p, MARGIN, MARGIN + gridW, bodyTop - r * ROW_H);
 
   // Entry rows. Flight rows only; FSTD sessions are listed in their own table.
   const LINK = rgb(0.13, 0.32, 0.78); // approximate Tailwind sky-700, for the "signed" link.
@@ -635,8 +674,8 @@ function drawGrid(
   page.rows.forEach((row, r) => {
     const y = bodyTop - (r + 1) * ROW_H + 5;
     const e = row as LogbookEntryForPdf;
-    COLUMNS.forEach((c, idx) => {
-      const x = colX(idx);
+    cols.forEach((c, idx) => {
+      const x = colX(cols, idx);
       let text = "";
       if (c.group === "DATE") {
         text = formatLogbookDate(e.departureTime);
@@ -646,13 +685,16 @@ function drawGrid(
         text = e.aircraftType ?? "";
       } else if (c.group === "AIRCRAFT" && c.sub === "Reg") {
         text = e.aircraftReg ?? "";
+      } else if (c.group === "BALLOON" && c.sub === "Reg") {
+        // The balloon layout drops the Type column and uses one combined cell.
+        text = `${e.aircraftReg ?? ""}${e.aircraftType ? ` ${e.aircraftType}` : ""}`;
       } else if (c.group === "NAME PIC") {
         text = e.picName ?? "";
       } else {
         text = c.value(row);
       }
       const leftAligned =
-        c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "DATE";
+        c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "BALLOON" || c.group === "DATE";
       if (c.group === "REMARKS") {
         // Reserve a small strip at the right of the remarks cell for the
         // "signed" / "missing" tag and draw the free-text part clipped to fit.
@@ -694,19 +736,15 @@ function drawGrid(
   totalRows.forEach((tr, idx) => {
     const rowTop = bodyBottom - idx * TOTAL_ROW_H;
     const y = rowTop - TOTAL_ROW_H + 5;
-    p.drawRectangle({ x: MARGIN, y: rowTop - TOTAL_ROW_H, width: GRID_W, height: TOTAL_ROW_H, color: SHADE });
-    hline(p, MARGIN, MARGIN + GRID_W, rowTop);
-    // Label spans columns up to the first summable column ("SINGLE-PILOT / SE").
-    const labelSpanEnd = COLUMNS.findIndex((c) => c.totalKey);
-    const labelW = COLUMNS.slice(0, labelSpanEnd).reduce((a, c) => a + c.width, 0);
+    p.drawRectangle({ x: MARGIN, y: rowTop - TOTAL_ROW_H, width: gridW, height: TOTAL_ROW_H, color: SHADE });
+    hline(p, MARGIN, MARGIN + gridW, rowTop);
     p.drawText(tr.label, { x: MARGIN + 4, y, size: 7, font: bold, color: BLACK });
-    COLUMNS.forEach((c, ci) => {
-      if (c.totalKey) centeredText(p, MIN_OR_NUM(c.totalKey, tr.totals[c.totalKey]), colX(ci), c.width, y, 6.5, bold);
-      else if (c.totalValue) centeredText(p, c.totalValue(tr.totals), colX(ci), c.width, y, 6.5, bold);
+    cols.forEach((c, ci) => {
+      if (c.totalKey) centeredText(p, MIN_OR_NUM(c.totalKey, tr.totals[c.totalKey]), colX(cols, ci), c.width, y, 6.5, bold);
+      else if (c.totalValue) centeredText(p, c.totalValue(tr.totals), colX(cols, ci), c.width, y, 6.5, bold);
     });
-    void labelW;
   });
-  hline(p, MARGIN, MARGIN + GRID_W, totalsBottom);
+  hline(p, MARGIN, MARGIN + gridW, totalsBottom);
   void allEntries;
 }
 

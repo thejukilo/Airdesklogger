@@ -218,6 +218,7 @@ const empty = {
   flightRules: "VFR",
   launchMethod: "",
   balloonFlightType: "",
+  balloonGroup: "",
   inflations: 1,
   seriesTime: "",
   landings: 1,
@@ -254,6 +255,7 @@ function fromContent(c: api.EntryContent): typeof empty {
     flightRules: (cols?.ifr ?? 0) > 0 ? "IFR" : "VFR",
     launchMethod: cols?.launchMethod ?? "",
     balloonFlightType: cols?.balloonFlightType ?? "",
+    balloonGroup: c.aircraft?.balloonGroup ?? "",
     inflations: cols?.inflations ?? 1,
     seriesTime: cols?.flightTimeMinutes ? fmtHHMM(cols.flightTimeMinutes) : "",
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
@@ -424,6 +426,7 @@ export function NewEntry() {
                     : "SE"
                   : prev.engineClass,
               multiPilot: match.multiPilot ?? prev.multiPilot,
+              balloonGroup: match.balloonGroup ?? prev.balloonGroup,
             };
           });
         } else {
@@ -526,6 +529,7 @@ export function NewEntry() {
           engineClass: f.engineClass as "SE" | "ME",
           multiPilot: f.multiPilot,
           category: f.category,
+          ...(isBalloon && f.balloonGroup ? { balloonGroup: f.balloonGroup } : {}),
         },
         legs: [
           {
@@ -804,6 +808,19 @@ export function NewEntry() {
                 <option value="">Not recorded</option>
                 <option value="FREE">Free flight</option>
                 <option value="TETHERED">Tethered flight</option>
+              </Select>
+            )}
+            {isBalloon && (
+              <Select
+                label="Balloon group"
+                value={f.balloonGroup}
+                onChange={(e) => set("balloonGroup", e.target.value)}
+              >
+                <option value="">Unknown</option>
+                <option value="A">Group A (up to 3,400 m³)</option>
+                <option value="B">Group B (3,401 - 6,000 m³)</option>
+                <option value="C">Group C (6,001 - 10,500 m³)</option>
+                <option value="D">Group D (over 10,500 m³)</option>
               </Select>
             )}
           </div>

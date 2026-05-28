@@ -167,7 +167,7 @@ export interface EntryContent {
   picName?: string;
   remarks?: string;
   operatingRole?: string;
-  aircraft?: { makeModelVariant?: string; registration?: string; engineClass?: "SE" | "ME"; multiPilot?: boolean; category?: string };
+  aircraft?: { makeModelVariant?: string; registration?: string; engineClass?: "SE" | "ME"; multiPilot?: boolean; category?: string; balloonGroup?: string };
   function?: { primary?: string; instructor?: number; tookControl?: boolean };
   columns?: EntryColumns;
 }
@@ -190,6 +190,7 @@ export interface NewEntryRequest {
     engineClass: "SE" | "ME";
     multiPilot: boolean;
     category?: string;
+    balloonGroup?: string;
   };
   legs: Array<{
     departurePlace: string;
@@ -272,6 +273,8 @@ export interface AircraftMatch {
   engineType?: string;
   engineCount?: number;
   multiPilot?: boolean;
+  /** Group A/B/C/D for balloons (envelope-volume band that bounds the rating). */
+  balloonGroup?: string;
 }
 
 export function lookupAircraft(

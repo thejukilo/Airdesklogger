@@ -46,6 +46,8 @@ export interface Aircraft {
   multiPilot: boolean;
   /** Category; defaults to aeroplane when omitted. */
   category?: AircraftCategory | undefined;
+  /** Hot-air balloon envelope-volume group ("A"/"B"/"C"/"D"); column 6 split. */
+  balloonGroup?: string | undefined;
 }
 
 /** One flight leg (off-blocks to on-blocks). Columns 2 & 3. */
@@ -210,6 +212,13 @@ export interface DerivedColumns {
   balloonFlightType?: BalloonFlightType | undefined;
   /** Number of inflations, for a balloon. */
   inflations?: number | undefined;
+  /** Total time credited to hot-air group A (minutes). For balloon entries only. */
+  balloonGroupA?: number | undefined;
+  balloonGroupB?: number | undefined;
+  balloonGroupC?: number | undefined;
+  balloonGroupD?: number | undefined;
+  /** Total time credited to gas-balloon flying (minutes). */
+  balloonGas?: number | undefined;
   /** Instructor/examiner seat position, if recorded. */
   instructorPosition?: InstructorPosition;
   /** Operating role, if recorded. */

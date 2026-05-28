@@ -117,6 +117,11 @@ export const SUMMABLE_FIELDS = [
   "dual",
   "instructor",
   "fstdTotal",
+  "balloonGroupA",
+  "balloonGroupB",
+  "balloonGroupC",
+  "balloonGroupD",
+  "balloonGas",
 ] as const;
 
 export type SummableField = (typeof SUMMABLE_FIELDS)[number];

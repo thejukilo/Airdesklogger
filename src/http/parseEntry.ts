@@ -37,6 +37,8 @@ const EntryShape = z.object({
     engineClass: z.enum(["SE", "ME"]),
     multiPilot: z.boolean(),
     category: z.enum(["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"]).optional(),
+    /** Balloon envelope-volume group (A/B/C/D); kept on the entry verbatim. */
+    balloonGroup: z.string().optional(),
   }),
   legs: z.array(LegShape).min(1),
   picName: z.string(),

@@ -35,6 +35,11 @@ function rowValues(e: DerivedColumns): ColumnTotals {
     dual: e.dual,
     instructor: e.instructor,
     fstdTotal: e.fstd?.totalMinutes ?? 0,
+    balloonGroupA: e.balloonGroupA ?? 0,
+    balloonGroupB: e.balloonGroupB ?? 0,
+    balloonGroupC: e.balloonGroupC ?? 0,
+    balloonGroupD: e.balloonGroupD ?? 0,
+    balloonGas: e.balloonGas ?? 0,
   };
 }
 
