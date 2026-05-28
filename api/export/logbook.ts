@@ -32,10 +32,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const audit: AuditAppendix = { signoffs: [], changeLog: [] };
     entries.forEach((e, index) => {
       const ref = `${e.row.date} #${index + 1}`;
-      for (const s of e.signatures) {
+      if (e.signatures.length > 0) {
         audit.signoffs.push({
-          entry: ref,
-          text: `${s.signerRole} by ${s.signerName} at ${s.signedAt} ${s.valid ? "(valid)" : "(INVALID)"}`,
+          entryId: e.entryId,
+          entryRef: ref,
+          signatures: e.signatures.map((s) => ({
+            signerName: s.signerName,
+            signerRole: s.signerRole,
+            signerLicense: s.signerLicense,
+            signedPlace: s.signedPlace,
+            signedAt: s.signedAt,
+            signatureImage: s.signatureImage,
+            valid: s.valid,
+          })),
         });
       }
       for (const v of e.history) {

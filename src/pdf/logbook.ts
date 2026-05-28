@@ -20,6 +20,8 @@ import {
   pushGraphicsState,
   popGraphicsState,
   concatTransformationMatrix,
+  PDFName,
+  PDFArray,
   type PDFFont,
   type PDFPage,
 } from "pdf-lib";
@@ -95,8 +97,8 @@ function remarksText(e: LogbookEntryForPdf): string {
     if (d.mountainLandingGear) parts.push(`(mountain: ${d.mountainLandingGear.toLowerCase()})`);
     if (d.lowVisibilityLandingType) parts.push(`(low-vis: ${d.lowVisibilityLandingType})`);
   }
-  if (e.signatureMissing) parts.push("(SIGNATURE MISSING)");
-  else if (e.signed) parts.push(`(signed off: ${e.signedSummary ?? "yes"})`);
+  // The signed / SIGNATURE MISSING flag is drawn separately as a clickable link
+  // in the remarks cell so it can jump to the sign-offs appendix.
   return parts.join(" ");
 }
 
@@ -143,6 +145,8 @@ const GREY = rgb(0.45, 0.45, 0.45);
 const SHADE = rgb(0.93, 0.93, 0.93);
 
 export interface LogbookEntryForPdf extends DerivedColumns {
+  /** The entry's stable id, so a row can link to its block in the sign-offs appendix. */
+  entryId?: string;
   aircraftType: string;
   aircraftReg: string;
   picName: string;
@@ -151,8 +155,6 @@ export interface LogbookEntryForPdf extends DerivedColumns {
   signed?: boolean;
   /** True when the entry needs a signature (required, or invalidated by an edit) but has none. */
   signatureMissing?: boolean;
-  /** Human-readable summary of who signed (name, licence, place, date) when present. */
-  signedSummary?: string;
 }
 
 export interface PdfOptions {
@@ -166,8 +168,26 @@ export interface PdfOptions {
 }
 
 /** Appendix content for a FOCA-style export (sign-offs and the change log). */
+export interface AppendixSignature {
+  signerName: string;
+  signerRole: string;
+  signerLicense: string | null;
+  signedPlace: string | null;
+  signedAt: string;
+  /** PNG data URL of the drawn signature, when present. */
+  signatureImage: string | null;
+  valid: boolean;
+}
+
+export interface AppendixSignoff {
+  entryId: string;
+  /** Human reference shown in the heading, e.g. "2026-05-28 #4". */
+  entryRef: string;
+  signatures: AppendixSignature[];
+}
+
 export interface AuditAppendix {
-  signoffs: Array<{ entry: string; text: string }>;
+  signoffs: AppendixSignoff[];
   changeLog: Array<{ entry: string; text: string }>;
 }
 
@@ -218,16 +238,19 @@ export async function generateLogbookPdf(
   const fstdSessions = entries.filter((e) => e.kind === "FSTD");
 
   // Each aircraft category prints as its own run of pages, with its own
-  // page-by-page totals, since their columns and rules differ.
+  // page-by-page totals, since their columns and rules differ. The link
+  // context collects per-row "signed" rects and per-entry appendix targets, so
+  // we can wire one-click jumps from the row to the appendix block at the end.
+  const linkCtx: SignedLinkContext = { rowRects: new Map(), appendixTargets: new Map() };
   const groups = groupByCategory(flights);
   if (groups.length === 0 && fstdSessions.length === 0) {
-    drawPage(doc, font, bold, emptyPage(), 1, resolved, [], "");
+    drawPage(doc, font, bold, emptyPage(), 1, resolved, [], "", linkCtx);
   } else {
     for (const group of groups) {
       const pages = paginate(group.entries, rowsPerPage).pages;
       const list = pages.length > 0 ? pages : [emptyPage()];
       for (const page of list) {
-        drawPage(doc, font, bold, page, list.length, resolved, group.entries, group.label);
+        drawPage(doc, font, bold, page, list.length, resolved, group.entries, group.label, linkCtx);
       }
     }
   }
@@ -239,13 +262,103 @@ export async function generateLogbookPdf(
   if (audit) {
     const portrait = PAGE_PORTRAIT[paper];
     if (audit.signoffs.length > 0) {
-      drawAppendix(doc, font, bold, "SIGN-OFFS", audit.signoffs, opts.pilotName, portrait);
+      await drawSignoffsAppendix(doc, font, bold, audit.signoffs, opts.pilotName, portrait, linkCtx);
+      // Now both ends of each "signed" hyperlink are placed; attach the
+      // annotations so the row tag jumps to the appendix block.
+      for (const [entryId, source] of linkCtx.rowRects) {
+        const target = linkCtx.appendixTargets.get(entryId);
+        if (target) addInternalLink(doc, source.page, source.rect, target.page, target.y);
+      }
     }
     // The change log is a mandatory part of the export (FOCA 2.3.7).
     drawAppendix(doc, font, bold, "CHANGE LOG", audit.changeLog, opts.pilotName, portrait);
   }
 
   return doc.save();
+}
+
+/** A scaled-grid drawing context shares state for the row->appendix back-link. */
+interface SignedLinkContext {
+  /** A row's "signed" cell, in the page's PDF coordinate space. */
+  rowRects: Map<string, { page: PDFPage; rect: [number, number, number, number] }>;
+  /** Where in the appendix that entry's block starts. */
+  appendixTargets: Map<string, { page: PDFPage; y: number }>;
+}
+
+const SIGNOFF_ROLE_LABELS: Record<string, string> = {
+  INSTRUCTOR: "Instructor",
+  EXAMINER: "Examiner",
+  SUPERVISING_PIC: "Supervising PIC",
+  ATO: "ATO",
+  DTO: "DTO",
+  HOT: "Head of training",
+  AIRPORT: "Airport",
+  OTHER: "Other",
+};
+
+/** Sign-offs appendix: one block per entry showing signer, place, date and image. */
+async function drawSignoffsAppendix(
+  doc: PDFDocument,
+  font: PDFFont,
+  bold: PDFFont,
+  signoffs: ReadonlyArray<AppendixSignoff>,
+  pilotName: string,
+  page: { w: number; h: number },
+  ctx: SignedLinkContext,
+): Promise<void> {
+  const top = page.h - MARGIN;
+  const bottom = MARGIN + 20;
+  const drawHeader = (p: PDFPage) => {
+    p.drawText("SIGN-OFFS", { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
+    p.drawText(`Holder: ${pilotName}    All times UTC`, { x: MARGIN, y: top - 26, size: 8, font, color: GREY });
+  };
+
+  let p = doc.addPage([page.w, page.h]);
+  drawHeader(p);
+  let y = top - 48;
+
+  for (const so of signoffs) {
+    // Block height: heading (16) + per-signature (40) + spacing.
+    const blockH = 16 + so.signatures.length * 40 + 6;
+    if (y - blockH < bottom) {
+      p = doc.addPage([page.w, page.h]);
+      drawHeader(p);
+      y = top - 48;
+    }
+    // Record the back-link target before drawing this entry's heading.
+    ctx.appendixTargets.set(so.entryId, { page: p, y: y + 14 });
+
+    p.drawText(so.entryRef, { x: MARGIN, y, size: 10, font: bold, color: BLACK });
+    hline(p, MARGIN, page.w - MARGIN, y - 3, GREY, 0.4);
+    y -= 16;
+
+    for (const s of so.signatures) {
+      // Embed and draw the signature image on the right, if there is one.
+      if (s.signatureImage && s.signatureImage.startsWith("data:image/")) {
+        try {
+          const b64 = s.signatureImage.split(",")[1] ?? "";
+          const isPng = s.signatureImage.startsWith("data:image/png");
+          const img = isPng ? await doc.embedPng(b64) : await doc.embedJpg(b64);
+          const targetH = 30;
+          const scale = targetH / img.height;
+          const w = img.width * scale;
+          p.drawImage(img, { x: page.w - MARGIN - w - 4, y: y - 28, width: w, height: targetH });
+        } catch {
+          // Bad/unsupported image data: skip silently rather than break the export.
+        }
+      }
+      const role = SIGNOFF_ROLE_LABELS[s.signerRole] ?? s.signerRole;
+      p.drawText(`${role}: ${s.signerName}`, { x: MARGIN + 8, y, size: 9, font: bold, color: BLACK });
+      const meta: string[] = [];
+      if (s.signerLicense) meta.push(`Licence ${s.signerLicense}`);
+      if (s.signedPlace) meta.push(`at ${s.signedPlace}`);
+      meta.push(`on ${s.signedAt.slice(0, 10)}`);
+      if (!s.valid) meta.push("INVALID");
+      p.drawText(meta.join("  -  "), { x: MARGIN + 8, y: y - 12, size: 7.5, font, color: GREY });
+      y -= 40;
+    }
+    y -= 6;
+  }
 }
 
 function drawAppendix(
@@ -383,6 +496,7 @@ function drawPage(
   opts: PdfOptions,
   allEntries: readonly LogbookEntryForPdf[],
   categoryLabel = "",
+  linkCtx?: SignedLinkContext,
 ): void {
   const paper = opts.paperSize ?? "A4";
   const rowsPerPage = opts.rowsPerPage ?? rowsToFillPage(paper);
@@ -418,7 +532,15 @@ function drawPage(
   });
 
   const gridTop = top - 36;
-  drawGrid(p, font, bold, gridTop, page, rowsPerPage, allEntries);
+  // Mapper from natural (pre-scale) coords to PDF page coords, for the link
+  // annotations that wire a row's "signed" cell back to the appendix.
+  const toPdfRect = (x: number, y: number, w: number, h: number): [number, number, number, number] => [
+    x * scale + tx,
+    y * scale + ty,
+    (x + w) * scale + tx,
+    (y + h) * scale + ty,
+  ];
+  drawGrid(p, font, bold, gridTop, page, rowsPerPage, allEntries, linkCtx, toPdfRect);
   drawSignatureBlock(p, font, bold, gridTop - gridH - 14, contentW, opts.pilotName);
 
   p.pushOperators(popGraphicsState());
@@ -464,6 +586,8 @@ function drawGrid(
   page: LogbookPage,
   rowsPerPage: number,
   allEntries: readonly LogbookEntryForPdf[],
+  linkCtx?: SignedLinkContext,
+  toPdfRect?: (x: number, y: number, w: number, h: number) => [number, number, number, number],
 ): void {
   const bodyTop = gridTop - HEADER_H;
   const bodyBottom = bodyTop - rowsPerPage * ROW_H;
@@ -506,6 +630,8 @@ function drawGrid(
   for (let r = 0; r <= rowsPerPage; r++) hline(p, MARGIN, MARGIN + GRID_W, bodyTop - r * ROW_H);
 
   // Entry rows. Flight rows only; FSTD sessions are listed in their own table.
+  const LINK = rgb(0.13, 0.32, 0.78); // approximate Tailwind sky-700, for the "signed" link.
+  const MISSING = rgb(0.75, 0.13, 0.13);
   page.rows.forEach((row, r) => {
     const y = bodyTop - (r + 1) * ROW_H + 5;
     const e = row as LogbookEntryForPdf;
@@ -527,8 +653,35 @@ function drawGrid(
       }
       const leftAligned =
         c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "DATE";
-      if (leftAligned) leftText(p, text, x, c.width, y, 6.5, font);
-      else centeredText(p, text, x, c.width, y, 6.5, font);
+      if (c.group === "REMARKS") {
+        // Reserve a small strip at the right of the remarks cell for the
+        // "signed" / "missing" tag and draw the free-text part clipped to fit.
+        const TAG_W = e.signed || e.signatureMissing ? 36 : 0;
+        leftText(p, text, x, c.width - TAG_W, y, 6.5, font);
+        if (e.signed) {
+          const label = "signed";
+          const lw = bold.widthOfTextAtSize(label, 6.5);
+          const lx = x + c.width - TAG_W + 2;
+          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: LINK });
+          p.drawLine({ start: { x: lx, y: y - 1 }, end: { x: lx + lw, y: y - 1 }, color: LINK, thickness: 0.4 });
+          // Record the clickable rect (in PDF page coords) so a later pass can
+          // wire it to the appendix block for this entry.
+          if (linkCtx && toPdfRect && e.entryId) {
+            linkCtx.rowRects.set(e.entryId, {
+              page: p,
+              rect: toPdfRect(lx - 1, y - 2, lw + 2, 9),
+            });
+          }
+        } else if (e.signatureMissing) {
+          const label = "missing";
+          const lx = x + c.width - TAG_W + 2;
+          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: MISSING });
+        }
+      } else if (leftAligned) {
+        leftText(p, text, x, c.width, y, 6.5, font);
+      } else {
+        centeredText(p, text, x, c.width, y, 6.5, font);
+      }
     });
   });
 
@@ -599,4 +752,32 @@ function drawSignatureBlock(
     color: GREY,
   });
   void bold;
+}
+
+/**
+ * Attach a PDF Link annotation pointing from a rect on the source page to a
+ * specific y on the target page. Used to jump from a row's "signed" tag in the
+ * remarks column to that entry's block in the sign-offs appendix.
+ */
+function addInternalLink(
+  doc: PDFDocument,
+  sourcePage: PDFPage,
+  rect: [number, number, number, number],
+  targetPage: PDFPage,
+  targetY: number,
+): void {
+  const linkDict = doc.context.obj({
+    Type: "Annot",
+    Subtype: "Link",
+    Rect: rect,
+    Border: [0, 0, 0],
+    Dest: [targetPage.ref, "XYZ", null, targetY, null],
+  });
+  const linkRef = doc.context.register(linkDict);
+  const existing = sourcePage.node.lookupMaybe(PDFName.of("Annots"), PDFArray);
+  if (existing) {
+    existing.push(linkRef);
+  } else {
+    sourcePage.node.set(PDFName.of("Annots"), doc.context.obj([linkRef]));
+  }
 }
