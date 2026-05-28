@@ -199,6 +199,26 @@ function Dashboard() {
           >
             {busy === "simulators" ? "Seeding simulators..." : "Seed simulators"}
           </Button>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 aria-disabled:pointer-events-none aria-disabled:opacity-60"
+                 aria-disabled={busy !== null}>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              disabled={busy !== null}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                const csv = await file.text();
+                await run("balloon-groups", async () => {
+                  const r = await api.adminApplyBalloonGroups(csv);
+                  return `Updated balloon group on ${r.updated} aircraft.`;
+                });
+              }}
+            />
+            {busy === "balloon-groups" ? "Applying balloon groups..." : "Apply balloon groups (CSV)"}
+          </label>
         </div>
       </Card>
     </div>

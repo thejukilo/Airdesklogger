@@ -460,6 +460,10 @@ export function adminSeedSimulators(): Promise<{ seeded: number }> {
   return request("/admin/seed-simulators", { method: "POST" });
 }
 
+export function adminApplyBalloonGroups(csv: string): Promise<{ updated: number }> {
+  return request("/admin/apply-balloon-groups", { method: "POST", body: JSON.stringify({ csv }) });
+}
+
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
   const res = await fetch("/api/export/logbook", {
