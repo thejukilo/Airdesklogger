@@ -350,6 +350,10 @@ CREATE INDEX IF NOT EXISTS idx_signoff_request_entries_entry ON signoff_request_
 -- value, not the (nullable) signer_id FK, otherwise external signatures cannot
 -- be re-checked. Old rows are backfilled below.
 ALTER TABLE signatures ADD COLUMN IF NOT EXISTS payload_signer_id text;
+-- The signatures table is append-only at runtime (forbid_mutation trigger), but
+-- this migration needs to fill the new column on existing rows. The whole
+-- schema runs in one transaction, so disabling the trigger here cannot leak.
+ALTER TABLE signatures DISABLE TRIGGER trg_signatures_immutable;
 UPDATE signatures SET payload_signer_id = signer_id::text
  WHERE payload_signer_id IS NULL AND signer_id IS NOT NULL;
 -- Best-effort backfill of external signatures: match the signature to the
@@ -372,3 +376,4 @@ UPDATE signatures sig SET payload_signer_id = 'link:' || m.request_id::text
    AND sig.version_no = m.version_no
    AND sig.signed_at = m.signed_at
    AND sig.signer_id IS NULL;
+ALTER TABLE signatures ENABLE TRIGGER trg_signatures_immutable;
