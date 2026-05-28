@@ -141,7 +141,8 @@ export async function loadLogbookForExport(
 
   const { rows: sigRows } = await pool.query(
     `SELECT s.entry_id, s.version_no, s.signer_role, s.content_hash, s.signature, s.public_key, s.signed_at,
-            s.signer_id, COALESCE(s.signer_name, p.name) AS signer_name, s.signer_license, s.signed_place
+            s.signer_id, s.payload_signer_id,
+            COALESCE(s.signer_name, p.name) AS signer_name, s.signer_license, s.signed_place
        FROM signatures s LEFT JOIN pilots p ON p.id = s.signer_id
       WHERE s.entry_id = ANY($1::uuid[])
       ORDER BY s.signed_at ASC`,
@@ -162,10 +163,13 @@ export async function loadLogbookForExport(
   const currentValid = new Set<string>();
   for (const s of sigRows) {
     anySignature.add(s.entry_id);
+    // payload_signer_id is the exact string that was hashed at signing time
+    // (a UUID for an account signer, "link:<reqId>" for an external one).
+    // Fall back to signer_id for legacy rows the backfill missed.
     const valid = verifySignature({
       entryId: s.entry_id,
       contentHash: s.content_hash,
-      signerId: s.signer_id,
+      signerId: (s.payload_signer_id as string) ?? (s.signer_id as string) ?? "",
       signerRole: s.signer_role,
       signedAt: new Date(s.signed_at).toISOString().replace(/\.\d{3}Z$/, "Z"),
       signature: s.signature,

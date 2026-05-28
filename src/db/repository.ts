@@ -279,8 +279,8 @@ export async function signCurrentVersion(
     if (!verifySignature(signature)) throw new Error("Refusing to store an invalid signature");
 
     await client.query(
-      `INSERT INTO signatures (entry_id, version_no, signer_id, signer_role, content_hash, signature, public_key, signed_at, signature_image, signer_name, signer_email, signer_license, signed_place)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      `INSERT INTO signatures (entry_id, version_no, signer_id, signer_role, content_hash, signature, public_key, signed_at, signature_image, signer_name, signer_email, signer_license, signed_place, payload_signer_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
         entryId,
         versionNo,
@@ -295,6 +295,7 @@ export async function signCurrentVersion(
         signer.signerEmail ?? null,
         signer.signerLicense ?? null,
         signer.signedPlace ?? null,
+        signer.signerId,
       ],
     );
     await client.query(
@@ -631,8 +632,8 @@ export async function signEntriesExternal(
       if (!verifySignature(signature)) throw new Error("Refusing to store an invalid signature");
 
       await client.query(
-        `INSERT INTO signatures (entry_id, version_no, signer_id, signer_role, content_hash, signature, public_key, signed_at, signature_image, signer_name, signer_email, signer_license, signed_place)
-         VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        `INSERT INTO signatures (entry_id, version_no, signer_id, signer_role, content_hash, signature, public_key, signed_at, signature_image, signer_name, signer_email, signer_license, signed_place, payload_signer_id)
+         VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           entryId,
           versionNo,
@@ -646,6 +647,7 @@ export async function signEntriesExternal(
           signerEmail,
           signer.signerLicense ?? null,
           signer.signedPlace ?? null,
+          payload.signerId,
         ],
       );
       await client.query("UPDATE flight_entries SET locked = true, locked_at = $2 WHERE id = $1", [

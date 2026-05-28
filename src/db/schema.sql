@@ -343,3 +343,32 @@ CREATE TABLE IF NOT EXISTS signoff_request_entries (
   PRIMARY KEY (request_id, entry_id)
 );
 CREATE INDEX IF NOT EXISTS idx_signoff_request_entries_entry ON signoff_request_entries(entry_id);
+
+-- The exact signerId string that was hashed into the Ed25519 payload at signing
+-- time. For an account signer this is the pilot UUID as text; for an external
+-- (one-time-link) signer it is 'link:' + the request id. Verifiers need this
+-- value, not the (nullable) signer_id FK, otherwise external signatures cannot
+-- be re-checked. Old rows are backfilled below.
+ALTER TABLE signatures ADD COLUMN IF NOT EXISTS payload_signer_id text;
+UPDATE signatures SET payload_signer_id = signer_id::text
+ WHERE payload_signer_id IS NULL AND signer_id IS NOT NULL;
+-- Best-effort backfill of external signatures: match the signature to the
+-- signoff request that consumed it (same entry, same capacity, used). When
+-- several requests qualify, the one whose used_at is closest to signed_at wins.
+WITH ext_match AS (
+  SELECT DISTINCT ON (sig.entry_id, sig.version_no, sig.signed_at)
+    sig.entry_id, sig.version_no, sig.signed_at, r.id AS request_id
+  FROM signatures sig
+  JOIN signoff_requests r ON r.capacity = sig.signer_role AND r.used_at IS NOT NULL
+  LEFT JOIN signoff_request_entries sre ON sre.request_id = r.id
+  WHERE sig.payload_signer_id IS NULL
+    AND sig.signer_id IS NULL
+    AND (sre.entry_id = sig.entry_id OR r.entry_id = sig.entry_id)
+  ORDER BY sig.entry_id, sig.version_no, sig.signed_at, ABS(EXTRACT(EPOCH FROM (r.used_at - sig.signed_at)))
+)
+UPDATE signatures sig SET payload_signer_id = 'link:' || m.request_id::text
+  FROM ext_match m
+ WHERE sig.entry_id = m.entry_id
+   AND sig.version_no = m.version_no
+   AND sig.signed_at = m.signed_at
+   AND sig.signer_id IS NULL;
