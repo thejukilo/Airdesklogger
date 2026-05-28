@@ -98,8 +98,45 @@ const BALLOON_COLUMNS: LeafColumn[] = [
   { group: "REMARKS", sub: "& endorsements", width: 132, value: () => "" },
 ];
 
+const LAUNCH_METHOD_SHORT: Record<string, string> = {
+  WINCH: "Winch",
+  AEROTOW: "Aerotow",
+  SELF_LAUNCH: "Self",
+  BUNGEE: "Bungee",
+  CAR_TOW: "Car",
+};
+
+// Sailplanes record the launch method on every flight (FOCA 2.2.5), so it gets
+// its own column in the table instead of being noted in the remarks.
+const SAILPLANE_COLUMNS: LeafColumn[] = [
+  { group: "DATE", sub: "dd/mm/yy", width: 58, value: (e) => formatLogbookDate(e.departureTime) },
+  { group: "DEPARTURE", sub: "Place", width: 44, value: (e) => e.departurePlace },
+  { group: "DEPARTURE", sub: "Time", width: 38, value: (e) => TIME(e.departureTime, e) },
+  { group: "ARRIVAL", sub: "Place", width: 44, value: (e) => e.arrivalPlace },
+  { group: "ARRIVAL", sub: "Time", width: 38, value: (e) => TIME(e.arrivalTime, e) },
+  { group: "AIRCRAFT", sub: "Type", width: 72, value: () => "" },
+  { group: "AIRCRAFT", sub: "Reg", width: 56, value: () => "" },
+  { group: "LAUNCH", sub: "method", width: 50, value: (e) => (e.launchMethod ? LAUNCH_METHOD_SHORT[e.launchMethod] ?? e.launchMethod : "") },
+  { group: "SINGLE-PILOT", sub: "SE", width: 40, value: (e) => MIN(e.singleEngine), totalKey: "singleEngine" },
+  { group: "SINGLE-PILOT", sub: "ME", width: 40, value: (e) => MIN(e.multiEngine), totalKey: "multiEngine" },
+  { group: "MULTI-PILOT", sub: "time", width: 54, value: (e) => MIN(e.multiPilot), totalKey: "multiPilot" },
+  { group: "TOTAL", sub: "time", width: 50, value: (e) => MIN(e.total), totalKey: "total" },
+  { group: "NAME PIC", sub: "", width: 78, value: () => "" },
+  { group: "LANDINGS", sub: "Day", width: 30, value: (e) => NUM(e.dayLandings), totalKey: "dayLandings" },
+  { group: "LANDINGS", sub: "Ngt", width: 30, value: (e) => NUM(e.nightLandings), totalKey: "nightLandings" },
+  { group: "COND. TIME", sub: "Day", width: 38, value: (e) => MIN(e.total - e.night), totalValue: (t) => MIN(t.total - t.night) },
+  { group: "COND. TIME", sub: "Night", width: 38, value: (e) => MIN(e.night), totalKey: "night" },
+  { group: "FUNCTION TIME", sub: "PIC", width: 40, value: (e) => MIN(e.pic), totalKey: "pic" },
+  { group: "FUNCTION TIME", sub: "Co", width: 40, value: (e) => MIN(e.coPilot), totalKey: "coPilot" },
+  { group: "FUNCTION TIME", sub: "Dual", width: 40, value: (e) => MIN(e.dual), totalKey: "dual" },
+  { group: "FUNCTION TIME", sub: "Instr", width: 40, value: (e) => MIN(e.instructor), totalKey: "instructor" },
+  { group: "REMARKS", sub: "& endorsements", width: 112, value: () => "" },
+];
+
 function columnsForCategory(label: string): LeafColumn[] {
-  return label === "Balloon" ? BALLOON_COLUMNS : DEFAULT_COLUMNS;
+  if (label === "Balloon") return BALLOON_COLUMNS;
+  if (label === "Sailplane") return SAILPLANE_COLUMNS;
+  return DEFAULT_COLUMNS;
 }
 
 /** Default array kept for code paths that don't yet know the category. */
@@ -118,7 +155,6 @@ function remarksText(e: LogbookEntryForPdf): string {
   if (e.arrivalPlaceName) parts.push(`(to: ${e.arrivalPlaceName})`);
   if (e.operatingRole) parts.push(e.operatingRole === "PILOT_FLYING" ? "(PF)" : "(PM)");
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
-  if (e.launchMethod) parts.push(`(launch: ${e.launchMethod})`);
   if (e.balloonFlightType) parts.push(e.balloonFlightType === "TETHERED" ? "(tethered)" : "(free flight)");
   if (e.inflations) parts.push(`(${e.inflations} inflation${e.inflations === 1 ? "" : "s"})`);
   if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
@@ -306,6 +342,16 @@ export async function generateLogbookPdf(
     }
     // The change log is a mandatory part of the export (FOCA 2.3.7).
     drawAppendix(doc, font, bold, "CHANGE LOG", audit.changeLog, opts.pilotName, portrait);
+  }
+
+  // Stamp a generation timestamp on every page once the document is fully laid
+  // out, so the footer is consistent across grid pages, the FSTD section and
+  // each appendix.
+  const generatedLabel = `Generated ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`;
+  for (const p of doc.getPages()) {
+    const { width } = p.getSize();
+    const w = font.widthOfTextAtSize(generatedLabel, 7);
+    p.drawText(generatedLabel, { x: (width - w) / 2, y: 12, size: 7, font, color: GREY });
   }
 
   return doc.save();
@@ -686,8 +732,9 @@ function drawGrid(
       } else if (c.group === "AIRCRAFT" && c.sub === "Reg") {
         text = e.aircraftReg ?? "";
       } else if (c.group === "BALLOON" && c.sub === "Reg") {
-        // The balloon layout drops the Type column and uses one combined cell.
-        text = `${e.aircraftReg ?? ""}${e.aircraftType ? ` ${e.aircraftType}` : ""}`;
+        // Balloons drop the model entirely - only the registration appears in
+        // the Reg cell; the model lives in the appendix if anywhere.
+        text = e.aircraftReg ?? "";
       } else if (c.group === "NAME PIC") {
         text = e.picName ?? "";
       } else {

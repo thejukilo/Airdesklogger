@@ -239,7 +239,7 @@ export function Logbook() {
 
       {error && <Alert>{error}</Alert>}
 
-      {selected.size > 0 && (
+      {selected.size > 0 ? (
         <div className="flex items-center justify-between rounded-md border border-brand-200 bg-brand-50 px-3 py-2 text-sm">
           <span className="font-medium text-brand-800">
             {selected.size} {selected.size === 1 ? "entry" : "entries"} selected
@@ -249,7 +249,17 @@ export function Logbook() {
             <Button onClick={() => setRequestOpen(true)}>Request sign-off</Button>
           </div>
         </div>
-      )}
+      ) : entries.length > 0 ? (
+        <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          <svg className="mt-0.5 h-4 w-4 flex-none text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8h.01M11 12h1v4h1" />
+          </svg>
+          <span>
+            Tick the checkboxes to pick several flights, then ask one instructor or examiner to sign them off together with a single signature.
+          </span>
+        </div>
+      ) : null}
 
       {requestOpen && (
         <BulkSignoffDialog
