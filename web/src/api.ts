@@ -152,6 +152,11 @@ export interface EntryColumns {
   launchMethod?: string;
   balloonFlightType?: "FREE" | "TETHERED";
   inflations?: number;
+  balloonGroupA?: number;
+  balloonGroupB?: number;
+  balloonGroupC?: number;
+  balloonGroupD?: number;
+  balloonGas?: number;
   flightTimeMinutes?: number;
   instructorPosition?: string;
   attributes?: string[];
