@@ -37,7 +37,7 @@ export async function validateFlightReferences(input: FlightEntryInput): Promise
     for (const place of places) {
       if (isNoLocationIndicator(place)) continue;
       if (!isIcaoFormat(place)) {
-        issues.push({ field: "legs.place", message: `Place "${place}" is not a valid ICAO code or the ZZZZ no-location indicator.` });
+        issues.push({ field: "legs.place", message: `"${place}" is not a valid ICAO code; use ZZZZ for unknown locations.` });
         continue;
       }
       if (!(await airportExists(place))) {
