@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadLogbookForExport, loadDeletionsForExport } from "../../src/db/exportRepository.js";
 import { getUserById } from "../../src/db/authRepository.js";
-import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
-import { formatAttributeLines } from "../../src/pdf/attributeLines.js";
+import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type ChangeLogRow, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
+import { formatAttributeRows } from "../../src/pdf/attributeLines.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
 /**
@@ -31,7 +31,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const rows: LogbookEntryForPdf[] = entries.map((e) => e.row);
 
     const attributeBlocks: AppendixAttributeBlock[] = [];
-    const audit: AuditAppendix = { signoffs: [], changeLog: [] };
+    const changeLog: ChangeLogRow[] = [];
+    const audit: AuditAppendix = { signoffs: [], changeLog };
     entries.forEach((e, index) => {
       const ref = `${e.row.date} #${index + 1}`;
       if (e.signatures.length > 0) {
@@ -49,23 +50,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           })),
         });
       }
-      const attrLines = formatAttributeLines(e.row.attributes, e.row.attributeDetails);
-      if (attrLines.length > 0) {
-        attributeBlocks.push({ entryId: e.entryId, entryRef: ref, lines: attrLines });
+      const attrRows = formatAttributeRows(e.row.attributes, e.row.attributeDetails);
+      if (attrRows.length > 0) {
+        attributeBlocks.push({ entryId: e.entryId, entryRef: ref, items: attrRows });
       }
       for (const v of e.history) {
-        audit.changeLog.push({
+        changeLog.push({
           entry: ref,
-          text: `v${v.versionNo} ${v.createdAt} by ${v.createdByName}${v.changeReason ? ` - ${v.changeReason}` : ""} [${v.contentHash.slice(0, 12)}]`,
+          version: `v${v.versionNo}`,
+          at: v.createdAt,
+          by: v.createdByName,
+          ...(v.changeReason ? { reason: v.changeReason } : {}),
+          hash: v.contentHash.slice(0, 12),
         });
       }
     });
     if (attributeBlocks.length > 0) audit.attributes = attributeBlocks;
     // Deletions after the 48-hour window are part of the change log (FOCA 2.3.7).
     for (const d of deletions) {
-      audit.changeLog.push({
+      changeLog.push({
         entry: `${d.date}${d.aircraft ? ` ${d.aircraft}` : ""}`,
-        text: `flight deleted on ${d.voidedAt}`,
+        at: d.voidedAt,
+        by: "system",
+        reason: "flight deleted",
       });
     }
 

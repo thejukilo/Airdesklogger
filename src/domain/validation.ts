@@ -307,7 +307,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     ...(attributeDetails !== undefined ? { attributeDetails } : {}),
     enteredInLocalTime: input.enteredInLocalTime ?? false,
     ...(input.timesLocal ? { timesLocal: true } : {}),
-    signatureRequired: requiresSignature(attributes),
+    signatureRequired: requiresSignature(attributes, effectivePrimary),
     crewSize,
     category,
     ...(input.launchMethod !== undefined ? { launchMethod: input.launchMethod } : {}),

@@ -131,6 +131,7 @@ export function isEntryAttribute(value: string): value is EntryAttribute {
 
 /** The checks and tests that are only creditable once countersigned. */
 export const SIGNATURE_REQUIRED_ATTRIBUTES: ReadonlySet<EntryAttribute> = new Set([
+  // Tests and checks performed against an examiner / ATO / DTO.
   "skill_test",
   "proficiency_check",
   "licence_proficiency_check",
@@ -138,7 +139,19 @@ export const SIGNATURE_REQUIRED_ATTRIBUTES: ReadonlySet<EntryAttribute> = new Se
   "operator_line_check",
   "language_proficiency_check",
   "aoc",
+  // Recurrent / differences training, signed off by the instructor.
+  "refresher_training",
+  "difference_training",
+  "familiarization",
+  // Course completion, signed off by the head of training or an ATO/DTO.
+  "course_completed",
+  "instruction_training_course",
 ]);
+
+/** A primary function that, regardless of attributes, demands a sign-off:
+ *  DUAL needs the flight instructor, PICUS and SPIC need the supervising PIC.
+ *  PIC, CO_PILOT and SAFETY_PILOT never require one. */
+const SIGNATURE_REQUIRED_FUNCTIONS: ReadonlySet<string> = new Set(["DUAL", "PICUS", "SPIC"]);
 
 export function attributesRequiringSignature(
   attributes: readonly EntryAttribute[],
@@ -146,7 +159,15 @@ export function attributesRequiringSignature(
   return attributes.filter((a) => SIGNATURE_REQUIRED_ATTRIBUTES.has(a));
 }
 
-/** Whether an entry carrying these attributes needs a sign-off to be complete. */
-export function requiresSignature(attributes: readonly EntryAttribute[]): boolean {
+/** Whether an entry needs a sign-off to be complete. The pilot's primary
+ * function (DUAL, PICUS, SPIC) drives a required signature on its own; certain
+ * attributes (tests, checks, recurrent training) also do, irrespective of the
+ * function. A flight logged as PIC or co-pilot with no such attribute is
+ * complete as-is. */
+export function requiresSignature(
+  attributes: readonly EntryAttribute[],
+  primaryFunction?: string,
+): boolean {
+  if (primaryFunction && SIGNATURE_REQUIRED_FUNCTIONS.has(primaryFunction)) return true;
   return attributes.some((a) => SIGNATURE_REQUIRED_ATTRIBUTES.has(a));
 }

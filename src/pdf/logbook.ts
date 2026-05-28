@@ -258,18 +258,33 @@ export interface AppendixSignoff {
   signatures: AppendixSignature[];
 }
 
-/** One block of an entry's structured attributes, printed in its own appendix. */
+/** One block of an entry's structured attributes, printed in its own appendix.
+ * Each item is one row in the appendix table: the label is the attribute name
+ * (e.g. "HESLO 1") and the detail is the count or comment ("4 cycles"). */
+export interface AppendixAttributeItem {
+  label: string;
+  detail: string;
+}
 export interface AppendixAttributeBlock {
   entryId: string;
   entryRef: string;
-  /** Pre-formatted lines, e.g. "HESLO 1 - 4 cycles", "Skill test - IR(H) initial". */
-  lines: string[];
+  items: AppendixAttributeItem[];
+}
+
+/** One row in the change-log table at the back of the export. */
+export interface ChangeLogRow {
+  entry: string;
+  version?: string;
+  at: string;
+  by: string;
+  reason?: string;
+  hash?: string;
 }
 
 export interface AuditAppendix {
   signoffs: AppendixSignoff[];
   attributes?: AppendixAttributeBlock[];
-  changeLog: Array<{ entry: string; text: string }>;
+  changeLog: ChangeLogRow[];
 }
 
 /** Aircraft categories print on their own pages, since the columns differ. */
@@ -359,7 +374,7 @@ export async function generateLogbookPdf(
       }
     }
     // The change log is a mandatory part of the export (FOCA 2.3.7).
-    drawAppendix(doc, font, bold, "CHANGE LOG", audit.changeLog, opts.pilotName, portrait);
+    drawChangeLogAppendix(doc, font, bold, audit.changeLog, opts.pilotName, portrait);
   }
 
   // Stamp a generation timestamp on every page once the document is fully laid
@@ -469,6 +484,108 @@ async function drawSignoffsAppendix(
  * with its count, time, level or comment. Mirrors the sign-offs appendix layout
  * so the export reads consistently and the row->appendix back-link works the
  * same way. */
+/** Generic table renderer used by both appendices. Walks the rows top-down,
+ * draws zebra-striping behind alternating rows, a header strip, and a thin
+ * vertical line between columns. Returns the page each row landed on so the
+ * caller can wire row->row hyperlinks (used by the attributes appendix). */
+interface TableColumn<T> {
+  title: string;
+  width: number;
+  /** Pixel padding inside the cell. */
+  pad?: number;
+  bold?: boolean;
+  /** Render value from row. */
+  value: (row: T) => string;
+}
+function drawTable<T>(
+  doc: PDFDocument,
+  font: PDFFont,
+  bold: PDFFont,
+  title: string,
+  cols: ReadonlyArray<TableColumn<T>>,
+  rows: ReadonlyArray<T>,
+  pilotName: string,
+  page: { w: number; h: number },
+  onRowDrawn?: (row: T, p: PDFPage, y: number) => void,
+): void {
+  const top = page.h - MARGIN;
+  const bottom = MARGIN + 24;
+  const lineH = 13;
+  const headerY = 18;
+  const tableLeft = MARGIN;
+  const tableWidth = cols.reduce((a, c) => a + c.width, 0);
+  const tableRight = tableLeft + tableWidth;
+
+  const drawPageHeader = (p: PDFPage) => {
+    p.drawText(title, { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
+    p.drawText(`Holder: ${pilotName}    All times UTC`, { x: MARGIN, y: top - 26, size: 8, font, color: GREY });
+  };
+  const drawTableHeader = (p: PDFPage, y: number) => {
+    p.drawRectangle({ x: tableLeft, y: y - 4, width: tableWidth, height: headerY, color: SHADE });
+    hline(p, tableLeft, tableRight, y + headerY - 4, GREY, 0.5);
+    hline(p, tableLeft, tableRight, y - 4, GREY, 0.5);
+    let x = tableLeft;
+    cols.forEach((c) => {
+      p.drawText(c.title, { x: x + (c.pad ?? 6), y: y + 4, size: 8, font: bold, color: BLACK });
+      x += c.width;
+    });
+    // vertical column separators that span the header
+    let vx = tableLeft;
+    for (let i = 0; i <= cols.length; i++) {
+      vline(p, vx, y - 4, y + headerY - 4, GREY, 0.4);
+      vx += cols[i]?.width ?? 0;
+    }
+  };
+
+  if (rows.length === 0) {
+    const p = doc.addPage([page.w, page.h]);
+    drawPageHeader(p);
+    p.drawText("None recorded.", { x: MARGIN, y: top - 60, size: 9, font, color: GREY });
+    return;
+  }
+
+  let p = doc.addPage([page.w, page.h]);
+  drawPageHeader(p);
+  let y = top - 48 - headerY;
+  drawTableHeader(p, y);
+  let zebra = false;
+  for (const row of rows) {
+    y -= lineH;
+    if (y < bottom) {
+      p = doc.addPage([page.w, page.h]);
+      drawPageHeader(p);
+      y = top - 48 - headerY;
+      drawTableHeader(p, y);
+      y -= lineH;
+      zebra = false;
+    }
+    if (zebra) {
+      p.drawRectangle({ x: tableLeft, y: y - 3, width: tableWidth, height: lineH, color: rgb(0.97, 0.97, 0.97) });
+    }
+    zebra = !zebra;
+    let x = tableLeft;
+    cols.forEach((c) => {
+      const text = c.value(row);
+      if (text) {
+        const innerW = c.width - 2 * (c.pad ?? 6);
+        p.drawText(clip(text, innerW, 8, c.bold ? bold : font), { x: x + (c.pad ?? 6), y: y + 1, size: 8, font: c.bold ? bold : font, color: BLACK });
+      }
+      x += c.width;
+    });
+    let vx = tableLeft;
+    for (let i = 0; i <= cols.length; i++) {
+      vline(p, vx, y - 3, y + lineH - 3, GREY, 0.4);
+      vx += cols[i]?.width ?? 0;
+    }
+    hline(p, tableLeft, tableRight, y - 3, GREY, 0.3);
+    if (onRowDrawn) onRowDrawn(row, p, y + lineH);
+  }
+}
+
+/** Attributes appendix: table of Flight / Attribute / Detail rows. The Flight
+ * cell is only drawn on the first row of each entry so the visual reads as
+ * grouped per flight; every row of the same entry still anchors to the same
+ * appendix Y, so the row->appendix hyperlink lands at the entry's first line. */
 function drawAttributesAppendix(
   doc: PDFDocument,
   font: PDFFont,
@@ -478,79 +595,48 @@ function drawAttributesAppendix(
   page: { w: number; h: number },
   ctx: SignedLinkContext,
 ): void {
-  const top = page.h - MARGIN;
-  const bottom = MARGIN + 20;
-  const lineH = 12;
-  const drawHeader = (p: PDFPage) => {
-    p.drawText("ATTRIBUTES & ENDORSEMENTS", { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
-    p.drawText(`Holder: ${pilotName}    All times UTC`, { x: MARGIN, y: top - 26, size: 8, font, color: GREY });
-  };
-
-  let p = doc.addPage([page.w, page.h]);
-  drawHeader(p);
-  let y = top - 48;
-
-  for (const block of blocks) {
-    const blockH = 14 + block.lines.length * lineH + 8;
-    if (y - blockH < bottom) {
-      p = doc.addPage([page.w, page.h]);
-      drawHeader(p);
-      y = top - 48;
-    }
-    ctx.attrTargets.set(block.entryId, { page: p, y: y + 14 });
-    p.drawText(block.entryRef, { x: MARGIN, y, size: 10, font: bold, color: BLACK });
-    hline(p, MARGIN, page.w - MARGIN, y - 3, GREY, 0.4);
-    y -= 14;
-    for (const line of block.lines) {
-      p.drawText(clip(line, page.w - 2 * MARGIN - 12, 9, font), {
-        x: MARGIN + 8, y, size: 9, font, color: BLACK,
+  type Row = { entryId: string; firstOfBlock: boolean; flight: string; label: string; detail: string };
+  const rows: Row[] = [];
+  for (const b of blocks) {
+    b.items.forEach((it, i) => {
+      rows.push({
+        entryId: b.entryId,
+        firstOfBlock: i === 0,
+        flight: b.entryRef,
+        label: it.label,
+        detail: it.detail,
       });
-      y -= lineH;
-    }
-    y -= 6;
+    });
   }
+  const cols: TableColumn<Row>[] = [
+    { title: "Flight", width: 110, bold: true, value: (r) => (r.firstOfBlock ? r.flight : "") },
+    { title: "Attribute", width: 200, value: (r) => r.label },
+    { title: "Detail", width: 200, value: (r) => r.detail },
+  ];
+  drawTable(doc, font, bold, "ATTRIBUTES & ENDORSEMENTS", cols, rows, pilotName, page, (row, p, y) => {
+    if (row.firstOfBlock) ctx.attrTargets.set(row.entryId, { page: p, y });
+  });
 }
 
-function drawAppendix(
+/** Change log appendix: a structured table the auditor can scan column by
+ * column. Each amendment, sign-off or deletion is one row. */
+function drawChangeLogAppendix(
   doc: PDFDocument,
   font: PDFFont,
   bold: PDFFont,
-  title: string,
-  rows: ReadonlyArray<{ entry: string; text: string }>,
+  rows: ReadonlyArray<ChangeLogRow>,
   pilotName: string,
   page: { w: number; h: number },
 ): void {
-  const lineH = 13;
-  const top = page.h - MARGIN;
-  const bottom = MARGIN + 20;
-  const usable = top - 40 - bottom;
-  const perPage = Math.max(1, Math.floor(usable / lineH));
-  const lines = rows.length > 0 ? rows : [{ entry: "", text: "None recorded." }];
-  const pageCount = Math.ceil(lines.length / perPage);
-
-  for (let pageNo = 0; pageNo < pageCount; pageNo++) {
-    const p = doc.addPage([page.w, page.h]);
-    p.drawText(title, { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
-    p.drawText(`Holder: ${pilotName}    All times UTC`, {
-      x: MARGIN,
-      y: top - 26,
-      size: 8,
-      font,
-      color: GREY,
-    });
-    let y = top - 48;
-    for (const row of lines.slice(pageNo * perPage, (pageNo + 1) * perPage)) {
-      if (row.entry) p.drawText(clip(row.entry, 130, 8, bold), { x: MARGIN, y, size: 8, font: bold, color: BLACK });
-      p.drawText(clip(row.text, page.w - MARGIN * 2 - 140, 8, font), {
-        x: MARGIN + 140,
-        y,
-        size: 8,
-        font,
-        color: BLACK,
-      });
-      y -= lineH;
-    }
-  }
+  const cols: TableColumn<ChangeLogRow>[] = [
+    { title: "Flight", width: 95, bold: true, value: (r) => r.entry },
+    { title: "Version", width: 50, value: (r) => r.version ?? "" },
+    { title: "When (UTC)", width: 110, value: (r) => r.at },
+    { title: "By", width: 110, value: (r) => r.by },
+    { title: "Reason", width: 130, value: (r) => r.reason ?? "" },
+    { title: "Hash", width: 90, value: (r) => r.hash ?? "" },
+  ];
+  drawTable(doc, font, bold, "CHANGE LOG", cols, rows, pilotName, page);
 }
 
 /**
