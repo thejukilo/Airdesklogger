@@ -80,7 +80,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               ) {
                 await upsertAircraft(corrected);
               }
-              match = corrected;
+              // Display model: the ICAO type's canonical name when it has one,
+              // falling back to the register's per-tail model. Generic codes
+              // (every glider is GLID, every balloon BALL) always use the
+              // register, since the type carries no specific model.
+              const code = match.icaoType.toUpperCase();
+              const generic = code === "GLID" || code === "BALL";
+              const model = !generic && info.aircraftModel ? info.aircraftModel : corrected.model;
+              match = { ...corrected, model };
             }
           }
           res.status(200).json({ match, source, subtype, allowedCategories });

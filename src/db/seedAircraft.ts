@@ -121,10 +121,10 @@ export interface IcaoModelInfo {
  *    (registers that do not distinguish sailplanes list a glider as an
  *    aeroplane); a category the type already allows is kept (a motor-glider may
  *    be either an aeroplane or a sailplane);
- *  - the model and engine count are taken from the type, except for the generic
- *    glider/balloon codes which keep the register's own model. The icao_types
- *    model is only set for unambiguous codes (the seed nulls codes that span
- *    several models), so an ambiguous type also keeps the register's model.
+ *  - a missing engine count is filled from the type.
+ * The model is intentionally left as the register's: the canonical model name
+ * is resolved at lookup time from icao_types (so an edit to the type table
+ * surfaces immediately, and the per-tail register variant remains as fallback).
  */
 export function enrichFromIcaoTypes(records: AircraftRecord[], icao: Map<string, IcaoModelInfo>): AircraftRecord[] {
   for (const rec of records) {
@@ -135,8 +135,7 @@ export function enrichFromIcaoTypes(records: AircraftRecord[], icao: Map<string,
     const allowed = info.allowedCategories;
     if (allowed?.length && !allowed.includes(rec.category)) rec.category = allowed[0]!;
     if (GENERIC_CODES.has(code)) continue;
-    if (info.aircraftModel) rec.model = info.aircraftModel;
-    if (info.engineCount != null) rec.engineCount = info.engineCount;
+    if (info.engineCount != null && rec.engineCount == null) rec.engineCount = info.engineCount;
   }
   return records;
 }

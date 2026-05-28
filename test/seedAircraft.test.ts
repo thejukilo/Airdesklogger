@@ -27,14 +27,13 @@ describe("aircraft CSV import", () => {
     expect(out.find((a) => a.registration === "HB-ZZZ")?.category).toBe("AEROPLANE");
   });
 
-  it("keeps a row with a blank model when the type is known, using the code until enrichment fills it", () => {
+  it("keeps a row with a blank model when the type is known, using the code as the fallback", () => {
     // Capital-B header and trailing empty columns, like the Europe export.
     const csv = "registration,model,icao_type,category,Balloon_group,country,,\n01AHA,,WT9,AEROPLANE,,France,,\n";
     const out = fromAircraftCsv(csv);
     expect(out).toHaveLength(1);
+    // Stays as the code (the lookup endpoint substitutes the icao_types model at display).
     expect(out[0]).toMatchObject({ registration: "01AHA", model: "WT9", icaoType: "WT9" });
-    enrichFromIcaoTypes(out, new Map([["WT9", { aircraftModel: "Aerospool WT-9 Dynamic", engineCount: 1 }]]));
-    expect(out[0]?.model).toBe("Aerospool WT-9 Dynamic");
   });
 
   it("rejects a CSV without the required columns", () => {
@@ -50,16 +49,18 @@ describe("aircraft enrichment from icao_types", () => {
     ["DG40", { aircraftModel: "Diamond DA40", engineCount: 1, allowedCategories: ["AEROPLANE", "SAILPLANE"] }],
   ]);
 
-  it("takes the model and engine count from icao_types for a specific type", () => {
+  it("keeps the register's model as the fallback and fills a missing engine count from the type", () => {
     const recs = fromAircraftCsv("registration,model,icao_type\nHB-SGZ,AT01-100C,A210\n");
     enrichFromIcaoTypes(recs, icao);
-    expect(recs[0]).toMatchObject({ model: "Aquila A-210", engineCount: 1 });
+    // Model stays the register's per-tail value; the lookup endpoint substitutes
+    // the icao_types model at display time.
+    expect(recs[0]).toMatchObject({ model: "AT01-100C", engineCount: 1 });
   });
 
-  it("keeps the register model for an ambiguous type and for generic GLID/BALL codes", () => {
+  it("keeps the register model for ambiguous and generic codes too", () => {
     const recs = fromAircraftCsv("registration,model,icao_type\nHB-CAT,F172H,C172\nHB-1000,L 33 SOLO,GLID\n");
     enrichFromIcaoTypes(recs, icao);
-    expect(recs.find((a) => a.registration === "HB-CAT")).toMatchObject({ model: "F172H", engineCount: 1 });
+    expect(recs.find((a) => a.registration === "HB-CAT")?.model).toBe("F172H");
     expect(recs.find((a) => a.registration === "HB-1000")?.model).toBe("L 33 SOLO");
   });
 
