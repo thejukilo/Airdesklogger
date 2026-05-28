@@ -11,7 +11,15 @@ export interface SignaturePadHandle {
  * which is what FOCA 2.4.3 accepts as a handwritten signature. White background
  * so the exported image is not transparent.
  */
-export const SignaturePad = forwardRef<SignaturePadHandle>(function SignaturePad(_props, ref) {
+/**
+ * Optional callback fired when the pad's empty/non-empty state flips - lets
+ * a parent form enable/disable the submit button without polling.
+ */
+export interface SignaturePadProps {
+  onChange?: (hasInk: boolean) => void;
+}
+
+export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function SignaturePad({ onChange }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const dirty = useRef(false);
@@ -45,7 +53,10 @@ export const SignaturePad = forwardRef<SignaturePadHandle>(function SignaturePad
     const [x, y] = pos(e);
     ctx.lineTo(x, y);
     ctx.stroke();
-    dirty.current = true;
+    if (!dirty.current) {
+      dirty.current = true;
+      onChange?.(true);
+    }
   }
   function up() {
     drawing.current = false;
@@ -60,7 +71,10 @@ export const SignaturePad = forwardRef<SignaturePadHandle>(function SignaturePad
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.strokeStyle = "#1a1a1a";
-      dirty.current = false;
+      if (dirty.current) {
+        dirty.current = false;
+        onChange?.(false);
+      }
     },
   }));
 

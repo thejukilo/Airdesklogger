@@ -383,7 +383,7 @@ export function getEntry(id: string): Promise<EntryDetail> {
 
 export function signEntry(
   id: string,
-  body: { code: string; role: string; signatureImage?: string; signedPlace?: string },
+  body: { code: string; role: string; signatureImage: string; signedPlace: string },
 ): Promise<{ locked: boolean }> {
   return request(`/entries/${id}/sign`, { method: "POST", body: JSON.stringify(body) });
 }
@@ -425,7 +425,7 @@ export function getSignoffPublic(token: string): Promise<PublicSignoff> {
 
 export function submitSignoffPublic(
   token: string,
-  input: { signerName: string; signerLicense?: string; signatureImage?: string; signedPlace?: string },
+  input: { signerName: string; signerLicense?: string; signatureImage: string; signedPlace: string },
 ): Promise<{ locked: boolean; entryIds: string[] }> {
   return request(`/signoff/${token}`, { method: "POST", body: JSON.stringify(input) });
 }

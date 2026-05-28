@@ -25,10 +25,10 @@ const Body = z.object({
   code: z.string().min(6).max(8),
   role: z.enum(["INSTRUCTOR", "EXAMINER", "SUPERVISING_PIC", "ATO", "DTO", "HOT", "AIRPORT", "OTHER"]),
   entryIds: z.array(z.string()).optional(),
-  // Optional drawn signature image (PNG data URL). Capped so a request stays small.
-  signatureImage: z.string().startsWith("data:image/").max(300_000).optional(),
+  // A drawn signature is part of the regulatory record. Capped so a request stays small.
+  signatureImage: z.string().startsWith("data:image/", "A drawn signature is required.").max(300_000),
   // The place the signer is signing at (an aerodrome name or freeform location).
-  signedPlace: z.string().max(200).optional(),
+  signedPlace: z.string().trim().min(1, "Place of signing is required.").max(200),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const claims = await requireUser(req);
     const parsed = Body.safeParse(typeof req.body === "string" ? JSON.parse(req.body) : req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Provide 'code' and a 'role' to sign as." });
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Provide a code, role, place and signature to sign." });
       return;
     }
     const { code, role } = parsed.data;

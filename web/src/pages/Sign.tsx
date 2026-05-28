@@ -37,6 +37,9 @@ export function Sign() {
   const [name, setName] = useState("");
   const [license, setLicense] = useState("");
   const [place, setPlace] = useState("");
+  // True once the pilot has put pen to canvas; flips the Sign button enabled.
+  // Kept in state because SignaturePad does not re-render its parent on draw.
+  const [hasSignature, setHasSignature] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
 
@@ -51,13 +54,19 @@ export function Sign() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  const canSubmit = name.trim().length > 0 && place.trim().length > 0 && hasSignature && !signing;
+
   async function submit() {
     setSignError(null);
     if (!name.trim()) {
       setSignError("Your full name is required.");
       return;
     }
-    if (pad.current?.isEmpty()) {
+    if (!place.trim()) {
+      setSignError("The place where you are signing is required.");
+      return;
+    }
+    if (!hasSignature || pad.current?.isEmpty()) {
       setSignError("Please draw your signature.");
       return;
     }
@@ -66,8 +75,8 @@ export function Sign() {
       await api.submitSignoffPublic(token, {
         signerName: name.trim(),
         ...(license.trim() ? { signerLicense: license.trim() } : {}),
-        ...(place.trim() ? { signedPlace: place.trim() } : {}),
-        signatureImage: pad.current?.toDataURL(),
+        signedPlace: place.trim(),
+        signatureImage: pad.current!.toDataURL(),
       });
       setDone(true);
     } catch (err) {
@@ -124,20 +133,24 @@ export function Sign() {
                   {signError && <Alert>{signError}</Alert>}
                   <Field label="Your full name" value={name} onChange={(e) => setName(e.target.value)} required />
                   <Field label="Licence / certificate number (optional)" value={license} onChange={(e) => setLicense(e.target.value)} />
-                  <Field label="Place" value={place} onChange={(e) => setPlace(e.target.value)} hint="Where you are signing (e.g. LSGG, the aerodrome or city)." />
+                  <Field label="Place" value={place} onChange={(e) => setPlace(e.target.value)} hint="Where you are signing (e.g. LSGG, the aerodrome or city)." required />
                   <div>
                     <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="font-medium text-slate-700">Signature</span>
-                      <button type="button" className="text-xs text-slate-500 underline" onClick={() => pad.current?.clear()}>
+                      <span className="font-medium text-slate-700">Signature <span className="text-red-500">*</span></span>
+                      <button
+                        type="button"
+                        className="text-xs text-slate-500 underline"
+                        onClick={() => { pad.current?.clear(); setHasSignature(false); }}
+                      >
                         Clear
                       </button>
                     </div>
-                    <SignaturePad ref={pad} />
+                    <SignaturePad ref={pad} onChange={setHasSignature} />
                   </div>
                   <p className="text-xs text-slate-500">
                     Signing permanently locks {data.entries.length === 1 ? "the entry" : `all ${data.entries.length} entries`}.
                   </p>
-                  <Button onClick={submit} disabled={signing}>
+                  <Button onClick={submit} disabled={!canSubmit}>
                     {signing ? "Signing..." : data.entries.length === 1 ? "Sign and lock" : `Sign and lock all ${data.entries.length}`}
                   </Button>
                 </div>

@@ -71,6 +71,8 @@ export function EntryDetail() {
   const capabilities = capabilitiesFor(user?.roles ?? []);
   const [role, setRole] = useState(capabilities[0] ?? "");
   const [code, setCode] = useState("");
+  const [signedPlace, setSignedPlace] = useState("");
+  const [hasSignature, setHasSignature] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
 
@@ -129,14 +131,26 @@ export function EntryDetail() {
 
   async function submitSignoff() {
     setSignError(null);
-    if (pad.current?.isEmpty()) {
+    if (!signedPlace.trim()) {
+      setSignError("The place where you are signing is required.");
+      return;
+    }
+    if (!hasSignature || pad.current?.isEmpty()) {
       setSignError("Please draw your signature.");
       return;
     }
     setSigning(true);
     try {
-      await api.signEntry(id, { code: code.trim(), role, signatureImage: pad.current?.toDataURL() });
+      await api.signEntry(id, {
+        code: code.trim(),
+        role,
+        signatureImage: pad.current!.toDataURL(),
+        signedPlace: signedPlace.trim(),
+      });
       setCode("");
+      setSignedPlace("");
+      setHasSignature(false);
+      pad.current?.clear();
       load();
     } catch (err) {
       setSignError(err instanceof Error ? err.message : "Could not sign the entry.");
@@ -315,19 +329,33 @@ export function EntryDetail() {
           ) : (
             <div className="space-y-3">
               {signError && <Alert>{signError}</Alert>}
+              <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                Signing as <strong>{user?.name}</strong>
+              </p>
               <Select label="Signing as" value={role} onChange={(e) => setRole(e.target.value)}>
                 {capabilities.map((cap) => (
                   <option key={cap} value={cap}>{ROLE_LABELS[cap] ?? cap}</option>
                 ))}
               </Select>
+              <Field
+                label="Place"
+                value={signedPlace}
+                onChange={(e) => setSignedPlace(e.target.value)}
+                hint="Where you are signing (e.g. LSGG, the aerodrome or city)."
+                required
+              />
               <div>
                 <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-700">Signature</span>
-                  <button type="button" className="text-xs text-slate-500 underline" onClick={() => pad.current?.clear()}>
+                  <span className="font-medium text-slate-700">Signature <span className="text-red-500">*</span></span>
+                  <button
+                    type="button"
+                    className="text-xs text-slate-500 underline"
+                    onClick={() => { pad.current?.clear(); setHasSignature(false); }}
+                  >
                     Clear
                   </button>
                 </div>
-                <SignaturePad ref={pad} />
+                <SignaturePad ref={pad} onChange={setHasSignature} />
               </div>
               <Field
                 label="Two-factor code"
@@ -337,7 +365,10 @@ export function EntryDetail() {
                 hint="Signing permanently locks the entry."
                 required
               />
-              <Button onClick={submitSignoff} disabled={signing || !code.trim()}>
+              <Button
+                onClick={submitSignoff}
+                disabled={signing || !code.trim() || !signedPlace.trim() || !hasSignature}
+              >
                 {signing ? "Signing..." : "Sign and lock"}
               </Button>
             </div>

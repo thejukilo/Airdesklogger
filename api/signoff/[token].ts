@@ -18,10 +18,10 @@ import {
  *        single-use.
  */
 const Body = z.object({
-  signerName: z.string().min(1),
+  signerName: z.string().trim().min(1, "Your full name is required."),
   signerLicense: z.string().optional(),
-  signedPlace: z.string().optional(),
-  signatureImage: z.string().startsWith("data:image/").max(300_000).optional(),
+  signedPlace: z.string().trim().min(1, "Place of signing is required.").max(200),
+  signatureImage: z.string().startsWith("data:image/", "A drawn signature is required.").max(300_000),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -60,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (req.method === "POST") {
     const parsed = Body.safeParse(typeof req.body === "string" ? JSON.parse(req.body) : req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Your full name is required to sign." });
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Full name, place and a drawn signature are all required." });
       return;
     }
     try {
