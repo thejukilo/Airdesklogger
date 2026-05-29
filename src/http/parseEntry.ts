@@ -108,6 +108,15 @@ const EntryShape = z.object({
       hobbsEnd: z.union([z.number().int().nonnegative(), z.string()]).optional(),
     })
     .optional(),
+  track: z
+    .object({
+      type: z.literal("LineString"),
+      coordinates: z
+        .array(z.tuple([z.number(), z.number()]).rest(z.number()))
+        .min(2)
+        .max(5000),
+    })
+    .optional(),
 });
 
 /**
@@ -188,6 +197,14 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
             };
             return Object.keys(c).length > 0 ? { counters: c } : {};
           })()
+        : {}),
+      ...(data.track
+        ? {
+            track: {
+              type: "LineString" as const,
+              coordinates: data.track.coordinates as unknown as ReadonlyArray<readonly [number, number]>,
+            },
+          }
         : {}),
       enteredInLocalTime: enteredLocal,
     };

@@ -202,6 +202,10 @@ export interface EntryColumns {
     hobbsStart?: number;
     hobbsEnd?: number;
   };
+  track?: {
+    type: "LineString";
+    coordinates: Array<[number, number] | [number, number, number]>;
+  };
   fstd?: { deviceType: string; qualificationNumber: string; totalMinutes: number };
 }
 

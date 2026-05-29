@@ -4,6 +4,7 @@ import { useAuth } from "../auth";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
 import { SignaturePad, type SignaturePadHandle } from "../components/SignaturePad";
+import { TrackMap } from "../components/TrackMap";
 import { attributeChipSuffix } from "../lib/attributeDisplay";
 import {
   ATTRIBUTE_LABELS,
@@ -262,6 +263,17 @@ export function EntryDetail() {
           <Detail label="Landings (night)" value={String(cols?.nightLandings ?? 0)} />
         </dl>
       </Card>
+
+      {cols?.track && cols.track.coordinates.length >= 2 ? (
+        <Card>
+          <h2 className="mb-3 font-medium">Flight track</h2>
+          <TrackMap track={cols.track} />
+          <p className="mt-2 text-xs text-slate-500">
+            {cols.track.coordinates.length} points captured by the source system. Not part of the
+            PDF export.
+          </p>
+        </Card>
+      ) : null}
 
       <Card>
         <h2 className="mb-3 font-medium">Function and classification</h2>

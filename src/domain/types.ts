@@ -164,6 +164,8 @@ export interface FlightEntryInput {
   timesLocal?: boolean | undefined;
   /** Aircraft hour-counter readings at block-off / block-on, in integer minutes since zero. Optional, import-only today. */
   counters?: Counters | undefined;
+  /** Flight track as a GeoJSON LineString. Optional, import-only today. */
+  track?: TrackLineString | undefined;
 }
 
 /**
@@ -177,6 +179,17 @@ export interface Counters {
   ftcEnd?: number | undefined;
   hobbsStart?: number | undefined;
   hobbsEnd?: number | undefined;
+}
+
+/**
+ * Flight track as a GeoJSON LineString. Lon/lat pairs in WGS84, ordered by
+ * recording time. Rendered as a small map on the entry-detail page when
+ * present; not part of the FOCA PDF. Capped at 5000 points to keep payloads
+ * sensible — high-rate trackers must downsample.
+ */
+export interface TrackLineString {
+  type: "LineString";
+  coordinates: ReadonlyArray<readonly [number, number] | readonly [number, number, number]>;
 }
 
 /**
@@ -280,4 +293,6 @@ export interface DerivedColumns {
   signatureRequired: boolean;
   /** Aircraft hour-counter readings (integer minutes-since-zero). Shown on entry detail; not on the PDF. */
   counters?: Counters | undefined;
+  /** Flight track. Shown on entry detail as a small map; not on the PDF. */
+  track?: TrackLineString | undefined;
 }
