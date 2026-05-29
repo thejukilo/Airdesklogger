@@ -276,20 +276,43 @@ the sign-off by email. The import API never signs anything.
 
 ### Time zones
 
-The default is `"UTC"`. Every leg time must be an ISO 8601 string with `Z` or
-an explicit `+00:00`.
+The handling is driven by **two settings on the token** (set by the pilot on
+their Account page when they generate the token), plus an optional per-request
+override:
 
-If your system stores wall-clock local times without an offset, set
-`"timeZone": "LOCAL"` at the top of `entry`. We then:
+| Setting | Values | Default | Meaning |
+|---|---|---|---|
+| `sourceTimeZone` (token) | `UTC` \| `LOCAL` | `UTC` | What the importer's leg times mean. UTC = ISO with `Z`; LOCAL = wall-clock at the aerodrome. |
+| `storeTimeZone` (token) | `UTC` \| `LOCAL` | `UTC` | What lands in the logbook. UTC stores ISO; LOCAL stores wall-clock and renders with an `L` suffix on the PDF. |
+| `entry.timeZone` (body) | `UTC` \| `LOCAL` | inherits the token's `sourceTimeZone` | Per-request override for the source side, in case one importer ships mixed feeds. The store side is always the token's setting. |
 
-1. Look up the IANA zone of each leg's departure and arrival aerodrome.
-2. Convert the local time to UTC.
-3. If the aerodrome is `ZZZZ` (or any code we cannot resolve), the wall-clock
-   is stored as-is and the entry is flagged `timesLocal = true`. The export
-   shows an `L` suffix instead of `Z`.
+The four resulting paths:
 
-Either way, the server's "no future flight" guard fires against the server
-clock (with a 14-hour grace for unresolved local times to cover UTC+14).
+| Source | Store | What happens |
+|---|---|---|
+| UTC | UTC | Pass-through. (Most common.) |
+| LOCAL | UTC | Convert wall-clock → UTC via the aerodrome's IANA zone. Unresolved aerodromes (`ZZZZ`) keep wall-clock and flag `timesLocal=true`. |
+| UTC | LOCAL | Shift UTC → wall-clock at the aerodrome. Stamp `timesLocal=true`, render with `L`. |
+| LOCAL | LOCAL | Keep wall-clock as-is, `timesLocal=true`, no aerodrome lookup needed. |
+
+Every leg time must still be an ISO 8601 string. For LOCAL sources the trailing
+`Z` (or its absence) is ignored — the value is read as wall-clock. The "no
+future flight" guard always runs against the server clock, with a 14-hour grace
+for unresolved local times to cover UTC+14.
+
+### TMG aircraft
+
+Touring motor gliders sit between aeroplane and sailplane in EASA's logbook
+columns. The choice is the pilot's, not the importer's. To support this:
+
+- The importer sends `aircraft.category: "TMG"` whenever the source aircraft is
+  classed as a TMG.
+- The pilot picks once at token-creation time how TMG hours should be filed
+  (`AEROPLANE` or `SAILPLANE`).
+- We resolve `"TMG"` to the token's `tmgCategory` **before** any other rule
+  runs, so the resulting entry behaves like the resolved category for column
+  layout, allowed attributes, and signature requirements.
+- `"TMG"` is accepted on import only. It is never stored as an entry category.
 
 ### FSTD session shape
 

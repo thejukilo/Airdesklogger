@@ -506,6 +506,10 @@ export function adminApplyBalloonGroups(csv: string): Promise<{ updated: number 
   return request("/admin/apply-balloon-groups", { method: "POST", body: JSON.stringify({ csv }) });
 }
 
+export type ImportTokenSourceTz = "UTC" | "LOCAL";
+export type ImportTokenStoreTz = "UTC" | "LOCAL";
+export type ImportTokenTmgFiling = "AEROPLANE" | "SAILPLANE";
+
 export interface ImportToken {
   id: string;
   name: string;
@@ -514,14 +518,39 @@ export interface ImportToken {
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;
+  sourceTimeZone: ImportTokenSourceTz;
+  storeTimeZone: ImportTokenStoreTz;
+  tmgCategory: ImportTokenTmgFiling;
+}
+
+export interface ImportTokenPrefsInput {
+  sourceTimeZone?: ImportTokenSourceTz;
+  storeTimeZone?: ImportTokenStoreTz;
+  tmgCategory?: ImportTokenTmgFiling;
 }
 
 export function listImportTokens(): Promise<{ tokens: ImportToken[] }> {
   return request("/account/import-tokens", { method: "GET" });
 }
 
-export function createImportToken(name: string): Promise<{ token: string; row: ImportToken }> {
-  return request("/account/import-tokens", { method: "POST", body: JSON.stringify({ name }) });
+export function createImportToken(
+  name: string,
+  prefs: ImportTokenPrefsInput = {},
+): Promise<{ token: string; row: ImportToken }> {
+  return request("/account/import-tokens", {
+    method: "POST",
+    body: JSON.stringify({ name, ...prefs }),
+  });
+}
+
+export function updateImportToken(
+  id: string,
+  patch: ImportTokenPrefsInput & { name?: string },
+): Promise<{ row: ImportToken }> {
+  return request(`/account/import-tokens/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
 export function revokeImportToken(id: string): Promise<void> {

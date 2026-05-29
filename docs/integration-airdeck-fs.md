@@ -129,12 +129,17 @@ Your `aircraft_class` enum doesn't map 1:1. Use this table:
 |---|---|---|---|
 | `SEP` | `AEROPLANE` | `SE` | `false` |
 | `SET` | `AEROPLANE` | `SE` | `false` |
-| `TMG` | `AEROPLANE` | `SE` | `false` |
+| `TMG` | **send `"TMG"`** — the pilot's token decides | `SE` | `false` |
 | `MEP` | `AEROPLANE` | `ME` | `false` |
 | `MET` | `AEROPLANE` | `ME` | `false` |
 | `Glider` / `SAILPLANE` | `SAILPLANE` | `SE` | `false` |
 | `Helicopter` | `HELICOPTER` | `SE` *or* `ME` (per type) | `false` *or* `true` (per type) |
 | `Balloon` | `BALLOON` | `SE` | `false` (and you must send `balloonGroup`) |
+
+For TMG aircraft, **do not** decide the filing on the school side. Send
+`category: "TMG"` and Airdesk resolves it per the pilot's token preference
+(AEROPLANE or SAILPLANE). Pilots set this once when they generate the token;
+the choice is regulatory and theirs to make.
 
 For multi-pilot types (large helicopters, jets, A320, etc.) hold a small
 lookup keyed by `aircraft_types.id` with `multi_pilot boolean` and
@@ -191,6 +196,15 @@ Map their `function` enum value:
 `0..1439`. They are **UTC** wall-clock minutes (your UI shows `10:40z` —
 the `z` suffix is the giveaway). Cross-midnight flights have `block_end <
 block_start`; in that case the arrival date is `flight_date + 1`.
+
+Always send UTC; you don't need to think about local time. Each pilot's Airdesk
+token carries their own source/store time-zone preference, set on their Account
+page. When the pilot wants their logbook to read in local time, our side runs
+the UTC → local projection using the aerodrome's IANA zone. Do not pre-convert.
+If the pilot has a glider-club token that legitimately ships wall-clock (no
+UTC clock on the source system), they will toggle their token's source to
+LOCAL — but for the Airdesk Flight School integration the source is always
+UTC.
 
 ```ts
 function todIsoUtc(date: string /* YYYY-MM-DD */, mod: number): string {

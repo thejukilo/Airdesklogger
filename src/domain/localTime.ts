@@ -47,6 +47,33 @@ export class LocalTimeError extends Error {
 }
 
 /**
+ * Format a UTC instant as the wall-clock ISO string it represents at the given
+ * IANA timezone — the inverse of zonedWallClockToUtc, used when an importer
+ * pushes UTC times but the holder wants their logbook to read in local time.
+ * The returned string carries a Z suffix for the rest of the pipeline to parse,
+ * but the entry is flagged timesLocal=true so the export shows L instead.
+ */
+export function zonedUtcToWallClock(utcIso: string, timeZone: string): string {
+  const d = new Date(utcIso);
+  if (Number.isNaN(d.getTime())) throw new LocalTimeError(`"${utcIso}" is not a valid UTC instant.`);
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const map: Record<string, string> = {};
+  for (const p of dtf.formatToParts(d)) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  return `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}:${map.second}Z`;
+}
+
+/**
  * Interpret a wall-clock time ("YYYY-MM-DDTHH:MM" or with seconds) as civil time
  * in the given IANA timezone and return the corresponding UTC instant. Uses two
  * passes so a value near a daylight-saving change resolves to the correct side.

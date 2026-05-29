@@ -10,7 +10,7 @@ import {
   recordImport,
   touchTokenUse,
 } from "../../../src/db/importTokensRepository.js";
-import { prepareFlightEntry } from "../../../src/http/buildEntry.js";
+import { prepareFlightEntry, type ImportPrefs } from "../../../src/http/buildEntry.js";
 import { RequestError } from "../../../src/http/parseEntry.js";
 import { createEntry } from "../../../src/db/repository.js";
 
@@ -97,9 +97,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const ip = clientIp(req);
+  const importPrefs = {
+    sourceTimeZone: token.sourceTimeZone,
+    storeTimeZone: token.storeTimeZone,
+    tmgCategory: token.tmgCategory,
+  };
   const outcomes: ItemOutcome[] = [];
   for (const it of items) {
-    outcomes.push(await processItem(token.id, token.userId, it, { dryRun, ip }));
+    outcomes.push(await processItem(token.id, token.userId, it, { dryRun, ip, importPrefs }));
   }
 
   // Single-item mode keeps a clean 201/200/422 shape; batch always returns 207.
@@ -130,7 +135,7 @@ async function processItem(
   tokenId: string,
   pilotId: string,
   it: { externalId: string; entry?: unknown },
-  opts: { dryRun: boolean; ip: string | undefined },
+  opts: { dryRun: boolean; ip: string | undefined; importPrefs: ImportPrefs },
 ): Promise<ItemOutcome> {
   // Idempotency: a previous successful import wins, even on dry-run, so a
   // client retry never re-validates against a moving codebase.
@@ -145,7 +150,7 @@ async function processItem(
   }
 
   try {
-    const prepared = await prepareFlightEntry(it.entry, pilotId);
+    const prepared = await prepareFlightEntry(it.entry, pilotId, { importPrefs: opts.importPrefs });
     if (!prepared.ok) {
       return { externalId: it.externalId, status: "invalid", issues: (prepared.body as { issues?: unknown }).issues ?? prepared.body };
     }

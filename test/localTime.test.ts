@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { zonedWallClockToUtc, LocalTimeError } from "../src/domain/localTime.js";
+import { zonedWallClockToUtc, zonedUtcToWallClock, LocalTimeError } from "../src/domain/localTime.js";
 
 describe("local wall-clock to UTC against an aerodrome timezone", () => {
   it("applies the summer (daylight saving) offset for Zurich", () => {
@@ -22,5 +22,28 @@ describe("local wall-clock to UTC against an aerodrome timezone", () => {
 
   it("rejects a value that is not a wall-clock time", () => {
     expect(() => zonedWallClockToUtc("nonsense", "Europe/Zurich")).toThrow(LocalTimeError);
+  });
+});
+
+describe("UTC to local wall-clock at an aerodrome timezone (token storeTimeZone = LOCAL)", () => {
+  it("projects a UTC summer instant down to Zurich wall-clock", () => {
+    // 12:30 UTC in July is 14:30 local in Zurich (CEST).
+    const wall = zonedUtcToWallClock("2026-07-01T12:30:00Z", "Europe/Zurich");
+    expect(wall).toBe("2026-07-01T14:30:00Z");
+  });
+
+  it("projects a UTC winter instant down to Zurich wall-clock", () => {
+    const wall = zonedUtcToWallClock("2026-01-15T13:30:00Z", "Europe/Zurich");
+    expect(wall).toBe("2026-01-15T14:30:00Z");
+  });
+
+  it("crosses the date boundary when the local zone is west of UTC", () => {
+    // 02:00 UTC is 22:00 the previous day in EDT.
+    const wall = zonedUtcToWallClock("2026-06-10T02:00:00Z", "America/New_York");
+    expect(wall).toBe("2026-06-09T22:00:00Z");
+  });
+
+  it("rejects a non-UTC input", () => {
+    expect(() => zonedUtcToWallClock("nonsense", "Europe/Zurich")).toThrow(LocalTimeError);
   });
 });

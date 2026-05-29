@@ -243,8 +243,11 @@ components:
         timeZone:
           type: string
           enum: [UTC, LOCAL]
-          default: UTC
-          description: When LOCAL, leg times are wall-clock and we convert via the aerodrome timezone. ZZZZ legs stay flagged timesLocal.
+          description: |
+            Per-request override of the token's sourceTimeZone setting. When omitted,
+            the token's setting (default UTC) applies. LOCAL means wall-clock at the
+            aerodrome; UTC means an ISO instant. The token's storeTimeZone setting
+            decides whether the entry is stored as UTC or LOCAL regardless of source.
         counters:
           $ref: '#/components/schemas/Counters'
         track:
@@ -313,8 +316,12 @@ components:
           type: boolean
         category:
           type: string
-          enum: [AEROPLANE, HELICOPTER, SAILPLANE, BALLOON]
-          description: Defaults to AEROPLANE when absent. Required for balloons.
+          enum: [AEROPLANE, HELICOPTER, SAILPLANE, BALLOON, TMG]
+          description: |
+            Defaults to AEROPLANE when absent. Required for balloons. The TMG value
+            is import-only: it is resolved to AEROPLANE or SAILPLANE per the token's
+            tmgCategory preference before validation runs, and is never stored as an
+            entry category.
         balloonGroup:
           type: string
           enum: [A, B, C, D]

@@ -399,6 +399,25 @@ CREATE TABLE IF NOT EXISTS import_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_import_tokens_user ON import_tokens(user_id);
 
+-- Per-token import preferences. Set at token creation, editable later without
+-- rotating the secret. source/store time-zone drives how leg times in the
+-- request are interpreted and stored: UTC/UTC stores ISO as-is, LOCAL/UTC
+-- converts wall-clock to UTC via the aerodrome timezone (existing behavior),
+-- UTC/LOCAL shifts UTC down to local time at the aerodrome and flags the entry
+-- timesLocal (L suffix in the PDF), LOCAL/LOCAL keeps wall-clock as-is.
+-- tmg_category resolves an aircraft.category="TMG" hint from the importer into
+-- the pilot's chosen filing — TMG sits between aeroplane and sailplane and the
+-- pilot picks once which column the hours land in.
+ALTER TABLE import_tokens
+  ADD COLUMN IF NOT EXISTS source_time_zone text NOT NULL DEFAULT 'UTC'
+    CHECK (source_time_zone IN ('UTC','LOCAL'));
+ALTER TABLE import_tokens
+  ADD COLUMN IF NOT EXISTS store_time_zone text NOT NULL DEFAULT 'UTC'
+    CHECK (store_time_zone IN ('UTC','LOCAL'));
+ALTER TABLE import_tokens
+  ADD COLUMN IF NOT EXISTS tmg_category text NOT NULL DEFAULT 'AEROPLANE'
+    CHECK (tmg_category IN ('AEROPLANE','SAILPLANE'));
+
 -- Idempotency + provenance for imported entries. The external system supplies a
 -- stable externalId per flight; a retry with the same (token, externalId) maps
 -- back to the same entry instead of creating a duplicate. The row also stamps

@@ -12,10 +12,24 @@ import { validateFlightReferences } from "./validateReferences.js";
 import { getAirportCoords } from "../db/referenceRepository.js";
 import { findOverlappingFlight } from "../db/repository.js";
 import { nightMinutes, isNightAt, dayNightPattern } from "../domain/night.js";
-import { zonedWallClockToUtc, LocalTimeError } from "../domain/localTime.js";
+import { zonedWallClockToUtc, zonedUtcToWallClock, LocalTimeError } from "../domain/localTime.js";
 import { toUtcIso } from "../domain/time.js";
 import { timezoneAt } from "./timezone.js";
 import type { DerivedColumns, FlightEntryInput } from "../domain/types.js";
+
+/**
+ * Per-token preferences carried in from the Import API. The same prepare
+ * function services both the SPA (no token, all defaults) and the import path
+ * (token-bound defaults that the body can override case-by-case).
+ */
+export interface ImportPrefs {
+  /** What time zone the importer's leg times are expressed in. */
+  sourceTimeZone: "UTC" | "LOCAL";
+  /** Whether we store/display in UTC or in local wall-clock. */
+  storeTimeZone: "UTC" | "LOCAL";
+  /** When the importer marks an aircraft as TMG, which column the hours land in. */
+  tmgCategory: "AEROPLANE" | "SAILPLANE";
+}
 
 export type PreparedEntry =
   | { ok: true; input: FlightEntryInput; derived: DerivedColumns }
@@ -40,6 +54,17 @@ function asInstantString(wallClock: unknown): string {
   return /(Z|[+-]\d{2}:\d{2})$/.test(s) ? s : `${s}Z`;
 }
 
+async function tzCacheFor(legs: RawLeg[]): Promise<Map<string, string | null>> {
+  const cache = new Map<string, string | null>();
+  for (const leg of legs) {
+    for (const place of [leg.departurePlace, leg.arrivalPlace]) {
+      const key = String(place).toUpperCase();
+      if (!cache.has(key)) cache.set(key, await timezoneForPlace(key));
+    }
+  }
+  return cache;
+}
+
 /**
  * Convert a local-time request to UTC against each aerodrome's timezone. When a
  * place has no timezone on file (no coordinates), the time cannot be converted,
@@ -48,17 +73,10 @@ function asInstantString(wallClock: unknown): string {
  */
 async function resolveLocalLegs(raw: unknown): Promise<{ legs: RawLeg[]; timesLocal: boolean }> {
   const legs = Array.isArray((raw as { legs?: unknown })?.legs) ? (raw as { legs: RawLeg[] }).legs : [];
-  const tzCache = new Map<string, string | null>();
-  const tzFor = async (place: unknown): Promise<string | null> => {
-    const key = String(place).toUpperCase();
-    if (!tzCache.has(key)) tzCache.set(key, await timezoneForPlace(key));
-    return tzCache.get(key) ?? null;
-  };
-
-  let allResolved = true;
-  for (const leg of legs) {
-    if (!(await tzFor(leg.departurePlace)) || !(await tzFor(leg.arrivalPlace))) allResolved = false;
-  }
+  const tzCache = await tzCacheFor(legs);
+  const allResolved = legs.every(
+    (l) => tzCache.get(String(l.departurePlace).toUpperCase()) && tzCache.get(String(l.arrivalPlace).toUpperCase()),
+  );
 
   if (!allResolved) {
     // Keep the wall-clock as the stored time; it is local, not UTC.
@@ -85,6 +103,54 @@ async function resolveLocalLegs(raw: unknown): Promise<{ legs: RawLeg[]; timesLo
   return { legs: converted, timesLocal: false };
 }
 
+/**
+ * Project a UTC-source request down to wall-clock at each aerodrome and stamp
+ * timesLocal. Used when the import token says "store in local time" — the school
+ * sends real UTC, but the pilot wants their logbook to read in local civil time
+ * (matches how they log non-imported flights at the same field). Legs whose
+ * aerodrome has no timezone on file are passed through unchanged: their original
+ * UTC string stays, since we have nothing to shift against.
+ */
+async function projectUtcToLocalLegs(raw: unknown): Promise<{ legs: RawLeg[]; timesLocal: boolean }> {
+  const legs = Array.isArray((raw as { legs?: unknown })?.legs) ? (raw as { legs: RawLeg[] }).legs : [];
+  const tzCache = await tzCacheFor(legs);
+  const out = legs.map((leg) => {
+    const depTz = tzCache.get(String(leg.departurePlace).toUpperCase()) ?? null;
+    const arrTz = tzCache.get(String(leg.arrivalPlace).toUpperCase()) ?? null;
+    try {
+      return {
+        ...leg,
+        departureTime: depTz ? zonedUtcToWallClock(String(leg.departureTime), depTz) : asInstantString(leg.departureTime),
+        arrivalTime:   arrTz ? zonedUtcToWallClock(String(leg.arrivalTime),   arrTz) : asInstantString(leg.arrivalTime),
+      };
+    } catch (err) {
+      if (err instanceof LocalTimeError) throw new RequestError(err.message);
+      throw err;
+    }
+  });
+  return { legs: out, timesLocal: true };
+}
+
+/**
+ * Wrap each leg time so it parses as a UTC instant downstream, without any
+ * conversion. Used when source and store are both LOCAL — the importer sends
+ * wall-clock, we store wall-clock, no aerodrome timezone enters the picture.
+ */
+function keepLocalLegs(raw: unknown): { legs: RawLeg[]; timesLocal: boolean } {
+  const legs = Array.isArray((raw as { legs?: unknown })?.legs) ? (raw as { legs: RawLeg[] }).legs : [];
+  return {
+    legs: legs.map((leg) => ({ ...leg, departureTime: asInstantString(leg.departureTime), arrivalTime: asInstantString(leg.arrivalTime) })),
+    timesLocal: true,
+  };
+}
+
+function resolveAircraftCategory(raw: unknown, tmgFiling: "AEROPLANE" | "SAILPLANE"): unknown {
+  const body = raw as { aircraft?: { category?: unknown } } | null;
+  if (!body || typeof body !== "object" || !body.aircraft) return raw;
+  if (body.aircraft.category !== "TMG") return raw;
+  return { ...body, aircraft: { ...body.aircraft, category: tmgFiling } };
+}
+
 async function computeNight(input: FlightEntryInput): Promise<number> {
   let total = 0;
   for (const leg of input.legs) {
@@ -104,25 +170,60 @@ async function classifyLandings(input: FlightEntryInput): Promise<{ day: number;
 
 /**
  * Validate and enrich a raw request body into a stored-ready entry. The holder id
- * always comes from the session. `excludeEntryId` is the entry being amended, so
- * it does not count as an overlap against itself. Throws RequestError on a bad
- * body or an unconvertible local time (the caller maps that to a 400).
+ * always comes from the session (or from the resolved import token). `opts.importPrefs`
+ * carries the per-token preferences when the call originates from the Import API;
+ * when absent (SPA path) defaults match historical behavior: source/store both
+ * derived from the body's own `timeZone` field. Throws RequestError on a bad body
+ * or an unconvertible local time (the caller maps that to a 400).
+ *
+ * Time-zone matrix:
+ *   sourceTz   storeTz    behavior
+ *   UTC        UTC        legs pass through as ISO Z, timesLocal=false (default)
+ *   LOCAL      UTC        wall-clock → UTC via aerodrome tz (existing path)
+ *   UTC        LOCAL      UTC → wall-clock at aerodrome tz, timesLocal=true
+ *   LOCAL      LOCAL      keep wall-clock as-is, timesLocal=true, no aerodrome lookup
+ *
+ * TMG resolution: when an Import API request carries `aircraft.category="TMG"`,
+ * it is rewritten to the token's tmgCategory (AEROPLANE or SAILPLANE) before the
+ * normal parser runs, so all downstream rules (column layout, allowed attributes,
+ * signature rules) act on the filed category, not the source hint.
  */
 export async function prepareFlightEntry(
   raw: unknown,
   pilotId: string,
-  opts: { excludeEntryId?: string } = {},
+  opts: { excludeEntryId?: string; importPrefs?: ImportPrefs } = {},
 ): Promise<PreparedEntry> {
-  const localMode = (raw as { timeZone?: unknown })?.timeZone === "LOCAL";
+  const bodyTimeZone = (raw as { timeZone?: unknown } | null)?.timeZone;
+  const sourceTz: "UTC" | "LOCAL" =
+    bodyTimeZone === "LOCAL" ? "LOCAL" :
+    bodyTimeZone === "UTC"   ? "UTC"   :
+    opts.importPrefs?.sourceTimeZone ?? "UTC";
+  const storeTz: "UTC" | "LOCAL" = opts.importPrefs?.storeTimeZone ?? "UTC";
+
+  // TMG hint resolution runs before any parsing — the rest of the pipeline
+  // sees AEROPLANE or SAILPLANE, never TMG.
+  let body = opts.importPrefs
+    ? resolveAircraftCategory(raw, opts.importPrefs.tmgCategory)
+    : raw;
+
   let timesLocal = false;
-  let body = raw;
-  if (localMode) {
-    const resolved = await resolveLocalLegs(raw);
-    body = { ...(raw as object), legs: resolved.legs };
+  if (sourceTz === "LOCAL" && storeTz === "UTC") {
+    const resolved = await resolveLocalLegs(body);
+    body = { ...(body as object), legs: resolved.legs };
     timesLocal = resolved.timesLocal;
+  } else if (sourceTz === "UTC" && storeTz === "LOCAL") {
+    const projected = await projectUtcToLocalLegs(body);
+    body = { ...(body as object), legs: projected.legs };
+    timesLocal = projected.timesLocal;
+  } else if (sourceTz === "LOCAL" && storeTz === "LOCAL") {
+    const kept = keepLocalLegs(body);
+    body = { ...(body as object), legs: kept.legs };
+    timesLocal = kept.timesLocal;
   }
+  // UTC → UTC: nothing to do; the legs already parse as ISO Z.
+
   const input = parseEntryRequest({ ...(body as object), pilotId });
-  if (localMode) input.enteredInLocalTime = true;
+  if (sourceTz === "LOCAL") input.enteredInLocalTime = true;
   if (timesLocal) input.timesLocal = true;
 
   // No-future-date guard. With true UTC times we allow 60s of NTP slack. With

@@ -17,7 +17,17 @@ const TOKEN_PREFIX = "airdesk_pat_";
 const RAW_BYTES = 32; // 256-bit secret, base64url encoded
 const PREFIX_DISPLAY_LEN = TOKEN_PREFIX.length + 8;
 
-export interface ImportTokenRow {
+export type SourceTimeZone = "UTC" | "LOCAL";
+export type StoreTimeZone = "UTC" | "LOCAL";
+export type TmgCategoryFiling = "AEROPLANE" | "SAILPLANE";
+
+export interface ImportTokenPrefs {
+  sourceTimeZone: SourceTimeZone;
+  storeTimeZone: StoreTimeZone;
+  tmgCategory: TmgCategoryFiling;
+}
+
+export interface ImportTokenRow extends ImportTokenPrefs {
   id: string;
   userId: string;
   name: string;
@@ -38,6 +48,10 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
+const COLUMNS =
+  "id, user_id, name, token_prefix, scope, last_used_at, revoked_at, created_at, " +
+  "source_time_zone, store_time_zone, tmg_category";
+
 function rowFromDb(r: Record<string, unknown>): ImportTokenRow {
   return {
     id: r.id as string,
@@ -48,32 +62,68 @@ function rowFromDb(r: Record<string, unknown>): ImportTokenRow {
     lastUsedAt: r.last_used_at ? new Date(r.last_used_at as string).toISOString() : null,
     revokedAt: r.revoked_at ? new Date(r.revoked_at as string).toISOString() : null,
     createdAt: new Date(r.created_at as string).toISOString(),
+    sourceTimeZone: r.source_time_zone as SourceTimeZone,
+    storeTimeZone: r.store_time_zone as StoreTimeZone,
+    tmgCategory: r.tmg_category as TmgCategoryFiling,
   };
 }
 
-export async function createImportToken(userId: string, name: string): Promise<CreatedImportToken> {
+export async function createImportToken(
+  userId: string,
+  name: string,
+  prefs: ImportTokenPrefs,
+): Promise<CreatedImportToken> {
   const raw = randomBytes(RAW_BYTES).toString("base64url");
   const token = `${TOKEN_PREFIX}${raw}`;
   const tokenHash = hashToken(token);
   const tokenPrefix = token.slice(0, PREFIX_DISPLAY_LEN);
   const { rows } = await getPool().query(
-    `INSERT INTO import_tokens (user_id, name, token_hash, token_prefix)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, user_id, name, token_prefix, scope, last_used_at, revoked_at, created_at`,
-    [userId, name, tokenHash, tokenPrefix],
+    `INSERT INTO import_tokens
+       (user_id, name, token_hash, token_prefix,
+        source_time_zone, store_time_zone, tmg_category)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING ${COLUMNS}`,
+    [userId, name, tokenHash, tokenPrefix, prefs.sourceTimeZone, prefs.storeTimeZone, prefs.tmgCategory],
   );
   return { row: rowFromDb(rows[0]), token };
 }
 
 export async function listImportTokens(userId: string): Promise<ImportTokenRow[]> {
   const { rows } = await getPool().query(
-    `SELECT id, user_id, name, token_prefix, scope, last_used_at, revoked_at, created_at
+    `SELECT ${COLUMNS}
        FROM import_tokens
       WHERE user_id = $1
       ORDER BY revoked_at IS NOT NULL, created_at DESC`,
     [userId],
   );
   return rows.map(rowFromDb);
+}
+
+/**
+ * Edit the per-token preferences (time-zone source/store, TMG filing) without
+ * rotating the secret. Returns the updated row, or null if the token does not
+ * belong to the user or has been revoked.
+ */
+export async function updateImportTokenPrefs(
+  userId: string,
+  tokenId: string,
+  prefs: Partial<ImportTokenPrefs> & { name?: string },
+): Promise<ImportTokenRow | null> {
+  const sets: string[] = [];
+  const args: unknown[] = [];
+  if (prefs.name !== undefined)           { args.push(prefs.name);           sets.push(`name = $${args.length}`); }
+  if (prefs.sourceTimeZone !== undefined) { args.push(prefs.sourceTimeZone); sets.push(`source_time_zone = $${args.length}`); }
+  if (prefs.storeTimeZone !== undefined)  { args.push(prefs.storeTimeZone);  sets.push(`store_time_zone = $${args.length}`); }
+  if (prefs.tmgCategory !== undefined)    { args.push(prefs.tmgCategory);    sets.push(`tmg_category = $${args.length}`); }
+  if (sets.length === 0) return null;
+  args.push(tokenId, userId);
+  const { rows } = await getPool().query(
+    `UPDATE import_tokens SET ${sets.join(", ")}
+       WHERE id = $${args.length - 1} AND user_id = $${args.length} AND revoked_at IS NULL
+       RETURNING ${COLUMNS}`,
+    args,
+  );
+  return rows[0] ? rowFromDb(rows[0]) : null;
 }
 
 export async function revokeImportToken(userId: string, tokenId: string): Promise<boolean> {
@@ -85,7 +135,7 @@ export async function revokeImportToken(userId: string, tokenId: string): Promis
   return (rowCount ?? 0) > 0;
 }
 
-export interface ActiveImportToken {
+export interface ActiveImportToken extends ImportTokenPrefs {
   id: string;
   userId: string;
   name: string;
@@ -102,7 +152,8 @@ export async function findActiveTokenByRaw(raw: string): Promise<ActiveImportTok
   if (!raw.startsWith(TOKEN_PREFIX)) return null;
   const tokenHash = hashToken(raw);
   const { rows } = await getPool().query(
-    `SELECT id, user_id, name, scope, token_hash, revoked_at
+    `SELECT id, user_id, name, scope, token_hash, revoked_at,
+            source_time_zone, store_time_zone, tmg_category
        FROM import_tokens
       WHERE token_hash = $1`,
     [tokenHash],
@@ -120,6 +171,9 @@ export async function findActiveTokenByRaw(raw: string): Promise<ActiveImportTok
     userId: r.user_id as string,
     name: r.name as string,
     scope: r.scope as string,
+    sourceTimeZone: r.source_time_zone as SourceTimeZone,
+    storeTimeZone: r.store_time_zone as StoreTimeZone,
+    tmgCategory: r.tmg_category as TmgCategoryFiling,
   };
 }
 

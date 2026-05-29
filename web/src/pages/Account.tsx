@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, Fragment, type FormEvent } from "react";
 import QRCode from "qrcode";
 import { useAuth } from "../auth";
 import * as api from "../api";
@@ -293,14 +293,107 @@ export function Account() {
  * external system (one per flight school is the usual pattern), and the secret
  * is shown once on the screen — there is no way to recover it afterwards.
  */
+type SrcTz = api.ImportTokenSourceTz;
+type DstTz = api.ImportTokenStoreTz;
+type TmgF = api.ImportTokenTmgFiling;
+
+interface TokenPrefsState {
+  sourceTimeZone: SrcTz;
+  storeTimeZone: DstTz;
+  tmgCategory: TmgF;
+}
+
+const DEFAULT_PREFS: TokenPrefsState = {
+  sourceTimeZone: "UTC",
+  storeTimeZone: "UTC",
+  tmgCategory: "AEROPLANE",
+};
+
+function TimeZoneRadio({
+  legend,
+  hint,
+  value,
+  onChange,
+  disabled,
+}: {
+  legend: string;
+  hint: string;
+  value: SrcTz | DstTz;
+  onChange: (v: "UTC" | "LOCAL") => void;
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset className="rounded-md border border-slate-200 p-3">
+      <legend className="px-1 text-xs font-medium uppercase tracking-wide text-slate-500">{legend}</legend>
+      <div className="space-y-1 text-sm">
+        <label className="flex items-start gap-2">
+          <input type="radio" className="mt-1" checked={value === "UTC"}
+                 onChange={() => onChange("UTC")} disabled={disabled} />
+          <span>UTC</span>
+        </label>
+        <label className="flex items-start gap-2">
+          <input type="radio" className="mt-1" checked={value === "LOCAL"}
+                 onChange={() => onChange("LOCAL")} disabled={disabled} />
+          <span>Local time</span>
+        </label>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">{hint}</p>
+    </fieldset>
+  );
+}
+
+function TmgRadio({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: TmgF;
+  onChange: (v: TmgF) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset className="rounded-md border border-slate-200 p-3">
+      <legend className="px-1 text-xs font-medium uppercase tracking-wide text-slate-500">TMG aircraft</legend>
+      <div className="space-y-1 text-sm">
+        <label className="flex items-start gap-2">
+          <input type="radio" className="mt-1" checked={value === "AEROPLANE"}
+                 onChange={() => onChange("AEROPLANE")} disabled={disabled} />
+          <span>Log under Aeroplane</span>
+        </label>
+        <label className="flex items-start gap-2">
+          <input type="radio" className="mt-1" checked={value === "SAILPLANE"}
+                 onChange={() => onChange("SAILPLANE")} disabled={disabled} />
+          <span>Log under Sailplane</span>
+        </label>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">
+        Touring motor gliders. Regulatory choice — match how you log your other TMG flights so totals line up.
+      </p>
+    </fieldset>
+  );
+}
+
+function prefChips(t: api.ImportToken) {
+  const arrow = "→";
+  return [
+    `Time: ${t.sourceTimeZone} ${arrow} ${t.storeTimeZone}`,
+    `TMG: ${t.tmgCategory === "AEROPLANE" ? "Aeroplane" : "Sailplane"}`,
+  ];
+}
+
 function ImportTokensCard() {
   const [tokens, setTokens] = useState<api.ImportToken[]>([]);
   const [loading, setLoading] = useState(true);
-  const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [prefs, setPrefs] = useState<TokenPrefsState>(DEFAULT_PREFS);
   const [newSecret, setNewSecret] = useState<{ token: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<TokenPrefsState | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   async function refresh() {
     try {
@@ -320,9 +413,11 @@ function ImportTokensCard() {
     setError(null);
     setCreating(true);
     try {
-      const { token, row } = await api.createImportToken(name.trim());
+      const { token, row } = await api.createImportToken(name.trim(), prefs);
       setNewSecret({ token, name: row.name });
       setName("");
+      setPrefs(DEFAULT_PREFS);
+      setCreatorOpen(false);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create token.");
@@ -342,6 +437,31 @@ function ImportTokensCard() {
       setError(err instanceof Error ? err.message : "Could not revoke token.");
     } finally {
       setRevokingId(null);
+    }
+  }
+
+  function beginEdit(t: api.ImportToken) {
+    setEditingId(t.id);
+    setEditDraft({
+      sourceTimeZone: t.sourceTimeZone,
+      storeTimeZone: t.storeTimeZone,
+      tmgCategory: t.tmgCategory,
+    });
+  }
+
+  async function saveEdit(id: string) {
+    if (!editDraft) return;
+    setError(null);
+    setSavingEdit(true);
+    try {
+      await api.updateImportToken(id, editDraft);
+      setEditingId(null);
+      setEditDraft(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update token.");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -376,8 +496,14 @@ function ImportTokensCard() {
         </div>
       )}
 
-      <form onSubmit={create} className="mb-3 flex flex-wrap items-end gap-2">
-        <div className="flex-1 min-w-[12rem]">
+      {!creatorOpen ? (
+        <div className="mb-3">
+          <Button type="button" onClick={() => setCreatorOpen(true)}>
+            Create token
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={create} className="mb-3 space-y-3 rounded-md border border-slate-200 p-3">
           <Field
             label="Token name"
             placeholder="e.g. Aero-Club logbook"
@@ -385,11 +511,45 @@ function ImportTokensCard() {
             onChange={(e) => setName(e.target.value)}
             disabled={creating}
           />
-        </div>
-        <Button type="submit" disabled={creating || !name.trim()}>
-          {creating ? "Creating..." : "Create token"}
-        </Button>
-      </form>
+          <div className="grid gap-3 md:grid-cols-3">
+            <TimeZoneRadio
+              legend="Source time format"
+              hint="What the external system sends. Most modern school systems send UTC."
+              value={prefs.sourceTimeZone}
+              onChange={(v) => setPrefs((p) => ({ ...p, sourceTimeZone: v }))}
+              disabled={creating}
+            />
+            <TimeZoneRadio
+              legend="Store as"
+              hint="What appears in your logbook. UTC is the regulatory norm; local time is common at gliding clubs."
+              value={prefs.storeTimeZone}
+              onChange={(v) => setPrefs((p) => ({ ...p, storeTimeZone: v }))}
+              disabled={creating}
+            />
+            <TmgRadio
+              value={prefs.tmgCategory}
+              onChange={(v) => setPrefs((p) => ({ ...p, tmgCategory: v }))}
+              disabled={creating}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="text-sm font-medium text-slate-500 hover:underline"
+              onClick={() => { setCreatorOpen(false); setName(""); setPrefs(DEFAULT_PREFS); }}
+              disabled={creating}
+            >
+              Cancel
+            </button>
+            <Button type="submit" disabled={creating || !name.trim()}>
+              {creating ? "Generating..." : "Generate token"}
+            </Button>
+          </div>
+          <p className="text-xs text-slate-500">
+            Scope is fixed to <code>entries:append</code> &mdash; tokens cannot sign, read, or edit anything else.
+          </p>
+        </form>
+      )}
 
       {loading ? (
         <p className="text-sm text-slate-500">Loading...</p>
@@ -402,34 +562,100 @@ function ImportTokensCard() {
               <tr>
                 <th className="px-3 py-2 text-left">Name</th>
                 <th className="px-3 py-2 text-left">Token</th>
+                <th className="px-3 py-2 text-left">Settings</th>
                 <th className="px-3 py-2 text-left">Last used</th>
                 <th className="px-3 py-2 text-right">Status</th>
               </tr>
             </thead>
             <tbody>
-              {[...active, ...revoked].map((t) => (
-                <tr key={t.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 font-medium text-slate-700">{t.name}</td>
-                  <td className="px-3 py-2"><code className="text-xs">{t.tokenPrefix}...</code></td>
-                  <td className="px-3 py-2 text-slate-500">
-                    {t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : "never"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {t.revokedAt ? (
-                      <span className="text-xs text-slate-400">revoked</span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="text-xs font-medium text-rose-700 hover:underline disabled:opacity-50"
-                        onClick={() => revoke(t.id, t.name)}
-                        disabled={revokingId === t.id}
-                      >
-                        {revokingId === t.id ? "Revoking..." : "Revoke"}
-                      </button>
+              {[...active, ...revoked].map((t) => {
+                const editing = editingId === t.id && editDraft;
+                return (
+                  <Fragment key={t.id}>
+                    <tr className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-medium text-slate-700">{t.name}</td>
+                      <td className="px-3 py-2"><code className="text-xs">{t.tokenPrefix}...</code></td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {prefChips(t).map((chip) => (
+                            <span key={chip} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{chip}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-slate-500">
+                        {t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : "never"}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {t.revokedAt ? (
+                          <span className="text-xs text-slate-400">revoked</span>
+                        ) : (
+                          <div className="flex justify-end gap-3">
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-sky-700 hover:underline disabled:opacity-50"
+                              onClick={() => beginEdit(t)}
+                              disabled={editingId === t.id}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-rose-700 hover:underline disabled:opacity-50"
+                              onClick={() => revoke(t.id, t.name)}
+                              disabled={revokingId === t.id}
+                            >
+                              {revokingId === t.id ? "Revoking..." : "Revoke"}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                    {editing && (
+                      <tr className="border-t border-slate-100 bg-slate-50">
+                        <td colSpan={5} className="px-3 py-3">
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <TimeZoneRadio
+                              legend="Source time format"
+                              hint="What the external system sends."
+                              value={editDraft!.sourceTimeZone}
+                              onChange={(v) => setEditDraft((d) => d && ({ ...d, sourceTimeZone: v }))}
+                              disabled={savingEdit}
+                            />
+                            <TimeZoneRadio
+                              legend="Store as"
+                              hint="What appears in your logbook."
+                              value={editDraft!.storeTimeZone}
+                              onChange={(v) => setEditDraft((d) => d && ({ ...d, storeTimeZone: v }))}
+                              disabled={savingEdit}
+                            />
+                            <TmgRadio
+                              value={editDraft!.tmgCategory}
+                              onChange={(v) => setEditDraft((d) => d && ({ ...d, tmgCategory: v }))}
+                              disabled={savingEdit}
+                            />
+                          </div>
+                          <div className="mt-3 flex justify-end gap-2">
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-slate-500 hover:underline"
+                              onClick={() => { setEditingId(null); setEditDraft(null); }}
+                              disabled={savingEdit}
+                            >
+                              Cancel
+                            </button>
+                            <Button type="button" onClick={() => saveEdit(t.id)} disabled={savingEdit}>
+                              {savingEdit ? "Saving..." : "Save"}
+                            </Button>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">
+                            Changes apply to <strong>future</strong> imports through this token. Entries already in your logbook are not modified.
+                          </p>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
