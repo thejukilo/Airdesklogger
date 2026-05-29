@@ -115,9 +115,10 @@ The `kind: "FLIGHT"` shape is the FOCA/EASA logbook entry. All fields below.
 }
 ```
 
-- `registration` — uppercase, dash-free is fine (`HBPNT`); we will not silently
-  normalise case for you. If the registration is not in our reference table,
-  the aircraft is auto-added from these fields.
+- `registration` — case-insensitive and dash-tolerant. `HBPNT`, `hb-pnt`,
+  and `HB-PNT` all match the reference row stored as `HB-PNT`. The stored
+  entry adopts the reference table's canonical form, so the PDF always
+  shows the dashed registration.
 - `engineClass` — exactly `"SE"` or `"ME"`. Drives columns 5a/5b of the export.
 - `multiPilot` — boolean. Drives column 6.
 - `category` — `"AEROPLANE"` | `"HELICOPTER"` | `"SAILPLANE"` | `"BALLOON"`.

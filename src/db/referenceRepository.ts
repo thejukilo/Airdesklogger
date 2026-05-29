@@ -101,12 +101,24 @@ export async function getAircraftForFlight(
   onDate: string,
 ): Promise<AircraftRecord | null> {
   const { rows } = await getPool().query(
-    `SELECT * FROM aircraft WHERE registration = $1 AND valid_from <= $2::date
+    `SELECT * FROM aircraft
+       WHERE regexp_replace(upper(registration), '[^A-Z0-9]', '', 'g') = $1
+         AND valid_from <= $2::date
       ORDER BY valid_from DESC LIMIT 1`,
-    [registration.toUpperCase(), onDate],
+    [normalizeRegistration(registration), onDate],
   );
   if (!rows[0]) return null;
   return mapAircraftRow(rows[0]);
+}
+
+/**
+ * Canonical key for registration matching: uppercase, no dashes, no spaces.
+ * "HB-PNT", "hb-pnt", and "HBPNT" all collapse to "HBPNT" for lookup, while
+ * the stored row's dashed form is what we return as the canonical display
+ * value.
+ */
+export function normalizeRegistration(registration: string): string {
+  return registration.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 function mapAircraftRow(r: Record<string, unknown>): AircraftRecord {
@@ -127,8 +139,10 @@ function mapAircraftRow(r: Record<string, unknown>): AircraftRecord {
 /** The most recent aircraft record for a registration, regardless of date. */
 export async function getAircraftByRegistration(registration: string): Promise<AircraftRecord | null> {
   const { rows } = await getPool().query(
-    "SELECT * FROM aircraft WHERE registration = $1 ORDER BY valid_from DESC LIMIT 1",
-    [registration.toUpperCase()],
+    `SELECT * FROM aircraft
+       WHERE regexp_replace(upper(registration), '[^A-Z0-9]', '', 'g') = $1
+       ORDER BY valid_from DESC LIMIT 1`,
+    [normalizeRegistration(registration)],
   );
   return rows[0] ? mapAircraftRow(rows[0]) : null;
 }

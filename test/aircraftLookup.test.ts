@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseAdsbdb } from "../src/http/aircraftLookup.js";
+import { normalizeRegistration } from "../src/db/referenceRepository.js";
 
 const adsbdb = (aircraft: Record<string, unknown>) => ({ response: { aircraft } });
 
@@ -21,5 +22,21 @@ describe("adsbdb response parsing", () => {
     expect(parseAdsbdb({}, "X")).toBeNull();
     expect(parseAdsbdb(null, "X")).toBeNull();
     expect(parseAdsbdb(adsbdb({}), "X")).toBeNull();
+  });
+});
+
+describe("registration normalisation for reference lookup", () => {
+  it("collapses dashes and case so HBPNT and hb-pnt both match HB-PNT", () => {
+    expect(normalizeRegistration("HB-PNT")).toBe("HBPNT");
+    expect(normalizeRegistration("HBPNT")).toBe("HBPNT");
+    expect(normalizeRegistration("hb-pnt")).toBe("HBPNT");
+    expect(normalizeRegistration(" hb pnt ")).toBe("HBPNT");
+  });
+
+  it("handles other country conventions (G-, D-, F-, N-)", () => {
+    expect(normalizeRegistration("G-ABCD")).toBe("GABCD");
+    expect(normalizeRegistration("D-EABC")).toBe("DEABC");
+    expect(normalizeRegistration("F-GABC")).toBe("FGABC");
+    expect(normalizeRegistration("N12345")).toBe("N12345");
   });
 });

@@ -54,6 +54,9 @@ export async function validateFlightReferences(input: FlightEntryInput): Promise
       message: `Aircraft ${input.aircraft.registration} is not in the reference database as of ${onDate}; add it first.`,
     });
   } else {
+    // Adopt the reference table's canonical (dashed) form so the stored entry
+    // and the PDF show "HB-PNT" even when an importer sent "HBPNT".
+    input.aircraft.registration = aircraft.registration;
     // The registration is authoritative for the category. A flight may not be
     // logged under a category the aircraft does not belong to (for example a
     // single-engine aeroplane logged as a balloon). A type that the Doc 8643

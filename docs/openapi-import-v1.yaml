@@ -305,7 +305,10 @@ components:
       properties:
         registration:
           type: string
-          description: Aircraft registration. Uppercase, dash-free is fine ("HBPNT" or "HB-PNT").
+          description: |
+            Aircraft registration. Case- and dash-tolerant: HBPNT, hb-pnt and HB-PNT all
+            match a reference row stored as HB-PNT. The stored entry adopts the reference
+            table's canonical form so the PDF always shows the dashed registration.
         makeModelVariant:
           type: string
           description: "Cessna 172S", "Airbus A320", etc.
