@@ -17,7 +17,7 @@ A small export job — call it `pushFlightToLogger(flightId)` — that:
 2. Joins it to `aircraft`, `aircraft_types`, `flight_pilots`, `users`.
 3. For each pilot on the flight who has opted in (PAT saved on their profile),
    transforms the row into the Airdesk Logger import payload.
-4. POSTs it to `https://airdeck.ch/api/import/v1/entries` using **that
+4. POSTs it to `https://log.airdeck.ch/api/import/v1/entries` using **that
    pilot's** bearer token.
 5. Stores the response status against the flight so you don't re-export
    unchanged rows.
@@ -66,7 +66,7 @@ CREATE TABLE public.airdesk_pushes (
 On the pilot's profile, add:
 
 - A field "Airdesk Logger personal access token" (the pilot pastes the
-  `airdesk_pat_…` string they generated on airdeck.ch).
+  `airdesk_pat_…` string they generated on log.airdeck.ch).
 - A free-text label (default: your tenant's name) that the pilot will see on
   their Airdesk logbook row.
 - A toggle "Auto-export closed flights to my Airdesk Logger". Default off
@@ -320,7 +320,7 @@ WHERE f.id = :flight_id
 ```ts
 import type { Pool } from "pg";
 
-const AIRDESK_URL = "https://airdeck.ch/api/import/v1/entries";
+const AIRDESK_URL = "https://log.airdeck.ch/api/import/v1/entries";
 
 type SourceRow = {/* the SELECT result above */};
 

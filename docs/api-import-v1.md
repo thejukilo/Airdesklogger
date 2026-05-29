@@ -9,7 +9,7 @@ read, edit, sign-off, and delete actions remain with the pilot in the SPA.
 
 | | |
 |---|---|
-| **Base URL** | `https://airdeck.ch/api/import/v1` |
+| **Base URL** | `https://log.airdeck.ch/api/import/v1` |
 | **Auth** | Personal Access Token: `Authorization: Bearer airdesk_pat_…` |
 | **Endpoint** | `POST /entries` |
 | **Content type** | `application/json` |
@@ -411,7 +411,7 @@ post a new entry with a different `externalId`; the pilot voids the wrong one.
 curl -sS -X POST \
   -H "Authorization: Bearer airdesk_pat_8f2a..." \
   -H "Content-Type: application/json" \
-  https://airdeck.ch/api/import/v1/entries \
+  https://log.airdeck.ch/api/import/v1/entries \
   -d '{
     "externalId": "OPS-2026-1184",
     "sourceLabel": "MyFlightSchool",

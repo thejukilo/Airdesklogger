@@ -21,7 +21,7 @@ info:
     Dry-run: add `?dryRun=1` to validate the body without writing anything.
 
 servers:
-  - url: https://airdeck.ch/api/import/v1
+  - url: https://log.airdeck.ch/api/import/v1
 
 security:
   - bearerAuth: []

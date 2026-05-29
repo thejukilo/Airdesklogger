@@ -28,7 +28,7 @@ Albis Wings tenant (one of N flight schools)
 │         ▼                                                       │ │
 │ Push worker  ─── pulls token + label from airdesk_credentials ─┘ │
 │         │                                                         │
-│ Calls SOURCE_SQL → buildPayload() → POST https://airdeck.ch/...   │
+│ Calls SOURCE_SQL → buildPayload() → POST https://log.airdeck.ch/.│
 │         │                                                         │
 │ Writes airdesk_pushes(flight_id, user_id, status, http_status,    │
 │                       response, pushed_at)                        │
@@ -40,21 +40,25 @@ Albis Wings tenant (one of N flight schools)
 
 ---
 
-## Phase 0 — Get a sandbox token
+## Phase 0 — Get a test pilot account
+
+There is no separate staging host. Testing is done against
+`https://log.airdeck.ch/api/import/v1` using `?dryRun=1` (validates without
+writing) and a dedicated test pilot account whose logbook you can scrub between
+runs.
 
 Before you touch any code:
 
-1. Ask the Airdesk Logger team for a **sandbox pilot account** with a generated
-   PAT (or create one yourself against the staging environment if you have
-   access). Confirm:
-   - The sandbox base URL (e.g. `https://staging.airdeck.ch/api/import/v1`).
-   - That the sandbox accepts `?dryRun=1` and returns the same shapes as prod.
-   - The PAT prefix you'll be working with (`airdesk_pat_…`).
+1. Create a test pilot account on `log.airdeck.ch` (or ask the Airdesk Logger
+   team to provision one). Generate a PAT under **Account → Import tokens**.
+   Confirm the three preferences match what you expect to be the default for
+   your typical tenant (`UTC` source, `UTC` store, TMG filed as `AEROPLANE`).
+   You can issue several PATs to cover other combinations later.
 2. Smoke test with curl, from a developer laptop, to confirm the network path:
 
    ```bash
-   curl -sS -X POST "https://staging.airdeck.ch/api/import/v1/entries?dryRun=1" \
-     -H "Authorization: Bearer airdesk_pat_SANDBOX..." \
+   curl -sS -X POST "https://log.airdeck.ch/api/import/v1/entries?dryRun=1" \
+     -H "Authorization: Bearer airdesk_pat_TEST..." \
      -H "Content-Type: application/json" \
      -d '{
        "externalId": "SMOKE-0001",
@@ -74,10 +78,11 @@ Before you touch any code:
    ```
 
    Expected response: `{ "status": "validated", "externalId": "SMOKE-0001" }`.
-3. Confirm the sandbox PAT carries the three preferences you expect — they're
-   visible in the Logger's Account page. The defaults (`UTC source → UTC store`,
-   TMG filed as `AEROPLANE`) are what Albis Wings will want for staff aircraft;
-   the gliding-school tenants will need different prefs per pilot.
+   Drop the `?dryRun=1` once you're ready to write real rows into the test
+   pilot's logbook (you can void them later from the Logger SPA).
+3. **Never use a real pilot's PAT for integration testing.** Even with
+   `?dryRun=1`, the request shows up in their token's last-used timestamp and
+   they may wonder what's going on.
 
 If step 2 fails, **stop**. Network/proxy/firewall first — the rest of the
 phases assume the path works.
@@ -335,7 +340,7 @@ The admin **cannot see the PAT itself**, only its prefix. They can:
   `export_enabled = false` server-side; doesn't touch the PAT).
 
 The admin **cannot** create or paste a PAT on behalf of a pilot. PATs are
-secrets only the pilot can see — they generate them on `airdeck.ch` and
+secrets only the pilot can see — they generate them on `log.airdeck.ch` and
 paste them into their own profile.
 
 ### 4.3 Push dashboard
@@ -365,7 +370,7 @@ A new section on the pilot's profile page in the FS UI. Three controls.
 │ Auto-export to Airdesk Logger                                         │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                       │
-│ 1. Generate a token at https://airdeck.ch → Account → Import tokens.  │
+│ 1. Generate a token at https://log.airdeck.ch → Account → Import tok. │
 │    Choose your time-zone and TMG preferences when you create it.      │
 │                                                                       │
 │ 2. Paste it here:                                                     │
