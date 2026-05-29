@@ -101,7 +101,7 @@ identically; no per-tenant column variations.
 CREATE TABLE public.airdesk_credentials (
   tenant_id       uuid    NOT NULL REFERENCES tenants(id),
   user_id         uuid    PRIMARY KEY REFERENCES users(id),
-  pat_encrypted   bytea   NOT NULL,     -- pgp_sym_encrypt(raw_pat, kms_key)
+  pat             text    NOT NULL,     -- the raw airdesk_pat_... value
   pat_prefix      text    NOT NULL,     -- display only, e.g. "airdesk_pat_8f2a"
   source_label    text    NOT NULL,     -- pilot-facing label on Airdesk side
   export_enabled  boolean NOT NULL DEFAULT false,
@@ -117,8 +117,11 @@ CREATE INDEX idx_airdesk_credentials_tenant ON airdesk_credentials(tenant_id);
 ```
 
 **Notes**
-- `pat_encrypted` is `bytea`, not `text`. Encrypt at write time with
-  `pgp_sym_encrypt` keyed off a KMS-managed secret. Never log it.
+- The PAT is the per-pilot credential — treat it like any stored secret:
+  restrict who can `SELECT pat` from this table, redact it from any audit
+  log or error report, and never echo it back to a UI. No KMS or
+  application-level encryption is required; the PAT itself is the secret
+  and it can be revoked instantly from Airdesk on compromise.
 - `pat_prefix` is purely for the admin / pilot UI ("currently using
   `airdesk_pat_8f2a…`"); 16 chars max.
 - `consecutive_failures` is for circuit-breaking: when ≥ 5, auto-flip
@@ -394,12 +397,12 @@ A new section on the pilot's profile page in the FS UI. Three controls.
 - When the pilot pastes a PAT, the server calls `POST /entries?dryRun=1` with
   a minimal valid payload to verify the token works. Green pill if `validated`,
   red pill with the API's error message otherwise.
-- On save: encrypt with `pgp_sym_encrypt`, store the encrypted blob and the
-  first 16 chars of the raw PAT as the prefix. Never log the raw value.
+- On save: store the raw PAT in `airdesk_credentials.pat` and the first
+  16 chars as `pat_prefix`. Never log the raw value.
 - The textbox is **show-once**: after save the value masks to the prefix.
   "Replace token" wipes and re-prompts.
-- "Disable & forget my token" sets `revoked_at = now()`, wipes
-  `pat_encrypted`, and stops future pushes.
+- "Disable & forget my token" sets `revoked_at = now()`, wipes `pat` to
+  NULL, and stops future pushes.
 - "Recent attempts" shows the last 10 `airdesk_pushes` rows for this user
   as little colored dots — green for created/duplicate, red for
   rejected/error. Hover for the response body.
@@ -449,9 +452,10 @@ Before you point the worker at production:
    confirm no push happens and no `airdesk_pushes` row appears.
 6. **Token revocation drill.** Set the credential's `revoked_at = now()`,
    close a flight, confirm no push.
-7. **PAT corrupt drill.** Mangle a credential's `pat_encrypted` (test env
-   only). Close a flight, confirm the worker sees `401`, flips
-   `export_enabled = false`, and the pilot sees the in-app warning.
+7. **PAT corrupt drill.** Mangle a credential's `pat` value (test env
+   only — e.g. append a junk character). Close a flight, confirm the worker
+   sees `401`, flips `export_enabled = false`, and the pilot sees the in-app
+   warning.
 8. **Bulk catch-up drill.** Disable the worker, close 20 flights, re-enable
    the nightly cron. Confirm all 20 land within one cron cycle.
 
@@ -506,9 +510,11 @@ If any of these regress on a later code change, fail your CI.
 - "How do I retry a single failed push?" → run
   `DELETE FROM airdesk_pushes WHERE flight_id = ? AND user_id = ?`;
   next cron picks it up.
-- "How do I rotate a tenant's encryption key?" → re-encrypt with the new key:
-  `UPDATE airdesk_credentials SET pat_encrypted = pgp_sym_encrypt(pgp_sym_decrypt(pat_encrypted, OLD_KEY), NEW_KEY) WHERE tenant_id = ?`.
-  Test on a single row first.
+- "How do I force every pilot at a tenant to re-issue their PAT?" → run
+  `UPDATE airdesk_credentials SET revoked_at = now(), pat = NULL, export_enabled = false WHERE tenant_id = ?`;
+  email all affected pilots with the link to Airdesk → Account → Import tokens.
+  Their old PATs continue to work on the Airdesk side until each pilot revokes
+  them there too.
 
 ---
 
