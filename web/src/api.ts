@@ -226,10 +226,14 @@ export interface EntryRow {
   /** Present when the entry was created via the Import API. */
   import_source?: string | null;
   import_at?: string | null;
+  /** True when the holder has voided this entry. Only present when includeVoided is requested. */
+  voided?: boolean;
+  voided_at?: string | null;
 }
 
-export function listEntries(): Promise<{ entries: EntryRow[] }> {
-  return request("/entries", { method: "GET" });
+export function listEntries(opts: { includeVoided?: boolean } = {}): Promise<{ entries: EntryRow[] }> {
+  const qs = opts.includeVoided ? "?includeVoided=1" : "";
+  return request(`/entries${qs}`, { method: "GET" });
 }
 
 export interface NewEntryRequest {

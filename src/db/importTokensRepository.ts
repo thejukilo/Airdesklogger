@@ -184,6 +184,8 @@ export async function touchTokenUse(tokenId: string): Promise<void> {
 export interface ExistingImport {
   entryId: string;
   importedAt: string;
+  /** True when the entry this import points to has been voided by the holder. */
+  entryVoided: boolean;
 }
 
 export async function findImportByExternalId(
@@ -191,15 +193,17 @@ export async function findImportByExternalId(
   externalId: string,
 ): Promise<ExistingImport | null> {
   const { rows } = await getPool().query(
-    `SELECT entry_id, imported_at
-       FROM entry_imports
-      WHERE token_id = $1 AND external_id = $2`,
+    `SELECT ei.entry_id, ei.imported_at, fe.voided
+       FROM entry_imports ei
+       JOIN flight_entries fe ON fe.id = ei.entry_id
+      WHERE ei.token_id = $1 AND ei.external_id = $2`,
     [tokenId, externalId],
   );
   if (!rows[0]) return null;
   return {
     entryId: rows[0].entry_id as string,
     importedAt: new Date(rows[0].imported_at as string).toISOString(),
+    entryVoided: Boolean(rows[0].voided),
   };
 }
 
@@ -212,5 +216,27 @@ export async function recordImport(
     `INSERT INTO entry_imports (token_id, external_id, entry_id)
        VALUES ($1, $2, $3)`,
     [tokenId, externalId, entryId],
+  );
+}
+
+/**
+ * Redirect an existing (token, externalId) mapping to a newly-created entry.
+ * Used when the holder has voided the previously-imported entry and the
+ * external system re-pushes the corrected flight — the new entry stands on
+ * its own audit chain, while the voided entry remains in the ledger.
+ *
+ * entry_imports rows are immutable except for this redirect path, which the
+ * forbid_mutation trigger explicitly allows (see schema.sql).
+ */
+export async function replaceImportTarget(
+  tokenId: string,
+  externalId: string,
+  newEntryId: string,
+): Promise<void> {
+  await getPool().query(
+    `UPDATE entry_imports
+        SET entry_id = $3, imported_at = now()
+      WHERE token_id = $1 AND external_id = $2`,
+    [tokenId, externalId, newEntryId],
   );
 }

@@ -431,7 +431,25 @@ CREATE TABLE IF NOT EXISTS entry_imports (
 );
 CREATE INDEX IF NOT EXISTS idx_entry_imports_entry ON entry_imports(entry_id);
 
+-- entry_imports is append-only except for the redirect path: when the holder
+-- voids a previously-imported entry and the external system re-pushes the
+-- corrected flight, the (token, external_id) row's entry_id is forwarded to
+-- the newly-created entry. token_id and external_id themselves are immutable
+-- once written, and DELETE is always forbidden.
+CREATE OR REPLACE FUNCTION forbid_entry_imports_mutation() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'entry_imports is append-only; DELETE is not permitted';
+  END IF;
+  IF NEW.token_id    IS DISTINCT FROM OLD.token_id
+  OR NEW.external_id IS DISTINCT FROM OLD.external_id THEN
+    RAISE EXCEPTION 'entry_imports.(token_id, external_id) is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP TRIGGER IF EXISTS trg_entry_imports_immutable ON entry_imports;
 CREATE TRIGGER trg_entry_imports_immutable
   BEFORE UPDATE OR DELETE ON entry_imports
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE FUNCTION forbid_entry_imports_mutation();

@@ -15,7 +15,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const claims = await requireUser(req);
 
     if (req.method === "GET") {
-      res.status(200).json({ entries: await listEntriesForPilot(claims.sub) });
+      const includeVoided = String(req.query.includeVoided ?? "") === "1";
+      res.status(200).json({ entries: await listEntriesForPilot(claims.sub, { includeVoided }) });
       return;
     }
 

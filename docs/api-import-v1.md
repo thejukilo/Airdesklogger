@@ -388,9 +388,17 @@ label on hover. The entry-detail page shows the full provenance. The FOCA
 change-log export carries the import as a row in the audit table.
 
 The pilot **can void** an imported entry from the SPA. Doing so does not
-notify the school. Re-posting the same `externalId` after a void will return
-`200 duplicate`; the void stays in place. If you need to push a correction,
-post a new entry with a different `externalId`; the pilot voids the wrong one.
+notify the school. **Re-posting the same `externalId` after a void creates a
+fresh entry**: we treat the void as a deliberate "this was wrong, take it off
+my logbook," so when the school re-pushes the corrected flight under the same
+`externalId`, the new payload validates and lands as a `201 created`. The
+voided entry stays in the audit ledger (visible to the holder under "Show
+deleted" in the logbook overview); the `(token, externalId)` mapping forwards
+to the new entry.
+
+In short: deleting an imported entry "releases" the externalId for one more
+push. A second void after the re-import releases it again. The school does
+not need to mint a new id to re-send a correction.
 
 ## What this API does not do
 

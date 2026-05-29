@@ -230,6 +230,7 @@ export function Logbook() {
   // The stats above and the bulk selection re-derive from the visible subset so
   // a filter immediately reshapes the page.
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [showDeleted, setShowDeleted] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<"" | "IMPORTED" | "MANUAL">("");
   const filteredEntries = entries.filter((e) => {
     if (categoryFilter) {
@@ -257,12 +258,13 @@ export function Logbook() {
   );
 
   useEffect(() => {
+    setLoading(true);
     api
-      .listEntries()
+      .listEntries({ includeVoided: showDeleted })
       .then((r) => setEntries(r.entries))
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load entries."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showDeleted]);
 
   async function exportPdf() {
     setExporting(true);
@@ -363,6 +365,15 @@ export function Logbook() {
               <div className="flex flex-wrap items-center gap-3">
                 <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} count={filteredEntries.length} total={entries.length} />
                 <SourceFilter value={sourceFilter} onChange={setSourceFilter} />
+                <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5"
+                    checked={showDeleted}
+                    onChange={(e) => setShowDeleted(e.target.checked)}
+                  />
+                  Show deleted
+                </label>
               </div>
               <button
                 type="button"
@@ -417,24 +428,32 @@ export function Logbook() {
                   const c = e.content.columns;
                   const fstd = c?.fstd;
                   const open = expanded.has(e.id);
+                  const isVoided = Boolean(e.voided);
                   return (
                     <Fragment key={e.id}>
                       <tr
-                        className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
+                        className={`cursor-pointer border-b last:border-0 hover:bg-slate-50 ${isVoided ? "text-slate-400 line-through" : ""}`}
                         onClick={() => toggleExpanded(e.id)}
                         aria-expanded={open}
                       >
-                        <td className="px-2 py-2" onClick={(ev) => ev.stopPropagation()}>
+                        <td className="px-2 py-2 no-underline" onClick={(ev) => ev.stopPropagation()}>
                           <input
                             type="checkbox"
                             aria-label={`Select entry ${c?.date ?? ""}`}
                             checked={selected.has(e.id)}
-                            disabled={e.locked}
+                            disabled={e.locked || isVoided}
                             onChange={() => toggleSelected(e.id)}
                           />
                         </td>
-                        <td className="px-2 py-2"><Caret open={open} /></td>
-                        <td className="px-2 py-2">{c?.date}</td>
+                        <td className="px-2 py-2 no-underline"><Caret open={open} /></td>
+                        <td className="px-2 py-2">
+                          {c?.date}
+                          {isVoided && e.voided_at ? (
+                            <span className="ml-2 inline-block rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 no-underline">
+                              Deleted {e.voided_at.slice(0, 10)}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="px-2 py-2">
                           {fstd ? (
                             <span className="text-slate-500">FSTD {fstd.deviceType}</span>
@@ -510,30 +529,33 @@ export function Logbook() {
               const c = e.content.columns;
               const fstd = c?.fstd;
               const open = expanded.has(e.id);
+              const isVoided = Boolean(e.voided);
               return (
-                <li key={e.id} className="rounded-lg border bg-white active:bg-slate-50">
+                <li key={e.id} className={`rounded-lg border bg-white active:bg-slate-50 ${isVoided ? "opacity-60" : ""}`}>
                   <div className="flex gap-2 p-3">
                     <input
                       type="checkbox"
                       aria-label={`Select entry ${c?.date ?? ""}`}
                       className="mt-1 h-4 w-4 flex-none"
                       checked={selected.has(e.id)}
-                      disabled={e.locked}
+                      disabled={e.locked || isVoided}
                       onChange={() => toggleSelected(e.id)}
                     />
                     <button
                       type="button"
                       onClick={() => toggleExpanded(e.id)}
                       aria-expanded={open}
-                      className="flex-1 text-left"
+                      className={`flex-1 text-left ${isVoided ? "line-through decoration-rose-400" : ""}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 font-medium">
                           <Caret open={open} />
                           {c?.date}
                         </span>
-                        <div className="flex items-center gap-1">
-                          {e.locked ? (
+                        <div className="flex items-center gap-1 no-underline">
+                          {isVoided ? (
+                            <span className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-700">Deleted{e.voided_at ? ` ${e.voided_at.slice(0, 10)}` : ""}</span>
+                          ) : e.locked ? (
                             <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Signed</span>
                           ) : (
                             <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Open</span>

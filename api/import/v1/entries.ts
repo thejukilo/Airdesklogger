@@ -8,6 +8,7 @@ import {
   findActiveTokenByRaw,
   findImportByExternalId,
   recordImport,
+  replaceImportTarget,
   touchTokenUse,
 } from "../../../src/db/importTokensRepository.js";
 import { prepareFlightEntry, type ImportPrefs } from "../../../src/http/buildEntry.js";
@@ -137,10 +138,14 @@ async function processItem(
   it: { externalId: string; entry?: unknown },
   opts: { dryRun: boolean; ip: string | undefined; importPrefs: ImportPrefs },
 ): Promise<ItemOutcome> {
-  // Idempotency: a previous successful import wins, even on dry-run, so a
-  // client retry never re-validates against a moving codebase.
+  // Idempotency: a previous successful import wins for the same externalId,
+  // UNLESS the holder has voided that entry in the meantime. A voided entry
+  // is a deliberate "this was wrong, take it off my logbook" — when the school
+  // re-pushes the corrected flight under the same externalId, we treat the
+  // (token, externalId) slot as available again, create a fresh entry, and
+  // forward the mapping to it. The voided entry stays in the audit ledger.
   const existing = await findImportByExternalId(tokenId, it.externalId);
-  if (existing) {
+  if (existing && !existing.entryVoided) {
     return {
       externalId: it.externalId,
       status: "duplicate",
@@ -159,20 +164,25 @@ async function processItem(
     }
 
     const created = await createEntry(prepared.input, prepared.derived, pilotId, `import:${it.externalId}`);
-    try {
-      await recordImport(tokenId, it.externalId, created.entryId);
-    } catch (err) {
-      // Concurrent retry won the unique constraint race; resolve to the winner.
-      const winner = await findImportByExternalId(tokenId, it.externalId);
-      if (winner && winner.entryId !== created.entryId) {
-        return {
-          externalId: it.externalId,
-          status: "duplicate",
-          entryId: winner.entryId,
-          importedAt: winner.importedAt,
-        };
+    if (existing && existing.entryVoided) {
+      // Re-import after delete: forward the mapping to the new entry.
+      await replaceImportTarget(tokenId, it.externalId, created.entryId);
+    } else {
+      try {
+        await recordImport(tokenId, it.externalId, created.entryId);
+      } catch (err) {
+        // Concurrent retry won the unique constraint race; resolve to the winner.
+        const winner = await findImportByExternalId(tokenId, it.externalId);
+        if (winner && winner.entryId !== created.entryId && !winner.entryVoided) {
+          return {
+            externalId: it.externalId,
+            status: "duplicate",
+            entryId: winner.entryId,
+            importedAt: winner.importedAt,
+          };
+        }
+        throw err;
       }
-      throw err;
     }
     void touchTokenUse(tokenId).catch(() => {});
     return { externalId: it.externalId, status: "created", entryId: created.entryId };
