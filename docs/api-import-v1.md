@@ -185,6 +185,51 @@ The `kind: "FLIGHT"` shape is the FOCA/EASA logbook entry. All fields below.
 | `attributeDetails` | object | Per-attribute counts, time, level, comments; see spec. |
 | `timeZone` | `"UTC"` \| `"LOCAL"` | Defaults to `"UTC"`. See below. |
 
+### Operational extras — entry-detail only
+
+These optional fields are stored and shown on the entry-detail page in the
+SPA, but **are not rendered on the FOCA PDF export**. They are informational:
+they help the pilot reconcile their logbook against the source system, but
+EASA does not require them in the official logbook grid.
+
+```json
+"counters": {
+  "ftcStart": "1392:38",
+  "ftcEnd":   "1393:06",
+  "hobbsStart": "987:12",
+  "hobbsEnd":   "987:40"
+},
+"track": {
+  "type": "LineString",
+  "coordinates": [
+    [8.4145, 47.4823],
+    [8.4090, 47.4801],
+    [7.5295, 47.4435]
+  ]
+},
+"provenance": {
+  "reservationId": "8e3f…",
+  "pilotLogNo": 1184,
+  "createdAt": "2026-05-28T13:55:02Z",
+  "createdBy": "Max Mustermann",
+  "schoolRecordedInstructorAt": "2026-05-28T14:02:11Z",
+  "schoolRecordedInstructorBy": "Erika Beispiel"
+}
+```
+
+- `counters.ftcStart` / `ftcEnd` / `hobbsStart` / `hobbsEnd` — accepted as
+  either an integer (minutes-since-zero, e.g. `83558` for `1392:38`) or a
+  string in `hhh:mm` form. We normalise to integer minutes and always display
+  as `hhh:mm`. We also compute the counter delta and surface a soft warning
+  if it diverges from the time-derived block by more than ~10 %.
+- `track` — GeoJSON `LineString` in WGS84, `[lon, lat]` pairs. Lazy-loaded
+  Leaflet map on the entry-detail page when present. Maximum 5 000 points;
+  longer tracks are rejected with `422`. Not part of the PDF.
+- `provenance` — free-form object stored as JSONB and rendered on the
+  entry-detail page under "Source". The school's `instructor_signed_at` /
+  `instructor_signed_by` are preserved here as *information*; they do **not**
+  satisfy the EASA sign-off. Imported entries always arrive unsigned.
+
 ### Attributes — the full key list
 
 `attributes` is an array of canonical keys. Each maps to (a) a flag on the

@@ -245,6 +245,18 @@ components:
           enum: [UTC, LOCAL]
           default: UTC
           description: When LOCAL, leg times are wall-clock and we convert via the aerodrome timezone. ZZZZ legs stay flagged timesLocal.
+        counters:
+          $ref: '#/components/schemas/Counters'
+        track:
+          $ref: '#/components/schemas/TrackLineString'
+        provenance:
+          type: object
+          additionalProperties: true
+          description: |
+            Free-form metadata about the source record (reservation id, school's pilot log number,
+            school-side instructor signature timestamps, etc). Stored as JSONB and rendered on the
+            entry-detail page under "Source". Not part of the PDF. The school's instructor signature
+            is preserved here as information only — it does not satisfy the EASA sign-off.
 
     FstdEntry:
       type: object
@@ -477,6 +489,58 @@ components:
           type: array
           minItems: 1
           items: { $ref: '#/components/schemas/Issue' }
+
+    Counters:
+      type: object
+      additionalProperties: false
+      description: |
+        Aircraft engine / hour counters at block-off and block-on. Shown on the
+        entry-detail page in hhh:mm form, with a delta vs the time-derived block
+        time. Not rendered on the PDF.
+      properties:
+        ftcStart: { $ref: '#/components/schemas/CounterValue' }
+        ftcEnd:   { $ref: '#/components/schemas/CounterValue' }
+        hobbsStart: { $ref: '#/components/schemas/CounterValue' }
+        hobbsEnd:   { $ref: '#/components/schemas/CounterValue' }
+        flightStart:
+          type: string
+          format: date-time
+          description: Airborne / takeoff time (UTC unless entry.timeZone is LOCAL). Optional supplement to leg.departureTime (block-off).
+        flightEnd:
+          type: string
+          format: date-time
+          description: Landing time. Optional supplement to leg.arrivalTime (block-on).
+
+    CounterValue:
+      oneOf:
+        - type: integer
+          minimum: 0
+          description: Counter value as integer minutes-since-zero (e.g. 83558 == 1392:38).
+        - type: string
+          pattern: '^[0-9]{1,5}:[0-5][0-9]$'
+          description: Counter value as hhh:mm (e.g. "1392:38").
+
+    TrackLineString:
+      type: object
+      additionalProperties: false
+      description: |
+        Flight track as a GeoJSON LineString in WGS84. Lon/lat order. Rendered as
+        a Leaflet map on the entry-detail page when present. Not on the PDF.
+        Maximum 5 000 points.
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [LineString]
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 5000
+          items:
+            type: array
+            minItems: 2
+            maxItems: 3
+            items: { type: number }
 
     Issue:
       type: object
