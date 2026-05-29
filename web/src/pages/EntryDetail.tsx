@@ -26,6 +26,13 @@ function timeZ(iso: unknown, local = false): string {
   return s.length >= 16 ? `${s.slice(11, 16)}${local ? "L" : "Z"}` : "";
 }
 
+/** Aircraft counter, stored as integer minutes since zero, rendered as hhh:mm. */
+function counterHhMm(v: unknown): string {
+  const m = Number(v);
+  if (!Number.isFinite(m) || m < 0) return "";
+  return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+}
+
 const ROLE_LABELS: Record<string, string> = {
   INSTRUCTOR: "Instructor",
   EXAMINER: "Examiner",
@@ -222,6 +229,12 @@ export function EntryDetail() {
           <Detail label="Total time" value={hhmm(cols?.total)} />
           <Detail label={timeLabels.off} value={timeZ(cols?.departureTime, cols?.timesLocal)} />
           <Detail label={timeLabels.on} value={timeZ(cols?.arrivalTime, cols?.timesLocal)} />
+          {cols?.counters?.ftcStart != null ? (
+            <Detail label="Counter start" value={counterHhMm(cols.counters.ftcStart)} />
+          ) : null}
+          {cols?.counters?.ftcEnd != null ? (
+            <Detail label="Counter end" value={counterHhMm(cols.counters.ftcEnd)} />
+          ) : null}
           {cols?.isMultiFlight ? <Detail label="Flight type" value="Series of flights" /> : null}
         </dl>
         {c.remarks && (

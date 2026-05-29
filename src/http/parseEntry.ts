@@ -100,7 +100,30 @@ const EntryShape = z.object({
       demoFlightComment: z.string().optional(),
     })
     .optional(),
+  counters: z
+    .object({
+      ftcStart: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+      ftcEnd: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+      hobbsStart: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+      hobbsEnd: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+    })
+    .optional(),
 });
+
+/**
+ * Counter values come in as either an integer (minutes-since-zero, e.g. 83558
+ * for 1392:38) or as the matching "hhh:mm" string. Normalise to integer
+ * minutes; reject malformed strings with a clear message.
+ */
+function counterToMinutes(field: string, v: number | string | undefined): number | undefined {
+  if (v === undefined) return undefined;
+  if (typeof v === "number") return Math.round(v);
+  const s = v.trim();
+  const hhmm = /^(\d{1,5}):([0-5]\d)$/.exec(s);
+  if (hhmm) return Number(hhmm[1]) * 60 + Number(hhmm[2]);
+  if (/^\d+$/.test(s)) return Number(s);
+  throw new RequestError(`Counter "${field}" must be an integer (minutes) or a "hhh:mm" string; got "${v}".`);
+}
 
 /** Vercel parses a JSON body into an object, but a raw string can also arrive. */
 function asObject(body: unknown): unknown {
@@ -155,6 +178,17 @@ export function parseEntryRequest(body: unknown): FlightEntryInput {
       ...(data.flightTimeMinutes !== undefined ? { flightTimeMinutes: data.flightTimeMinutes } : {}),
       attributes: (data.attributes ?? []) as EntryAttribute[],
       ...(data.attributeDetails !== undefined ? { attributeDetails: data.attributeDetails } : {}),
+      ...(data.counters
+        ? (() => {
+            const c = {
+              ...(data.counters.ftcStart   !== undefined ? { ftcStart:   counterToMinutes("ftcStart",   data.counters.ftcStart)   } : {}),
+              ...(data.counters.ftcEnd     !== undefined ? { ftcEnd:     counterToMinutes("ftcEnd",     data.counters.ftcEnd)     } : {}),
+              ...(data.counters.hobbsStart !== undefined ? { hobbsStart: counterToMinutes("hobbsStart", data.counters.hobbsStart) } : {}),
+              ...(data.counters.hobbsEnd   !== undefined ? { hobbsEnd:   counterToMinutes("hobbsEnd",   data.counters.hobbsEnd)   } : {}),
+            };
+            return Object.keys(c).length > 0 ? { counters: c } : {};
+          })()
+        : {}),
       enteredInLocalTime: enteredLocal,
     };
   } catch (err) {

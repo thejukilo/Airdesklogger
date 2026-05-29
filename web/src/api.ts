@@ -196,6 +196,12 @@ export interface EntryColumns {
   signatureRequired?: boolean;
   enteredInLocalTime?: boolean;
   timesLocal?: boolean;
+  counters?: {
+    ftcStart?: number;
+    ftcEnd?: number;
+    hobbsStart?: number;
+    hobbsEnd?: number;
+  };
   fstd?: { deviceType: string; qualificationNumber: string; totalMinutes: number };
 }
 

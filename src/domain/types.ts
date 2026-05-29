@@ -162,6 +162,21 @@ export interface FlightEntryInput {
   enteredInLocalTime?: boolean;
   /** True when the stored times are local (could not be converted to UTC), shown with an L. */
   timesLocal?: boolean | undefined;
+  /** Aircraft hour-counter readings at block-off / block-on, in integer minutes since zero. Optional, import-only today. */
+  counters?: Counters | undefined;
+}
+
+/**
+ * Aircraft hour-counter readings carried in alongside block times. Stored as
+ * integer minutes-since-zero (1392:38 -> 83558). Optional and import-only —
+ * pilots don't enter these manually in the SPA. Shown on the entry-detail
+ * page as hhh:mm; not part of the FOCA PDF.
+ */
+export interface Counters {
+  ftcStart?: number | undefined;
+  ftcEnd?: number | undefined;
+  hobbsStart?: number | undefined;
+  hobbsEnd?: number | undefined;
 }
 
 /**
@@ -263,4 +278,6 @@ export interface DerivedColumns {
   timesLocal?: boolean | undefined;
   /** True when an attribute requires a sign-off that is not yet present. */
   signatureRequired: boolean;
+  /** Aircraft hour-counter readings (integer minutes-since-zero). Shown on entry detail; not on the PDF. */
+  counters?: Counters | undefined;
 }

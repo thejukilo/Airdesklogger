@@ -326,6 +326,7 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
     departureTime: first.departureTime,
     arrivalPlace: last.arrivalPlace,
     arrivalTime: last.arrivalTime,
+    ...(input.counters !== undefined ? { counters: input.counters } : {}),
     ...(first.departurePlaceName !== undefined ? { departurePlaceName: first.departurePlaceName } : {}),
     ...(last.arrivalPlaceName !== undefined ? { arrivalPlaceName: last.arrivalPlaceName } : {}),
     singleEngine,
