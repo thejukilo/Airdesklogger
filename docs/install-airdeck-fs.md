@@ -91,63 +91,135 @@ phases assume the path works.
 
 ## Phase 1 — Database migrations
 
-Three new tables, all in the `public` schema of each tenant database (or
-schema-per-tenant if that's your model). Migrate every existing tenant
-identically; no per-tenant column variations.
+Three new tables (credentials, push log, aircraft-type metadata columns) plus
+one trigger, all in the `public` schema. Same schema for every tenant — no
+per-tenant variations.
+
+**Everything in this phase is idempotent — safe to copy-paste and re-run any
+time.** Every `CREATE TABLE` is `if not exists`, every column add is `add
+column if not exists`, and §1.1 carries a guarded migration that rewrites the
+older `pat_encrypted` shape to the current `pat` shape if you ran an earlier
+draft. You can run the whole phase end-to-end on a fresh database or on a
+half-migrated one and end up in the same place.
 
 ### 1.1 Credentials
 
+> **This block is idempotent and safe to re-run.** If you already ran the
+> earlier draft that had `pat_encrypted`, run this again — the migration block
+> at the bottom renames the column, clears any encrypted blobs, and aligns the
+> table with the current model. After this, you can delete any `encryption.ts`
+> / `AIRDESK_PAT_ENCRYPTION_KEY` you added on the Node side; the PAT is stored
+> as plain text now and is its own credential. See §1.1.bis below for the
+> Node-side cleanup.
+
 ```sql
-CREATE TABLE public.airdesk_credentials (
-  tenant_id       uuid    NOT NULL REFERENCES tenants(id),
-  user_id         uuid    PRIMARY KEY REFERENCES users(id),
-  pat             text    NOT NULL,     -- the raw airdesk_pat_... value
-  pat_prefix      text    NOT NULL,     -- display only, e.g. "airdesk_pat_8f2a"
-  source_label    text    NOT NULL,     -- pilot-facing label on Airdesk side
-  export_enabled  boolean NOT NULL DEFAULT false,
-  last_used_at    timestamptz,
-  last_status     int,                  -- last HTTP status we saw
-  consecutive_failures int NOT NULL DEFAULT 0,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now(),
-  revoked_at      timestamptz
+create table if not exists public.airdesk_credentials (
+  tenant_id            uuid        not null references public.tenants(id) on delete cascade,
+  user_id              uuid        primary key references public.users(id) on delete cascade,
+  pat                  text,                                      -- raw airdesk_pat_... value; NULL when revoked
+  pat_prefix           text        not null,                      -- display only, e.g. "airdesk_pat_8f2a"
+  source_label         text        not null default 'Airdeck',
+  export_enabled       boolean     not null default false,
+  last_used_at         timestamptz,
+  last_status          int,
+  consecutive_failures int         not null default 0,            -- circuit-breaker — auto-disables at >= 5
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  revoked_at           timestamptz
 );
 
-CREATE INDEX idx_airdesk_credentials_tenant ON airdesk_credentials(tenant_id);
+-- Migration from the earlier-draft schema: if the column is still called
+-- pat_encrypted (was bytea or text holding an AES blob), rename it to pat,
+-- make it nullable, and wipe any stored secrets so pilots are forced to
+-- re-paste under the simpler model.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name   = 'airdesk_credentials'
+       and column_name  = 'pat_encrypted'
+  ) then
+    execute 'alter table public.airdesk_credentials alter column pat_encrypted type text using pat_encrypted::text';
+    execute 'alter table public.airdesk_credentials alter column pat_encrypted drop not null';
+    execute 'alter table public.airdesk_credentials rename column pat_encrypted to pat';
+    execute $u$update public.airdesk_credentials
+                  set pat = null,
+                      export_enabled = false,
+                      revoked_at = coalesce(revoked_at, now()),
+                      consecutive_failures = 0$u$;
+  end if;
+end $$;
+
+create index if not exists airdesk_credentials_tenant_idx
+  on public.airdesk_credentials (tenant_id);
+
+alter table public.airdesk_credentials enable row level security;
 ```
 
 **Notes**
 - The PAT is the per-pilot credential — treat it like any stored secret:
   restrict who can `SELECT pat` from this table, redact it from any audit
-  log or error report, and never echo it back to a UI. No KMS or
-  application-level encryption is required; the PAT itself is the secret
-  and it can be revoked instantly from Airdesk on compromise.
+  log or error report, and never echo it back to a UI. No application-level
+  encryption is required; the PAT itself is the secret and it can be revoked
+  instantly from Airdesk on compromise.
+- `pat` is nullable: NULL means "no token saved" (initial state) and also
+  "pilot disabled and forgot the token". A non-NULL `pat` with
+  `export_enabled = false` means "paused but PAT still on file".
 - `pat_prefix` is purely for the admin / pilot UI ("currently using
   `airdesk_pat_8f2a…`"); 16 chars max.
 - `consecutive_failures` is for circuit-breaking: when ≥ 5, auto-flip
   `export_enabled = false` and email the pilot to re-paste their PAT.
 
+### 1.1.bis Node-side cleanup if you already wrote encryption code
+
+If you ran the earlier draft, you probably have an `encryption.ts` helper and
+an `AIRDESK_PAT_ENCRYPTION_KEY` env var. Both can be deleted:
+
+1. Delete the helper file (e.g. `src/lib/airdesk/encryption.ts`).
+2. Remove `AIRDESK_PAT_ENCRYPTION_KEY` from your `.env`, `.env.example`, the
+   secrets manager, and any CI / deploy configuration.
+3. In the credentials repo, change the write path from
+   `pat_encrypted: encrypt(raw, key)` to `pat: raw`, and the read path from
+   `decrypt(row.pat_encrypted, key)` to `row.pat`.
+4. Update any tests that mocked the encryption helper — they can just compare
+   strings now.
+5. Search the codebase for the env var name and the helper's exports to make
+   sure nothing dangling references them: `grep -r AIRDESK_PAT_ENCRYPTION_KEY .`
+
 ### 1.2 Push status
 
 ```sql
-CREATE TABLE public.airdesk_pushes (
-  tenant_id    uuid    NOT NULL REFERENCES tenants(id),
-  flight_id    uuid    NOT NULL REFERENCES flights(id),
-  user_id      uuid    NOT NULL REFERENCES users(id),
-  status       text    NOT NULL,         -- 'created' | 'duplicate' | 'rejected' | 'error'
-  http_status  int     NOT NULL,
-  response     jsonb   NOT NULL,
-  attempts     int     NOT NULL DEFAULT 1,
-  pushed_at    timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (flight_id, user_id)
+create table if not exists public.airdesk_pushes (
+  tenant_id    uuid        not null references public.tenants(id) on delete cascade,
+  flight_id    uuid        not null references public.flights(id) on delete cascade,
+  user_id      uuid        not null references public.users(id)   on delete cascade,
+  status       text        not null,                                -- 'created' | 'duplicate' | 'rejected' | 'error' | 'source-incomplete'
+  http_status  int         not null,                                -- 0 when the request never went out (e.g. source-incomplete)
+  response     jsonb       not null default '{}'::jsonb,
+  attempts     int         not null default 1,
+  pushed_at    timestamptz not null default now(),
+  primary key (flight_id, user_id)
 );
 
-CREATE INDEX idx_airdesk_pushes_tenant_pushed ON airdesk_pushes(tenant_id, pushed_at DESC);
-CREATE INDEX idx_airdesk_pushes_status ON airdesk_pushes(tenant_id, status) WHERE status IN ('rejected','error');
+create index if not exists airdesk_pushes_tenant_pushed_idx
+  on public.airdesk_pushes (tenant_id, pushed_at desc);
+
+create index if not exists airdesk_pushes_status_idx
+  on public.airdesk_pushes (tenant_id, status)
+  where status in ('rejected', 'error', 'source-incomplete');
+
+alter table public.airdesk_pushes enable row level security;
 ```
 
-`UPSERT` on `(flight_id, user_id)`; the second index speeds the admin dashboard's
-"recent failures" view.
+- `UPSERT` on `(flight_id, user_id)`; the partial index speeds the admin
+  dashboard's "recent failures" view.
+- `source-incomplete` is for pre-flight rejections that never hit the network —
+  e.g. a balloon flight whose `aircraft_types.airdesk_balloon_group` is NULL
+  (see §4.1). The worker writes this status with `http_status = 0` so the
+  admin sees the row in §4.3 and knows to fix the metadata.
+- `on delete cascade` matches the credentials table: if you delete a flight,
+  user, or tenant in the school, the push log row goes with them.
 
 ### 1.3 Aircraft-type metadata (the only mapping config)
 
