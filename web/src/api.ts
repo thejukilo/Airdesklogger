@@ -520,6 +520,18 @@ export function adminApplyBalloonGroups(csv: string): Promise<{ updated: number 
   return request("/admin/apply-balloon-groups", { method: "POST", body: JSON.stringify({ csv }) });
 }
 
+/**
+ * DEV ONLY — wipes every flight entry, signature, sign-off request, import
+ * mapping, and audit-ledger row across all pilots. Removed once the system
+ * starts carrying real regulatory data.
+ */
+export function adminWipeAllEntries(): Promise<{ wiped: true; before: Record<string, number> }> {
+  return request("/admin/wipe-all-entries", {
+    method: "POST",
+    body: JSON.stringify({ confirm: "WIPE_ALL_LOGS" }),
+  });
+}
+
 export type ImportTokenSourceTz = "UTC" | "LOCAL";
 export type ImportTokenStoreTz = "UTC" | "LOCAL";
 export type ImportTokenTmgFiling = "AEROPLANE" | "SAILPLANE";

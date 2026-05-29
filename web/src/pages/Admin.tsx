@@ -221,6 +221,73 @@ function Dashboard() {
           </label>
         </div>
       </Card>
+
+      <DangerZone busy={busy} run={run} />
     </div>
+  );
+}
+
+/**
+ * Pre-launch reset switch. Wipes every flight entry, signature, sign-off
+ * request, import mapping, and audit-ledger row across all pilots, so the
+ * development team can iterate on the import pipeline without manually
+ * cleaning up between runs. Removed before the system carries any real
+ * regulatory data.
+ */
+function DangerZone({
+  busy,
+  run,
+}: {
+  busy: string | null;
+  run: (key: string, fn: () => Promise<string>) => Promise<void>;
+}) {
+  const [confirmPhrase, setConfirmPhrase] = useState("");
+  const required = "WIPE ALL LOGS";
+
+  async function wipe() {
+    if (confirmPhrase !== required) return;
+    if (!confirm(`Last chance. This deletes every flight entry, signature, sign-off, import mapping, and audit-ledger row for every pilot. Continue?`)) return;
+    await run("wipe-all", async () => {
+      const r = await api.adminWipeAllEntries();
+      setConfirmPhrase("");
+      const lines = Object.entries(r.before).map(([t, n]) => `${t}: ${n}`);
+      return `Wiped. Before: ${lines.join(", ")}.`;
+    });
+  }
+
+  return (
+    <Card>
+      <div className="rounded-md border border-rose-300 bg-rose-50 p-4">
+        <h2 className="text-rose-900 font-semibold">Danger zone — development only</h2>
+        <p className="mt-1 text-sm text-rose-800">
+          Clears every flight entry, signature, sign-off request, import mapping,
+          and audit-ledger row across <strong>all</strong> pilots. Aircraft and
+          airport reference data, user accounts, roles, and import tokens are
+          kept. This will be removed before launch.
+        </p>
+        <p className="mt-3 text-xs text-rose-800">
+          Type <code className="rounded bg-white px-1.5 py-0.5">{required}</code> to enable the button:
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            className="w-48 rounded border border-rose-300 bg-white px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-400"
+            value={confirmPhrase}
+            onChange={(e) => setConfirmPhrase(e.target.value)}
+            placeholder={required}
+            disabled={busy !== null}
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            onClick={wipe}
+            disabled={busy !== null || confirmPhrase !== required}
+            className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:cursor-not-allowed disabled:bg-rose-300"
+          >
+            {busy === "wipe-all" ? "Wiping..." : "Clear all flight logs"}
+          </button>
+        </div>
+      </div>
+    </Card>
   );
 }
