@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { useAuth } from "../auth";
@@ -186,6 +186,113 @@ function Tile({ icon, label, onClick, disabled }: { icon: ReactNode; label: stri
   );
 }
 
+type SortKey = "date" | "aircraft" | "from" | "to" | "total";
+type SortDir = "asc" | "desc";
+
+function readStored(key: string, fallback: string): string {
+  try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
+}
+
+function sortValue(e: api.EntryRow, key: SortKey): string | number {
+  const c = e.content.columns;
+  switch (key) {
+    case "date": return c?.date ?? "";
+    case "aircraft": return (e.content.aircraft?.registration ?? c?.fstd?.deviceType ?? "").toUpperCase();
+    case "from": return (c?.departurePlace ?? "").toUpperCase();
+    case "to": return (c?.arrivalPlace ?? "").toUpperCase();
+    case "total": return Number(c?.total ?? c?.fstd?.totalMinutes ?? 0);
+  }
+}
+
+function sortEntries(entries: api.EntryRow[], key: SortKey, dir: SortDir): api.EntryRow[] {
+  const mult = dir === "asc" ? 1 : -1;
+  return [...entries].sort((a, b) => {
+    const va = sortValue(a, key);
+    const vb = sortValue(b, key);
+    if (typeof va === "number" && typeof vb === "number") return (va - vb) * mult;
+    return String(va).localeCompare(String(vb)) * mult;
+  });
+}
+
+function SortHeader({
+  label,
+  sortKey: thisKey,
+  current,
+  dir,
+  onToggle,
+  className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  current: SortKey;
+  dir: SortDir;
+  onToggle: (k: SortKey) => void;
+  className?: string;
+}) {
+  const active = current === thisKey;
+  return (
+    <th className={className}>
+      <button
+        type="button"
+        onClick={() => onToggle(thisKey)}
+        className={`-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-slate-100 ${active ? "text-slate-900" : "text-slate-500"}`}
+      >
+        <span>{label}</span>
+        <span className="text-[10px] leading-none">
+          {active ? (dir === "asc" ? "▲" : "▼") : "▾"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+function PageControls({
+  page,
+  totalPages,
+  pageSize,
+  totalItems,
+  onPage,
+  onPageSize,
+}: {
+  page: number;
+  totalPages: number;
+  pageSize: number;
+  totalItems: number;
+  onPage: (p: number) => void;
+  onPageSize: (n: number) => void;
+}) {
+  const first = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, totalItems);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+      <div className="flex items-center gap-2 text-slate-500">
+        <span>Rows per page</span>
+        <select
+          className="rounded border border-slate-200 bg-white px-2 py-1 text-sm"
+          value={pageSize}
+          onChange={(e) => onPageSize(Number(e.target.value))}
+        >
+          <option value={10}>10</option>
+          <option value={25}>25</option>
+          <option value={50}>50</option>
+          <option value={100}>100</option>
+          <option value={250}>250</option>
+        </select>
+      </div>
+      <div className="flex items-center gap-3 text-slate-600">
+        <span className="tabular-nums">{first}–{last} of {totalItems}</span>
+        <div className="flex items-center gap-1">
+          <button type="button" className="rounded border border-slate-200 bg-white px-2 py-1 disabled:opacity-40" disabled={page <= 1} onClick={() => onPage(1)}>«</button>
+          <button type="button" className="rounded border border-slate-200 bg-white px-2 py-1 disabled:opacity-40" disabled={page <= 1} onClick={() => onPage(page - 1)}>‹</button>
+          <span className="px-2 tabular-nums">{page} / {totalPages}</span>
+          <button type="button" className="rounded border border-slate-200 bg-white px-2 py-1 disabled:opacity-40" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>›</button>
+          <button type="button" className="rounded border border-slate-200 bg-white px-2 py-1 disabled:opacity-40" disabled={page >= totalPages} onClick={() => onPage(totalPages)}>»</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Logbook() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -223,7 +330,7 @@ export function Logbook() {
     });
   }
   function toggleExpandAll() {
-    setExpanded((prev) => (prev.size > 0 ? new Set() : new Set(filteredEntries.map((e) => e.id))));
+    setExpanded((prev) => (prev.size > 0 ? new Set() : new Set(pageEntries.map((e) => e.id))));
   }
 
   // Filter the list by aircraft category (or by synthetic-training sessions).
@@ -232,6 +339,20 @@ export function Logbook() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<"" | "IMPORTED" | "MANUAL">("");
+
+  // Sorting and pagination, persisted to localStorage so the pilot's chosen
+  // page-size and sort order survive a reload.
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    const v = readStored("logbook.sortKey", "date");
+    return (["date","aircraft","from","to","total"] as const).includes(v as SortKey) ? (v as SortKey) : "date";
+  });
+  const [sortDir, setSortDir] = useState<SortDir>(() => (readStored("logbook.sortDir", "desc") === "asc" ? "asc" : "desc"));
+  const [pageSize, setPageSize] = useState<number>(() => Number(readStored("logbook.pageSize", "25")));
+  const [page, setPage] = useState(1);
+  useEffect(() => { localStorage.setItem("logbook.sortKey", sortKey); }, [sortKey]);
+  useEffect(() => { localStorage.setItem("logbook.sortDir", sortDir); }, [sortDir]);
+  useEffect(() => { localStorage.setItem("logbook.pageSize", String(pageSize)); }, [pageSize]);
+
   const filteredEntries = entries.filter((e) => {
     if (categoryFilter) {
       const isFstd = Boolean(e.content.columns?.fstd);
@@ -247,6 +368,23 @@ export function Logbook() {
     if (sourceFilter === "MANUAL" && e.import_source) return false;
     return true;
   });
+
+  const sortedEntries = useMemo(
+    () => sortEntries(filteredEntries, sortKey, sortDir),
+    [filteredEntries, sortKey, sortDir],
+  );
+  const totalPages = Math.max(1, Math.ceil(sortedEntries.length / pageSize));
+  // Clamp the current page when filters or page size change.
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [totalPages, page]);
+  useEffect(() => { setPage(1); }, [categoryFilter, sourceFilter, showDeleted, pageSize]);
+  const pageEntries = useMemo(
+    () => sortedEntries.slice((page - 1) * pageSize, page * pageSize),
+    [sortedEntries, page, pageSize],
+  );
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir(key === "date" ? "desc" : "asc"); }
+  }
 
   const totalMinutes = filteredEntries.reduce(
     (sum, e) => sum + (Number(e.content.columns?.total) || 0) + (Number(e.content.columns?.fstd?.totalMinutes) || 0),
@@ -401,13 +539,13 @@ export function Logbook() {
                     />
                   </th>
                   <th className="w-3 px-2 py-2" aria-hidden="true"></th>
-                  <th className="px-2 py-2 font-medium">Date</th>
-                  <th className="px-2 py-2 font-medium">Aircraft</th>
-                  <th className="px-2 py-2 font-medium">From</th>
-                  <th className="px-2 py-2 font-medium">To</th>
+                  <SortHeader label="Date" sortKey="date" current={sortKey} dir={sortDir} onToggle={toggleSort} className="px-2 py-2 font-medium" />
+                  <SortHeader label="Aircraft" sortKey="aircraft" current={sortKey} dir={sortDir} onToggle={toggleSort} className="px-2 py-2 font-medium" />
+                  <SortHeader label="From" sortKey="from" current={sortKey} dir={sortDir} onToggle={toggleSort} className="px-2 py-2 font-medium" />
+                  <SortHeader label="To" sortKey="to" current={sortKey} dir={sortDir} onToggle={toggleSort} className="px-2 py-2 font-medium" />
                   <th className="px-2 py-2 text-right font-medium">Off</th>
                   <th className="px-2 py-2 text-right font-medium">On</th>
-                  <th className="px-2 py-2 text-right font-medium">Total</th>
+                  <SortHeader label="Total" sortKey="total" current={sortKey} dir={sortDir} onToggle={toggleSort} className="px-2 py-2 text-right font-medium" />
                   <th className="px-2 py-2 font-medium">Function</th>
                   <th className="px-2 py-2 text-right font-medium">PIC</th>
                   <th className="px-2 py-2 text-right font-medium">Co</th>
@@ -424,7 +562,7 @@ export function Logbook() {
                 {filteredEntries.length === 0 && (
                   <tr><td colSpan={19} className="px-3 py-6 text-center text-sm italic text-slate-400">No entries match this filter.</td></tr>
                 )}
-                {filteredEntries.map((e) => {
+                {pageEntries.map((e) => {
                   const c = e.content.columns;
                   const fstd = c?.fstd;
                   const open = expanded.has(e.id);
@@ -511,6 +649,14 @@ export function Logbook() {
                 })}
               </tbody>
             </table>
+            <PageControls
+              page={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={sortedEntries.length}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
           </div>
         )}
 
@@ -525,7 +671,7 @@ export function Logbook() {
               <p className="text-sm italic text-slate-400">No entries match this filter.</p>
             )}
           <ul className="space-y-3">
-            {filteredEntries.map((e) => {
+            {pageEntries.map((e) => {
               const c = e.content.columns;
               const fstd = c?.fstd;
               const open = expanded.has(e.id);
@@ -605,6 +751,16 @@ export function Logbook() {
               );
             })}
           </ul>
+          <div className="mt-3">
+            <PageControls
+              page={page}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={sortedEntries.length}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
+          </div>
           </div>
         )}
       </Card>

@@ -4,6 +4,7 @@ import { useAuth } from "./auth";
 import { ClockSkewBanner } from "./components/ClockSkewBanner";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import { Dashboard } from "./pages/Dashboard";
 import { Logbook } from "./pages/Logbook";
 import { NewEntry } from "./pages/NewEntry";
 import { EntryDetail } from "./pages/EntryDetail";
@@ -88,17 +89,49 @@ function UserMenu() {
   );
 }
 
+function NavTabs() {
+  const { user } = useAuth();
+  const location = useLocation();
+  if (!user) return null;
+  const tabs: Array<{ to: string; label: string; match: (p: string) => boolean }> = [
+    { to: "/", label: "Dashboard", match: (p) => p === "/" },
+    { to: "/logbook", label: "Logbook", match: (p) => p === "/logbook" || p.startsWith("/entry") },
+    { to: "/new", label: "Log a flight", match: (p) => p === "/new" },
+  ];
+  return (
+    <nav className="hidden items-center gap-1 sm:flex">
+      {tabs.map((t) => {
+        const active = t.match(location.pathname);
+        return (
+          <Link
+            key={t.to}
+            to={t.to}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              active ? "bg-brand-100 text-brand-800" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            {t.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-50 via-slate-50 to-slate-100 text-ink">
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-2.5">
-          <Link to="/" className="flex items-center gap-2.5">
-            <BrandMark />
-            <span className="text-lg font-semibold tracking-tight text-ink">
-              Airdeck<span className="font-normal text-slate-500"> Logger</span>
-            </span>
-          </Link>
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-2.5">
+          <div className="flex items-center gap-6 min-w-0">
+            <Link to="/" className="flex items-center gap-2.5">
+              <BrandMark />
+              <span className="text-lg font-semibold tracking-tight text-ink">
+                Airdeck<span className="font-normal text-slate-500"> Logger</span>
+              </span>
+            </Link>
+            <NavTabs />
+          </div>
           <UserMenu />
         </div>
         <ClockSkewBanner />
@@ -129,6 +162,14 @@ function AppShell() {
         <Route path="/reset" element={<ResetPassword />} />
         <Route
           path="/"
+          element={
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/logbook"
           element={
             <RequireAuth>
               <Logbook />
