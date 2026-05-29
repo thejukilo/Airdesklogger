@@ -377,3 +377,42 @@ UPDATE signatures sig SET payload_signer_id = 'link:' || m.request_id::text
    AND sig.signed_at = m.signed_at
    AND sig.signer_id IS NULL;
 ALTER TABLE signatures ENABLE TRIGGER trg_signatures_immutable;
+
+-- ---- Import API (per-pilot personal access tokens, write-only) ----------------
+
+-- A pilot issues one or more named tokens to their flight-school system so it
+-- can append flights to their logbook. The raw token is shown to the holder once,
+-- at issue time, and is never persisted; we keep only its SHA-256 hash (the
+-- token is 256 bits of random, so a slow KDF like Argon2id buys nothing) plus a
+-- short prefix for human recognition in the token list. Scope is fixed to
+-- entries:append — the token cannot sign, read, or edit anything else.
+CREATE TABLE IF NOT EXISTS import_tokens (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES pilots(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  token_hash   text NOT NULL UNIQUE,
+  token_prefix text NOT NULL,
+  scope        text NOT NULL DEFAULT 'entries:append',
+  last_used_at timestamptz,
+  revoked_at   timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_import_tokens_user ON import_tokens(user_id);
+
+-- Idempotency + provenance for imported entries. The external system supplies a
+-- stable externalId per flight; a retry with the same (token, externalId) maps
+-- back to the same entry instead of creating a duplicate. The row also stamps
+-- the entry as imported, so it can be surfaced and filtered in the logbook.
+CREATE TABLE IF NOT EXISTS entry_imports (
+  token_id    uuid NOT NULL REFERENCES import_tokens(id),
+  external_id text NOT NULL,
+  entry_id    uuid NOT NULL REFERENCES flight_entries(id),
+  imported_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (token_id, external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_entry_imports_entry ON entry_imports(entry_id);
+
+DROP TRIGGER IF EXISTS trg_entry_imports_immutable ON entry_imports;
+CREATE TRIGGER trg_entry_imports_immutable
+  BEFORE UPDATE OR DELETE ON entry_imports
+  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();

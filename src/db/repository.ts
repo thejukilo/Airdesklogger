@@ -371,9 +371,14 @@ export async function voidEntry(entryId: string, actorId: string, logged = true)
 /** Entries belonging to one holder, newest first, with the full content for display. */
 export async function listEntriesForPilot(pilotId: string) {
   const { rows } = await getPool().query(
-    `SELECT e.id, e.locked, v.content
+    `SELECT e.id, e.locked, v.content,
+            ei.token_id   AS import_token_id,
+            ei.imported_at AS import_at,
+            it.name        AS import_source
        FROM flight_entries e
        JOIN flight_entry_versions v ON v.entry_id = e.id AND v.version_no = e.current_version
+       LEFT JOIN entry_imports ei ON ei.entry_id = e.id
+       LEFT JOIN import_tokens it ON it.id = ei.token_id
       WHERE e.pilot_id = $1 AND e.voided = false
       ORDER BY v.content->'columns'->>'date' DESC, e.created_at DESC`,
     [pilotId],

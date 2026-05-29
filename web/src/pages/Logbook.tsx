@@ -130,6 +130,29 @@ function CategoryFilter({
   );
 }
 
+/**
+ * Source filter: split the list between flights logged in the app and flights
+ * that arrived through the Import API (a flight school's logbook software).
+ */
+function SourceFilter({
+  value, onChange,
+}: { value: "" | "IMPORTED" | "MANUAL"; onChange: (v: "" | "IMPORTED" | "MANUAL") => void }) {
+  return (
+    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+      <span className="font-medium uppercase tracking-wide">Source</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as "" | "IMPORTED" | "MANUAL")}
+        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+      >
+        <option value="">Any</option>
+        <option value="MANUAL">Logged in app</option>
+        <option value="IMPORTED">Imported</option>
+      </select>
+    </label>
+  );
+}
+
 function Caret({ open }: { open: boolean }) {
   return (
     <svg
@@ -207,13 +230,21 @@ export function Logbook() {
   // The stats above and the bulk selection re-derive from the visible subset so
   // a filter immediately reshapes the page.
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [sourceFilter, setSourceFilter] = useState<"" | "IMPORTED" | "MANUAL">("");
   const filteredEntries = entries.filter((e) => {
-    if (!categoryFilter) return true;
-    const isFstd = Boolean(e.content.columns?.fstd);
-    if (categoryFilter === "FSTD") return isFstd;
-    if (isFstd) return false;
-    const cat = (e.content.columns?.category ?? "AEROPLANE").toUpperCase();
-    return cat === categoryFilter;
+    if (categoryFilter) {
+      const isFstd = Boolean(e.content.columns?.fstd);
+      if (categoryFilter === "FSTD") {
+        if (!isFstd) return false;
+      } else {
+        if (isFstd) return false;
+        const cat = (e.content.columns?.category ?? "AEROPLANE").toUpperCase();
+        if (cat !== categoryFilter) return false;
+      }
+    }
+    if (sourceFilter === "IMPORTED" && !e.import_source) return false;
+    if (sourceFilter === "MANUAL" && e.import_source) return false;
+    return true;
   });
 
   const totalMinutes = filteredEntries.reduce(
@@ -329,7 +360,10 @@ export function Logbook() {
         ) : (
           <div className="hidden overflow-x-auto md:block">
             <div className="flex items-center justify-between gap-3 pb-2">
-              <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} count={filteredEntries.length} total={entries.length} />
+              <div className="flex flex-wrap items-center gap-3">
+                <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} count={filteredEntries.length} total={entries.length} />
+                <SourceFilter value={sourceFilter} onChange={setSourceFilter} />
+              </div>
               <button
                 type="button"
                 onClick={toggleExpandAll}
@@ -429,11 +463,21 @@ export function Logbook() {
                         </td>
                         <td className="px-2 py-2 font-sans">{e.content.picName}</td>
                         <td className="px-2 py-2 font-sans">
-                          {e.locked ? (
-                            <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Signed</span>
-                          ) : (
-                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Open</span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-1">
+                            {e.locked ? (
+                              <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Signed</span>
+                            ) : (
+                              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Open</span>
+                            )}
+                            {e.import_source && (
+                              <span
+                                className="rounded bg-sky-50 px-2 py-0.5 text-xs text-sky-700"
+                                title={`Imported from ${e.import_source}`}
+                              >
+                                Imported
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                       {open && (
@@ -454,7 +498,10 @@ export function Logbook() {
         {/* Mobile: a stacked card per entry instead of the wide table. */}
         {!loading && entries.length > 0 && (
           <div className="md:hidden">
-            <div className="mb-3"><CategoryFilter value={categoryFilter} onChange={setCategoryFilter} count={filteredEntries.length} total={entries.length} /></div>
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <CategoryFilter value={categoryFilter} onChange={setCategoryFilter} count={filteredEntries.length} total={entries.length} />
+              <SourceFilter value={sourceFilter} onChange={setSourceFilter} />
+            </div>
             {filteredEntries.length === 0 && (
               <p className="text-sm italic text-slate-400">No entries match this filter.</p>
             )}
@@ -485,11 +532,21 @@ export function Logbook() {
                           <Caret open={open} />
                           {c?.date}
                         </span>
-                        {e.locked ? (
-                          <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Signed</span>
-                        ) : (
-                          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Open</span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {e.locked ? (
+                            <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Signed</span>
+                          ) : (
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Open</span>
+                          )}
+                          {e.import_source && (
+                            <span
+                              className="rounded bg-sky-50 px-2 py-0.5 text-xs text-sky-700"
+                              title={`Imported from ${e.import_source}`}
+                            >
+                              Imported
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="mt-1 text-sm">
                         {fstd ? (

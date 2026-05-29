@@ -213,6 +213,9 @@ export interface EntryRow {
   id: string;
   locked: boolean;
   content: EntryContent;
+  /** Present when the entry was created via the Import API. */
+  import_source?: string | null;
+  import_at?: string | null;
 }
 
 export function listEntries(): Promise<{ entries: EntryRow[] }> {
@@ -501,6 +504,28 @@ export function adminSeedSimulators(): Promise<{ seeded: number }> {
 
 export function adminApplyBalloonGroups(csv: string): Promise<{ updated: number }> {
   return request("/admin/apply-balloon-groups", { method: "POST", body: JSON.stringify({ csv }) });
+}
+
+export interface ImportToken {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  scope: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export function listImportTokens(): Promise<{ tokens: ImportToken[] }> {
+  return request("/account/import-tokens", { method: "GET" });
+}
+
+export function createImportToken(name: string): Promise<{ token: string; row: ImportToken }> {
+  return request("/account/import-tokens", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function revokeImportToken(id: string): Promise<void> {
+  return request(`/account/import-tokens/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function exportLogbookPdf(): Promise<Blob> {

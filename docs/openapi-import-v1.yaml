@@ -1,0 +1,494 @@
+openapi: 3.1.0
+info:
+  title: Airdesk Logger — Import API
+  version: 1.0.0
+  description: |
+    Write-only, append-only ingress for school / partner systems to push flight
+    entries into a pilot's logbook on Airdesk. Auth is a per-pilot personal
+    access token (`Authorization: Bearer airdesk_pat_…`). The pilot generates
+    the token from the Airdesk Account page and pastes it into the school's
+    system. The token carries the scope `entries:append` only.
+
+    The API has one endpoint (`POST /entries`). There are no read, update,
+    delete, sign-off, lookup or profile endpoints. The shape of `entry`
+    mirrors the FlightEntryInput used by the SPA and is validated by the same
+    pipeline, so what the SPA accepts the API accepts.
+
+    Idempotency: every entry carries an `externalId` from the caller's side.
+    The pair `(token, externalId)` is unique. Retries with the same body are
+    safe; the response distinguishes `created` from `duplicate`.
+
+    Dry-run: add `?dryRun=1` to validate the body without writing anything.
+
+servers:
+  - url: https://airdeck.ch/api/import/v1
+
+security:
+  - bearerAuth: []
+
+paths:
+  /entries:
+    post:
+      operationId: createEntries
+      summary: Create a flight entry or a batch of entries
+      parameters:
+        - in: query
+          name: dryRun
+          required: false
+          schema: { type: integer, enum: [1] }
+          description: When set to 1, the request is validated but not written. Returns the same body shapes as a real call.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/SingleImportRequest'
+                - $ref: '#/components/schemas/BatchImportRequest'
+            examples:
+              singleFlight:
+                summary: Single dual flight - triggers the signature-missing rule
+                value:
+                  externalId: OPS-2026-1184
+                  sourceLabel: MyFlightSchool
+                  kind: FLIGHT
+                  entry:
+                    aircraft:
+                      registration: HBPNT
+                      makeModelVariant: Cessna 172S
+                      engineClass: SE
+                      multiPilot: false
+                      category: AEROPLANE
+                    legs:
+                      - departurePlace: LSZH
+                        departureTime: 2026-05-28T07:45:00Z
+                        arrivalPlace: LSGG
+                        arrivalTime: 2026-05-28T08:55:00Z
+                    picName: M. Schmidt
+                    landings: { day: 1, night: 0 }
+                    conditions: { night: 0, ifr: 0 }
+                    function: { primary: DUAL, instructor: 70 }
+                    remarks: PPL training flight - navigation exercise
+                    attributes: [cross_country]
+              batch:
+                summary: Two entries, second one is a sim session
+                value:
+                  entries:
+                    - externalId: OPS-2026-1184
+                      sourceLabel: MyFlightSchool
+                      kind: FLIGHT
+                      entry:
+                        aircraft: { registration: HBPNT, makeModelVariant: Cessna 172S, engineClass: SE, multiPilot: false, category: AEROPLANE }
+                        legs: [{ departurePlace: LSZH, departureTime: 2026-05-28T07:45:00Z, arrivalPlace: LSGG, arrivalTime: 2026-05-28T08:55:00Z }]
+                        picName: SELF
+                        landings: { day: 1, night: 0 }
+                        conditions: { night: 0, ifr: 0 }
+                        function: { primary: PIC, instructor: 0 }
+                        remarks: ""
+                    - externalId: SIM-2026-0408
+                      sourceLabel: MyFlightSchool
+                      kind: FSTD
+                      entry:
+                        deviceType: A320
+                        qualificationNumber: CH-FFS-A320-007
+                        qualification: FFS Level D
+                        pilotFunction: TRAINEE
+                        instruction: OPC type rating
+                        date: 2026-04-18T09:00:00Z
+                        totalMinutes: 240
+                        landings: { day: 6, night: 0 }
+                        remarks: ""
+                        attributes: [operator_proficiency_check]
+      responses:
+        '200':
+          description: Duplicate — the externalId was previously imported. Treat as success.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SingleResult'
+                  - $ref: '#/components/schemas/BatchResult'
+        '201':
+          description: One entry was created. (Batches always return 207.)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SingleResult' }
+        '207':
+          description: Batch — mixed per-item results.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchResult' }
+        '400':
+          description: Malformed JSON or missing top-level fields.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '401':
+          description: Missing, revoked, or expired token.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '403':
+          description: Token does not carry the entries:append scope.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+        '422':
+          description: Domain validation failed; do not retry until corrected.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationFailure' } } }
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, retryAfterSeconds]
+                properties:
+                  error: { type: string }
+                  retryAfterSeconds: { type: integer, minimum: 1 }
+        '5XX':
+          description: Transient server error - retry with exponential backoff.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: airdesk_pat
+
+  schemas:
+    SingleImportRequest:
+      type: object
+      required: [externalId, sourceLabel, kind, entry]
+      properties:
+        externalId:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Caller's stable id for this flight. (token, externalId) is unique.
+        sourceLabel:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Free text shown to the pilot ("Imported from MyFlightSchool").
+        kind:
+          type: string
+          enum: [FLIGHT, FSTD]
+        entry:
+          oneOf:
+            - $ref: '#/components/schemas/FlightEntry'
+            - $ref: '#/components/schemas/FstdEntry'
+
+    BatchImportRequest:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: '#/components/schemas/SingleImportRequest' }
+
+    FlightEntry:
+      type: object
+      required: [aircraft, legs, picName, landings, conditions, function, remarks]
+      additionalProperties: false
+      properties:
+        aircraft: { $ref: '#/components/schemas/Aircraft' }
+        legs:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Leg' }
+        picName:
+          type: string
+          description: Free text, "SELF" allowed for own-PIC flights.
+        landings:
+          type: object
+          required: [day, night]
+          properties:
+            day:   { type: integer, minimum: 0 }
+            night: { type: integer, minimum: 0 }
+        conditions:
+          type: object
+          required: [night, ifr]
+          properties:
+            night: { type: integer, minimum: 0, description: Minutes of night time. Integer minutes. }
+            ifr:   { type: integer, minimum: 0, description: Minutes of IFR time. Integer minutes. }
+        function:
+          $ref: '#/components/schemas/FunctionTime'
+        remarks:
+          type: string
+        operatingRole:
+          type: string
+          enum: [PILOT_FLYING, PILOT_MONITORING]
+        launchMethod:
+          type: string
+          enum: [WINCH, AEROTOW, SELF_LAUNCH, BUNGEE, CAR_TOW]
+          description: Sailplane only.
+        balloonFlightType:
+          type: string
+          enum: [FREE, TETHERED]
+        inflations:
+          type: integer
+          minimum: 0
+          description: Balloon only.
+        crewSize:
+          type: integer
+          enum: [2, 3, 4]
+          description: 3 or 4 means augmented crew; the crew share is applied automatically.
+        flightTimeMinutes:
+          type: integer
+          minimum: 1
+          description: Reduced total for series-of-flights. May only reduce the block time.
+        attributes:
+          type: array
+          items: { $ref: '#/components/schemas/AttributeKey' }
+        attributeDetails:
+          $ref: '#/components/schemas/AttributeDetails'
+        timeZone:
+          type: string
+          enum: [UTC, LOCAL]
+          default: UTC
+          description: When LOCAL, leg times are wall-clock and we convert via the aerodrome timezone. ZZZZ legs stay flagged timesLocal.
+
+    FstdEntry:
+      type: object
+      required: [deviceType, qualificationNumber, instruction, date, totalMinutes, remarks]
+      additionalProperties: false
+      properties:
+        deviceType:
+          type: string
+          description: Aircraft model the simulator represents (e.g. "A320", "EC135").
+        qualificationNumber:
+          type: string
+          description: The device's EASA code.
+        qualification:
+          type: string
+          description: Free text ("FFS Level D", "FNPT II").
+        pilotFunction:
+          type: string
+          enum: [TRAINEE, SFI_SFE]
+        instruction:
+          type: string
+          description: Short description of the exercise.
+        date:
+          type: string
+          format: date-time
+        totalMinutes:
+          type: integer
+          minimum: 1
+          description: Including pre/after-flight checks.
+        landings:
+          type: object
+          properties:
+            day:   { type: integer, minimum: 0 }
+            night: { type: integer, minimum: 0 }
+        remarks: { type: string }
+        attributes:
+          type: array
+          items: { $ref: '#/components/schemas/AttributeKey' }
+
+    Aircraft:
+      type: object
+      required: [registration, makeModelVariant, engineClass, multiPilot]
+      additionalProperties: false
+      properties:
+        registration:
+          type: string
+          description: Aircraft registration. Uppercase, dash-free is fine ("HBPNT" or "HB-PNT").
+        makeModelVariant:
+          type: string
+          description: "Cessna 172S", "Airbus A320", etc.
+        engineClass:
+          type: string
+          enum: [SE, ME]
+        multiPilot:
+          type: boolean
+        category:
+          type: string
+          enum: [AEROPLANE, HELICOPTER, SAILPLANE, BALLOON]
+          description: Defaults to AEROPLANE when absent. Required for balloons.
+        balloonGroup:
+          type: string
+          enum: [A, B, C, D]
+
+    Leg:
+      type: object
+      required: [departurePlace, departureTime, arrivalPlace, arrivalTime]
+      additionalProperties: false
+      properties:
+        departurePlace:
+          type: string
+          description: 4-letter ICAO, or "ZZZZ" for places without one.
+          pattern: '^[A-Z]{4}$'
+        departureTime:
+          type: string
+          format: date-time
+          description: ISO 8601 UTC, unless entry.timeZone is "LOCAL".
+        arrivalPlace:
+          type: string
+          pattern: '^[A-Z]{4}$'
+        arrivalTime:
+          type: string
+          format: date-time
+        departurePlaceName:
+          type: string
+          description: Required when departurePlace is "ZZZZ".
+        arrivalPlaceName:
+          type: string
+          description: Required when arrivalPlace is "ZZZZ".
+
+    FunctionTime:
+      type: object
+      required: [primary, instructor]
+      additionalProperties: false
+      properties:
+        primary:
+          type: string
+          enum: [PIC, PICUS, SPIC, CO_PILOT, DUAL, SAFETY_PILOT]
+          description: DUAL / PICUS / SPIC trigger the signature-missing rule automatically.
+        instructor:
+          type: integer
+          minimum: 0
+          description: Minutes of instructor time logged independently of primary.
+        instructorPosition:
+          type: string
+          enum: [PILOT_SEAT, JUMP_SEAT, SUPERVISING, EXAMINER]
+        tookControl:
+          type: boolean
+          description: Only meaningful when primary is SAFETY_PILOT.
+
+    AttributeKey:
+      type: string
+      description: Canonical attribute key. See docs/api-import-v1.md for the full table.
+      enum:
+        - skill_test
+        - proficiency_check
+        - licence_proficiency_check
+        - operator_proficiency_check
+        - operator_line_check
+        - language_proficiency_check
+        - refresher_training
+        - training_flight
+        - familiarization
+        - difference_training
+        - zftt
+        - aerobatic_privilege
+        - launch_privilege
+        - cloud_flying_privilege
+        - course_completed
+        - instruction_training_course
+        - demonstration_of_ability_to_instruct
+        - aoc
+        - demo_flight
+        - solo
+        - cross_country
+        - series_of_flights
+        - towing
+        - low_visibility_landing
+        - sea_landings
+        - mountain_landings
+        - mountain_landing_official
+        - mountain_landing_2000
+        - mountain_landing_2700
+        - hdf
+        - go_around
+        - touch_and_go
+        - nvis
+        - tethered_flight
+        - heslo_1
+        - heslo_2
+        - heslo_3
+        - heslo_4
+        - hec_1
+        - hec_2
+        - hho
+
+    AttributeDetails:
+      type: object
+      additionalProperties: false
+      description: |
+        Per-attribute counts, time, level and comments. A field is meaningful
+        only when its parent attribute is in `attributes`; values for attributes
+        that aren't selected are silently dropped on write.
+      properties:
+        mountainLandingGear:    { type: string, enum: [SKI, WHEELS] }
+        mountainLandings:       { type: integer, minimum: 0 }
+        mountainLandingsOfficial:    { type: integer, minimum: 0 }
+        mountainLandingsAbove2000:   { type: integer, minimum: 0 }
+        mountainLandingsAbove2700:   { type: integer, minimum: 0 }
+        goArounds:              { type: integer, minimum: 0 }
+        touchAndGo:             { type: integer, minimum: 0 }
+        hdfTakeoffs:            { type: integer, minimum: 0 }
+        nvisMinutes:            { type: integer, minimum: 0, description: Must not exceed the entry's total flight time. }
+        heslo1Cycles:           { type: integer, minimum: 0 }
+        heslo2Cycles:           { type: integer, minimum: 0 }
+        heslo3Cycles:           { type: integer, minimum: 0 }
+        heslo4Cycles:           { type: integer, minimum: 0 }
+        hec1Cycles:             { type: integer, minimum: 0 }
+        hec2Cycles:             { type: integer, minimum: 0 }
+        hhoCycles:              { type: integer, minimum: 0 }
+        aerobaticLevel:         { type: string, enum: [BASIC, ADVANCED] }
+        skillTestComment:       { type: string }
+        proficiencyCheckComment: { type: string }
+        licenceProficiencyCheckComment: { type: string }
+        languageProficiencyComment:     { type: string }
+        aocComment:             { type: string }
+        demoFlightComment:      { type: string }
+        lowVisibilityLandingType: { type: string }
+
+    SingleResult:
+      type: object
+      required: [status, externalId]
+      properties:
+        status:
+          type: string
+          enum: [created, duplicate]
+        externalId: { type: string }
+        id:
+          type: string
+          description: Airdesk entry id (UUID).
+
+    BatchItemResult:
+      type: object
+      required: [status, externalId]
+      properties:
+        status:
+          type: string
+          enum: [created, duplicate, rejected]
+        externalId: { type: string }
+        id:
+          type: string
+          description: Present when status is created or duplicate.
+        issues:
+          type: array
+          description: Present when status is rejected.
+          items: { $ref: '#/components/schemas/Issue' }
+
+    BatchResult:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/BatchItemResult' }
+
+    ValidationFailure:
+      type: object
+      required: [valid, issues]
+      properties:
+        valid: { type: boolean, enum: [false] }
+        issues:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Issue' }
+
+    Issue:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: Dot-path into the request body, e.g. "entry.function.primary".
+        message: { type: string }
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }

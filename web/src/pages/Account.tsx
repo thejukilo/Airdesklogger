@@ -239,6 +239,8 @@ export function Account() {
         {paperMsg && <p className="mt-2 text-sm text-slate-600">{paperMsg}</p>}
       </Card>
 
+      <ImportTokensCard />
+
       <Card>
         <h2 className="mb-1 font-medium">Two-factor authentication</h2>
         <p className="mb-3 text-sm text-slate-500">
@@ -283,5 +285,160 @@ export function Account() {
         )}
       </Card>
     </div>
+  );
+}
+
+/**
+ * Personal access tokens for the Import API. A pilot creates one for each
+ * external system (one per flight school is the usual pattern), and the secret
+ * is shown once on the screen — there is no way to recover it afterwards.
+ */
+function ImportTokensCard() {
+  const [tokens, setTokens] = useState<api.ImportToken[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newSecret, setNewSecret] = useState<{ token: string; name: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      const { tokens } = await api.listImportTokens();
+      setTokens(tokens);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load tokens.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { void refresh(); }, []);
+
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setError(null);
+    setCreating(true);
+    try {
+      const { token, row } = await api.createImportToken(name.trim());
+      setNewSecret({ token, name: row.name });
+      setName("");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create token.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function revoke(id: string, tokenName: string) {
+    if (!confirm(`Revoke "${tokenName}"? Any system using this token will stop being able to import flights.`)) return;
+    setError(null);
+    setRevokingId(id);
+    try {
+      await api.revokeImportToken(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not revoke token.");
+    } finally {
+      setRevokingId(null);
+    }
+  }
+
+  const active = tokens.filter((t) => !t.revokedAt);
+  const revoked = tokens.filter((t) => t.revokedAt);
+
+  return (
+    <Card>
+      <h2 className="mb-1 font-medium">Import tokens</h2>
+      <p className="mb-3 text-sm text-slate-500">
+        Hand a token to an external system (your flight school's logbook software, for example) so it
+        can append flights to your logbook. Tokens are write-only and bound to your account; they
+        cannot sign, read, or change anything else.
+      </p>
+      {error && <Alert>{error}</Alert>}
+
+      {newSecret && (
+        <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+          <p className="text-sm font-medium text-emerald-900">Token created &mdash; copy it now</p>
+          <p className="mt-0.5 text-xs text-emerald-800">
+            This is the only time the full secret is shown. Paste it into <strong>{newSecret.name}</strong>'s
+            settings before closing this notice.
+          </p>
+          <code className="mt-2 block break-all rounded bg-white px-2 py-1 text-xs">{newSecret.token}</code>
+          <button
+            type="button"
+            className="mt-2 text-xs font-medium text-emerald-900 underline"
+            onClick={() => setNewSecret(null)}
+          >
+            I have copied it, hide this
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={create} className="mb-3 flex flex-wrap items-end gap-2">
+        <div className="flex-1 min-w-[12rem]">
+          <Field
+            label="Token name"
+            placeholder="e.g. Aero-Club logbook"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={creating}
+          />
+        </div>
+        <Button type="submit" disabled={creating || !name.trim()}>
+          {creating ? "Creating..." : "Create token"}
+        </Button>
+      </form>
+
+      {loading ? (
+        <p className="text-sm text-slate-500">Loading...</p>
+      ) : active.length === 0 && revoked.length === 0 ? (
+        <p className="text-sm text-slate-500">You don't have any import tokens yet.</p>
+      ) : (
+        <div className="overflow-hidden rounded border border-slate-200">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-left">Name</th>
+                <th className="px-3 py-2 text-left">Token</th>
+                <th className="px-3 py-2 text-left">Last used</th>
+                <th className="px-3 py-2 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...active, ...revoked].map((t) => (
+                <tr key={t.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2 font-medium text-slate-700">{t.name}</td>
+                  <td className="px-3 py-2"><code className="text-xs">{t.tokenPrefix}...</code></td>
+                  <td className="px-3 py-2 text-slate-500">
+                    {t.lastUsedAt ? new Date(t.lastUsedAt).toLocaleString() : "never"}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {t.revokedAt ? (
+                      <span className="text-xs text-slate-400">revoked</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-rose-700 hover:underline disabled:opacity-50"
+                        onClick={() => revoke(t.id, t.name)}
+                        disabled={revokingId === t.id}
+                      >
+                        {revokingId === t.id ? "Revoking..." : "Revoke"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="mt-3 text-xs text-slate-500">
+        For the request shape and field mapping, see <code>docs/api-import-v1.md</code> in the
+        Airdesklogger repository, or the OpenAPI spec in <code>docs/openapi-import-v1.yaml</code>.
+      </p>
+    </Card>
   );
 }
