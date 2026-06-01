@@ -1,10 +1,39 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadLogbookForExport, loadDeletionsForExport } from "../../src/db/exportRepository.js";
 import { getUserById } from "../../src/db/authRepository.js";
-import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type ChangeLogRow, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
+import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type ChangeLogRow, type ChangeLogSnapshot, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
 import { formatAttributeRows } from "../../src/pdf/attributeLines.js";
-import { diffEntryContent } from "../../src/http/buildEntry.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
+
+/** Build a ChangeLogSnapshot from a stored version content payload. */
+function snapshotFromContent(content: Record<string, unknown>): ChangeLogSnapshot {
+  const cols = (content.columns ?? {}) as Record<string, unknown>;
+  const ac = (content.aircraft ?? {}) as { registration?: string; makeModelVariant?: string };
+  const hhmm = (m: unknown): string => {
+    const n = Number(m ?? 0);
+    if (!Number.isFinite(n) || n <= 0) return "00:00";
+    return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  };
+  const clockZ = (v: unknown): string => {
+    const s = typeof v === "string" ? v : "";
+    return s.length >= 16 ? `${s.slice(11, 16)}Z` : "";
+  };
+  return {
+    date: String(cols.date ?? ""),
+    aircraft: String(ac.registration ?? ""),
+    from: String(cols.departurePlace ?? ""),
+    to: String(cols.arrivalPlace ?? ""),
+    off: clockZ(cols.departureTime),
+    on: clockZ(cols.arrivalTime),
+    total: hhmm(cols.total),
+    pic: String(content.picName ?? ""),
+    dayLandings: String(Number(cols.dayLandings ?? 0)),
+    nightLandings: String(Number(cols.nightLandings ?? 0)),
+    night: hhmm(cols.night),
+    ifr: hhmm(cols.ifr),
+    remarks: String(content.remarks ?? ""),
+  };
+}
 
 /**
  * The holder's complete logbook as a PDF, in the form FOCA expects for
@@ -29,7 +58,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const to = typeof req.query.to === "string" ? req.query.to : undefined;
     const entries = await loadLogbookForExport(claims.sub, { from, to });
     const deletions = await loadDeletionsForExport(claims.sub, { from, to });
-    const rows: LogbookEntryForPdf[] = entries.map((e) => e.row);
+    // An entry is "edited" when it has more than one logged version (a
+    // post-48h amendment); pre-48h edits don't appear in the change log, per
+    // FOCA 2.3.7, so they don't trigger the EDITED marker either.
+    const rows: LogbookEntryForPdf[] = entries.map((e) => ({
+      ...e.row,
+      ...(e.history.length > 1 ? { edited: true } : {}),
+    }));
 
     const attributeBlocks: AppendixAttributeBlock[] = [];
     const changeLog: ChangeLogRow[] = [];
@@ -58,11 +93,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       for (let i = 0; i < e.history.length; i++) {
         const v = e.history[i]!;
         const prev = i > 0 ? e.history[i - 1] : null;
-        // v0 is the initial CREATE; later versions are edits and carry a
-        // before/after diff against the immediately preceding stored version.
-        const changes = prev
-          ? diffEntryContent(prev.content as never, v.content as never)
-          : undefined;
+        // v0 is the initial CREATE; later versions are amendments and carry a
+        // full before/after snapshot of every column on the AMC1 FCL.050 row,
+        // so an auditor can read the original vs the new entry verbatim.
+        const isEdit = prev !== null;
+        const before = prev ? snapshotFromContent(prev.content) : undefined;
+        const after = isEdit ? snapshotFromContent(v.content) : undefined;
         changeLog.push({
           entry: ref,
           version: `v${v.versionNo}`,
@@ -70,7 +106,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           by: v.createdByName,
           ...(v.changeReason ? { reason: v.changeReason } : {}),
           hash: v.contentHash.slice(0, 12),
-          ...(changes && changes.length > 0 ? { changes } : {}),
+          ...(isEdit ? { edited: true } : {}),
+          ...(before ? { before } : {}),
+          ...(after ? { after } : {}),
         });
       }
     });

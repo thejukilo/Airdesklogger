@@ -215,6 +215,13 @@ function rowsToFillPage(paper: PaperSize): number {
 const BLACK = rgb(0, 0, 0);
 const GREY = rgb(0.45, 0.45, 0.45);
 const SHADE = rgb(0.93, 0.93, 0.93);
+// Amber palette for the "EDITED" marker. The chip background is a soft amber
+// tint (Tailwind amber-100), the foreground is amber-800. The same colors are
+// reused in the change-log appendix so an auditor can match each EDITED row
+// in the grid with its detail block in the change log.
+const EDIT_CHIP_BG = rgb(0.99, 0.91, 0.71);
+const EDIT_CHIP_FG = rgb(0.57, 0.34, 0.04);
+const EDIT_HILITE = rgb(1.00, 0.95, 0.78);
 
 export interface LogbookEntryForPdf extends DerivedColumns {
   /** The entry's stable id, so a row can link to its block in the sign-offs appendix. */
@@ -227,6 +234,8 @@ export interface LogbookEntryForPdf extends DerivedColumns {
   signed?: boolean;
   /** True when the entry needs a signature (required, or invalidated by an edit) but has none. */
   signatureMissing?: boolean;
+  /** True when the entry has at least one logged change after creation (post-48h amendment). */
+  edited?: boolean;
 }
 
 export interface PdfOptions {
@@ -272,6 +281,23 @@ export interface AppendixAttributeBlock {
 }
 
 /** One row in the change-log table at the back of the export. */
+/** Single column's value, rendered in the change-log mini-table. */
+export interface ChangeLogSnapshot {
+  date: string;
+  aircraft: string;
+  from: string;
+  to: string;
+  off: string;
+  on: string;
+  total: string;
+  pic: string;
+  dayLandings: string;
+  nightLandings: string;
+  night: string;
+  ifr: string;
+  remarks: string;
+}
+
 export interface ChangeLogRow {
   entry: string;
   version?: string;
@@ -279,8 +305,12 @@ export interface ChangeLogRow {
   by: string;
   reason?: string;
   hash?: string;
-  /** Field-by-field before/after for an edit. Empty / undefined for the initial CREATE or for a void. */
-  changes?: ReadonlyArray<{ label: string; before: string; after: string }>;
+  /** True for any row that records an edit (post-CREATE, non-deletion). Drives the amber EDITED chip. */
+  edited?: boolean;
+  /** Full prior-version snapshot, when the row is an edit. */
+  before?: ChangeLogSnapshot;
+  /** Full new-version snapshot, when the row is an edit. */
+  after?: ChangeLogSnapshot;
 }
 
 export interface AuditAppendix {
@@ -630,19 +660,44 @@ function drawChangeLogAppendix(
   pilotName: string,
   page: { w: number; h: number },
 ): void {
+  // Header strip ("Flight | Version | When | By | Reason | Hash") plus the
+  // EDITED chip column for edit rows. The before/after mini-table is drawn
+  // separately under each edit row.
   const cols: TableColumn<ChangeLogRow>[] = [
-    { title: "Flight", width: 95, bold: true, value: (r) => r.entry },
-    { title: "Version", width: 50, value: (r) => r.version ?? "" },
-    { title: "When (UTC)", width: 110, value: (r) => r.at },
-    { title: "By", width: 110, value: (r) => r.by },
-    { title: "Reason", width: 130, value: (r) => r.reason ?? "" },
-    { title: "Hash", width: 90, value: (r) => r.hash ?? "" },
+    { title: "Flight", width: 80, bold: true, value: (r) => r.entry },
+    { title: "Version", width: 36, value: (r) => r.version ?? "" },
+    { title: "Edit", width: 36, value: () => "" }, // EDITED chip slot
+    { title: "When (UTC)", width: 100, value: (r) => r.at },
+    { title: "By", width: 90, value: (r) => r.by },
+    { title: "Reason", width: 110, value: (r) => r.reason ?? "" },
+    { title: "Hash", width: 80, value: (r) => r.hash ?? "" },
   ];
+
+  // Sub-table for the before/after snapshot, drawn under each edit row.
+  type SnapCol = { title: string; width: number; field: keyof ChangeLogSnapshot; align?: "center" };
+  const snapCols: SnapCol[] = [
+    { title: "Date",    width: 56, field: "date" },
+    { title: "A/C",     width: 50, field: "aircraft" },
+    { title: "From",    width: 36, field: "from", align: "center" },
+    { title: "To",      width: 36, field: "to", align: "center" },
+    { title: "Off",     width: 32, field: "off", align: "center" },
+    { title: "On",      width: 32, field: "on", align: "center" },
+    { title: "Total",   width: 32, field: "total", align: "center" },
+    { title: "PIC",     width: 56, field: "pic" },
+    { title: "D ldg",   width: 28, field: "dayLandings", align: "center" },
+    { title: "N ldg",   width: 28, field: "nightLandings", align: "center" },
+    { title: "Night",   width: 32, field: "night", align: "center" },
+    { title: "IFR",     width: 32, field: "ifr", align: "center" },
+    { title: "Remarks", width: 82, field: "remarks" },
+  ];
+  const SNAP_LABEL_W = 32;
+  const snapTableWidth = SNAP_LABEL_W + snapCols.reduce((a, c) => a + c.width, 0);
 
   const top = page.h - MARGIN;
   const bottom = MARGIN + 24;
   const lineH = 13;
-  const changeLineH = 11;
+  const snapHeaderH = 12;
+  const snapRowH = 12;
   const headerY = 18;
   const tableLeft = MARGIN;
   const tableWidth = cols.reduce((a, c) => a + c.width, 0);
@@ -675,15 +730,72 @@ function drawChangeLogAppendix(
     return;
   }
 
+  const drawSnap = (
+    p: PDFPage,
+    yTop: number,
+    before: ChangeLogSnapshot,
+    after: ChangeLogSnapshot,
+  ): number => {
+    // Header row.
+    p.drawRectangle({ x: tableLeft, y: yTop - snapHeaderH, width: snapTableWidth, height: snapHeaderH, color: SHADE });
+    let sx = tableLeft + SNAP_LABEL_W;
+    snapCols.forEach((c) => {
+      const tw = bold.widthOfTextAtSize(c.title, 6.5);
+      const innerX = c.align === "center" ? sx + (c.width - tw) / 2 : sx + 3;
+      p.drawText(c.title, { x: innerX, y: yTop - snapHeaderH + 3, size: 6.5, font: bold, color: BLACK });
+      sx += c.width;
+    });
+
+    // Before + After rows. Highlighted cells where the field changed.
+    const drawDataRow = (yRow: number, label: string, snap: ChangeLogSnapshot, isAfter: boolean) => {
+      // Label column
+      p.drawText(label, { x: tableLeft + 4, y: yRow - snapRowH + 3, size: 7, font: bold, color: isAfter ? BLACK : GREY });
+      let cx = tableLeft + SNAP_LABEL_W;
+      snapCols.forEach((c) => {
+        const text = winAnsi(String(snap[c.field] ?? ""));
+        const innerW = c.width - 4;
+        const changed = before[c.field] !== after[c.field];
+        if (changed) {
+          p.drawRectangle({ x: cx + 1, y: yRow - snapRowH + 1, width: c.width - 2, height: snapRowH - 2, color: EDIT_HILITE });
+        }
+        const clipped = clip(text, innerW, 6.5, isAfter && changed ? bold : font);
+        const tw = (isAfter && changed ? bold : font).widthOfTextAtSize(clipped, 6.5);
+        const tx = c.align === "center" ? cx + (c.width - tw) / 2 : cx + 3;
+        p.drawText(clipped, {
+          x: tx, y: yRow - snapRowH + 3, size: 6.5,
+          font: isAfter && changed ? bold : font, color: BLACK,
+        });
+        cx += c.width;
+      });
+    };
+
+    let yCursor = yTop - snapHeaderH;
+    yCursor -= snapRowH;
+    drawDataRow(yCursor, "Before", before, false);
+    yCursor -= snapRowH;
+    drawDataRow(yCursor, "After", after, true);
+
+    // Borders.
+    hline(p, tableLeft, tableLeft + snapTableWidth, yTop, GREY, 0.4);
+    hline(p, tableLeft, tableLeft + snapTableWidth, yTop - snapHeaderH, GREY, 0.4);
+    hline(p, tableLeft, tableLeft + snapTableWidth, yTop - snapHeaderH - snapRowH, GREY, 0.3);
+    hline(p, tableLeft, tableLeft + snapTableWidth, yTop - snapHeaderH - 2 * snapRowH, GREY, 0.4);
+    let vx = tableLeft;
+    vline(p, vx, yTop - snapHeaderH - 2 * snapRowH, yTop, GREY, 0.4); vx += SNAP_LABEL_W;
+    vline(p, vx, yTop - snapHeaderH - 2 * snapRowH, yTop, GREY, 0.4);
+    snapCols.forEach((c) => { vx += c.width; vline(p, vx, yTop - snapHeaderH - 2 * snapRowH, yTop, GREY, 0.4); });
+    return yTop - snapHeaderH - 2 * snapRowH;
+  };
+
   let p = doc.addPage([page.w, page.h]);
   drawPageHeader(p);
   let y = top - 48 - headerY;
   drawTableHeader(p, y);
   let zebra = false;
   for (const row of rows) {
-    const nChanges = row.changes?.length ?? 0;
-    const blockH = lineH + nChanges * changeLineH;
-    // Page break if the whole row+changes block won't fit.
+    const hasSnap = row.before && row.after;
+    const snapH = hasSnap ? snapHeaderH + 2 * snapRowH + 6 : 0;
+    const blockH = lineH + snapH;
     if (y - blockH < bottom) {
       p = doc.addPage([page.w, page.h]);
       drawPageHeader(p);
@@ -696,13 +808,25 @@ function drawChangeLogAppendix(
       p.drawRectangle({ x: tableLeft, y: y - 3, width: tableWidth, height: lineH, color: rgb(0.97, 0.97, 0.97) });
     }
     zebra = !zebra;
-    // Row cells
+
+    // Row cells (with the dedicated chip slot)
     let x = tableLeft;
     cols.forEach((c) => {
-      const text = c.value(row);
-      if (text) {
-        const innerW = c.width - 2 * (c.pad ?? 6);
-        p.drawText(clip(text, innerW, 8, c.bold ? bold : font), { x: x + (c.pad ?? 6), y: y + 1, size: 8, font: c.bold ? bold : font, color: BLACK });
+      if (c.title === "Edit") {
+        if (row.edited) {
+          const label = "EDITED";
+          const lw = bold.widthOfTextAtSize(label, 6);
+          const chipW = lw + 6;
+          const chipX = x + (c.width - chipW) / 2;
+          p.drawRectangle({ x: chipX, y: y - 1, width: chipW, height: 10, color: EDIT_CHIP_BG });
+          p.drawText(label, { x: chipX + 3, y: y + 1, size: 6, font: bold, color: EDIT_CHIP_FG });
+        }
+      } else {
+        const text = winAnsi(c.value(row));
+        if (text) {
+          const innerW = c.width - 2 * (c.pad ?? 6);
+          p.drawText(clip(text, innerW, 8, c.bold ? bold : font), { x: x + (c.pad ?? 6), y: y + 1, size: 8, font: c.bold ? bold : font, color: BLACK });
+        }
       }
       x += c.width;
     });
@@ -713,21 +837,11 @@ function drawChangeLogAppendix(
     }
     hline(p, tableLeft, tableRight, y - 3, GREY, 0.3);
 
-    // Sub-rows: bullet list of field changes, indented under the row.
-    if (row.changes && row.changes.length > 0) {
-      for (const ch of row.changes) {
-        y -= changeLineH;
-        // pdf-lib's WinAnsi font encoding excludes U+2192 ("→"); use an ASCII
-        // arrow so generation doesn't throw on arbitrary content. Bullet
-        // (U+2022) is in WinAnsi so it stays. winAnsi() also strips any
-        // non-WinAnsi character the holder may have typed into Remarks.
-        const labelText = `• ${ch.label}:`;
-        const valueText = `${winAnsi(ch.before) || "(empty)"}  ->  ${winAnsi(ch.after) || "(empty)"}`;
-        p.drawText(clip(labelText, 130, 7.5, bold), { x: tableLeft + 18, y: y + 1, size: 7.5, font: bold, color: BLACK });
-        p.drawText(clip(valueText, tableWidth - 160, 7.5, font), { x: tableLeft + 150, y: y + 1, size: 7.5, font, color: BLACK });
-      }
-      // Separator under the whole block.
-      hline(p, tableLeft, tableRight, y - 3, GREY, 0.3);
+    // Mini before/after snapshot, indented under the row.
+    if (hasSnap && row.before && row.after) {
+      y -= 4;
+      y = drawSnap(p, y, row.before, row.after);
+      y -= 2;
     }
   }
 }
@@ -1016,14 +1130,26 @@ function drawGrid(
         c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "BALLOON" || c.group === "DATE";
       if (c.group === "REMARKS") {
         // Reserve a small strip at the right of the remarks cell for the
-        // "attributes" link and "signed" / "missing" tag. The free-text part
-        // is drawn clipped to fit the remaining width.
+        // "attributes" link, "signed" / "missing" tag, and the amber EDITED
+        // chip. The free-text part is drawn clipped to fit the remainder.
         const hasAttrs = hasAppendixAttributes(e);
         const signTagW = e.signed || e.signatureMissing ? 36 : 0;
         const attrTagW = hasAttrs ? 38 : 0;
-        const TAG_W = signTagW + attrTagW;
+        const editTagW = e.edited ? 36 : 0;
+        const TAG_W = signTagW + attrTagW + editTagW;
         leftText(p, text, x, c.width - TAG_W, y, 6.5, font);
         let rightCursor = x + c.width;
+        if (e.edited) {
+          // Filled amber chip so the eye lands on it and matches the
+          // change-log entry for the same record.
+          const label = "EDITED";
+          const lw = bold.widthOfTextAtSize(label, 6);
+          const chipW = lw + 6;
+          const chipX = rightCursor - editTagW + (editTagW - chipW) / 2;
+          p.drawRectangle({ x: chipX, y: y - 1, width: chipW, height: 10, color: EDIT_CHIP_BG });
+          p.drawText(label, { x: chipX + 3, y: y + 1, size: 6, font: bold, color: EDIT_CHIP_FG });
+          rightCursor -= editTagW;
+        }
         if (e.signed) {
           const label = "signed";
           const lw = bold.widthOfTextAtSize(label, 6.5);
