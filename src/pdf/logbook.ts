@@ -717,8 +717,12 @@ function drawChangeLogAppendix(
     if (row.changes && row.changes.length > 0) {
       for (const ch of row.changes) {
         y -= changeLineH;
+        // pdf-lib's WinAnsi font encoding excludes U+2192 ("→"); use an ASCII
+        // arrow so generation doesn't throw on arbitrary content. Bullet
+        // (U+2022) is in WinAnsi so it stays. winAnsi() also strips any
+        // non-WinAnsi character the holder may have typed into Remarks.
         const labelText = `• ${ch.label}:`;
-        const valueText = `${ch.before || "(empty)"}  →  ${ch.after || "(empty)"}`;
+        const valueText = `${winAnsi(ch.before) || "(empty)"}  ->  ${winAnsi(ch.after) || "(empty)"}`;
         p.drawText(clip(labelText, 130, 7.5, bold), { x: tableLeft + 18, y: y + 1, size: 7.5, font: bold, color: BLACK });
         p.drawText(clip(valueText, tableWidth - 160, 7.5, font), { x: tableLeft + 150, y: y + 1, size: 7.5, font, color: BLACK });
       }
@@ -890,6 +894,29 @@ function centeredText(p: PDFPage, text: string, x: number, w: number, y: number,
 function leftText(p: PDFPage, text: string, x: number, w: number, y: number, size: number, font: PDFFont, color = BLACK): void {
   if (!text) return;
   p.drawText(clip(text, w - 4, size, font), { x: x + 2, y, size, font, color });
+}
+
+/**
+ * Drop any character pdf-lib's standard WinAnsi font cannot render. Standard
+ * pdf-lib fonts throw on the first non-WinAnsi codepoint; on the change-log
+ * appendix we want a clean export over a perfect glyph, since the values come
+ * from arbitrary user-typed content (Remarks, etc.).
+ */
+function winAnsi(s: string): string {
+  let out = "";
+  for (const c of s) {
+    const code = c.charCodeAt(0);
+    // WinAnsi has gaps at 0x81, 0x8D, 0x8F, 0x90, 0x9D; everything else in
+    // 0x20..0xFF (printable Latin-1 + the Windows-1252 add-ons at 0x80..0x9F)
+    // is encodable. Outside that range we use "?" so the layout stays aligned.
+    if (code === 0x09 || code === 0x0A || code === 0x0D) out += " ";
+    else if (code < 0x20) continue;
+    else if (code <= 0xFF && code !== 0x81 && code !== 0x8D && code !== 0x8F && code !== 0x90 && code !== 0x9D) out += c;
+    else if (c === "→") out += "->";
+    else if (c === "•") out += "•"; // bullet IS in WinAnsi (0x95)
+    else out += "?";
+  }
+  return out;
 }
 
 function clip(text: string, maxW: number, size: number, font: PDFFont): string {
