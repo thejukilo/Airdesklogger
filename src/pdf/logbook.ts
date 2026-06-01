@@ -673,24 +673,27 @@ function drawChangeLogAppendix(
     { title: "Hash", width: 80, value: (r) => r.hash ?? "" },
   ];
 
-  // Sub-table for the before/after snapshot, drawn under each edit row.
+  // Sub-table for the before/after snapshot, drawn under each edit row. Sized
+  // to exactly match the main change-log table's tableWidth so the appendix
+  // stays inside the page on portrait A4 / Letter.
   type SnapCol = { title: string; width: number; field: keyof ChangeLogSnapshot; align?: "center" };
   const snapCols: SnapCol[] = [
-    { title: "Date",    width: 56, field: "date" },
+    { title: "Date",    width: 50, field: "date" },
     { title: "A/C",     width: 50, field: "aircraft" },
-    { title: "From",    width: 36, field: "from", align: "center" },
-    { title: "To",      width: 36, field: "to", align: "center" },
+    { title: "From",    width: 34, field: "from", align: "center" },
+    { title: "To",      width: 34, field: "to", align: "center" },
     { title: "Off",     width: 32, field: "off", align: "center" },
     { title: "On",      width: 32, field: "on", align: "center" },
     { title: "Total",   width: 32, field: "total", align: "center" },
-    { title: "PIC",     width: 56, field: "pic" },
-    { title: "D ldg",   width: 28, field: "dayLandings", align: "center" },
-    { title: "N ldg",   width: 28, field: "nightLandings", align: "center" },
+    { title: "PIC",     width: 50, field: "pic" },
+    { title: "D ldg",   width: 22, field: "dayLandings", align: "center" },
+    { title: "N ldg",   width: 22, field: "nightLandings", align: "center" },
     { title: "Night",   width: 32, field: "night", align: "center" },
     { title: "IFR",     width: 32, field: "ifr", align: "center" },
-    { title: "Remarks", width: 82, field: "remarks" },
+    { title: "Remarks", width: 80, field: "remarks" },
   ];
-  const SNAP_LABEL_W = 32;
+  const SNAP_LABEL_W = 30;
+  // 30 + 502 == 532, matches the main header strip below.
   const snapTableWidth = SNAP_LABEL_W + snapCols.reduce((a, c) => a + c.width, 0);
 
   const top = page.h - MARGIN;
@@ -746,34 +749,34 @@ function drawChangeLogAppendix(
       sx += c.width;
     });
 
-    // Before + After rows. Highlighted cells where the field changed.
-    const drawDataRow = (yRow: number, label: string, snap: ChangeLogSnapshot, isAfter: boolean) => {
-      // Label column
-      p.drawText(label, { x: tableLeft + 4, y: yRow - snapRowH + 3, size: 7, font: bold, color: isAfter ? BLACK : GREY });
+    // Before + After rows. yRowBottom is the y of the row's BOTTOM edge in
+    // PDF coords (y increases upward); the text baseline sits 3pt above that.
+    const drawDataRow = (yRowBottom: number, label: string, snap: ChangeLogSnapshot, isAfter: boolean) => {
+      p.drawText(label, { x: tableLeft + 4, y: yRowBottom + 3, size: 7, font: bold, color: isAfter ? BLACK : GREY });
       let cx = tableLeft + SNAP_LABEL_W;
       snapCols.forEach((c) => {
         const text = winAnsi(String(snap[c.field] ?? ""));
         const innerW = c.width - 4;
         const changed = before[c.field] !== after[c.field];
         if (changed) {
-          p.drawRectangle({ x: cx + 1, y: yRow - snapRowH + 1, width: c.width - 2, height: snapRowH - 2, color: EDIT_HILITE });
+          p.drawRectangle({ x: cx + 1, y: yRowBottom + 1, width: c.width - 2, height: snapRowH - 2, color: EDIT_HILITE });
         }
         const clipped = clip(text, innerW, 6.5, isAfter && changed ? bold : font);
         const tw = (isAfter && changed ? bold : font).widthOfTextAtSize(clipped, 6.5);
         const tx = c.align === "center" ? cx + (c.width - tw) / 2 : cx + 3;
         p.drawText(clipped, {
-          x: tx, y: yRow - snapRowH + 3, size: 6.5,
+          x: tx, y: yRowBottom + 3, size: 6.5,
           font: isAfter && changed ? bold : font, color: BLACK,
         });
         cx += c.width;
       });
     };
 
-    let yCursor = yTop - snapHeaderH;
-    yCursor -= snapRowH;
-    drawDataRow(yCursor, "Before", before, false);
-    yCursor -= snapRowH;
-    drawDataRow(yCursor, "After", after, true);
+    // Bottom edges of each row, descending from the top of the snap block.
+    const beforeBottom = yTop - snapHeaderH - snapRowH;
+    const afterBottom = beforeBottom - snapRowH;
+    drawDataRow(beforeBottom, "Before", before, false);
+    drawDataRow(afterBottom, "After", after, true);
 
     // Borders.
     hline(p, tableLeft, tableLeft + snapTableWidth, yTop, GREY, 0.4);
