@@ -3,6 +3,7 @@ import { loadLogbookForExport, loadDeletionsForExport } from "../../src/db/expor
 import { getUserById } from "../../src/db/authRepository.js";
 import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type ChangeLogRow, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
 import { formatAttributeRows } from "../../src/pdf/attributeLines.js";
+import { diffEntryContent } from "../../src/http/buildEntry.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
 /**
@@ -54,7 +55,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (attrRows.length > 0) {
         attributeBlocks.push({ entryId: e.entryId, entryRef: ref, items: attrRows });
       }
-      for (const v of e.history) {
+      for (let i = 0; i < e.history.length; i++) {
+        const v = e.history[i]!;
+        const prev = i > 0 ? e.history[i - 1] : null;
+        // v0 is the initial CREATE; later versions are edits and carry a
+        // before/after diff against the immediately preceding stored version.
+        const changes = prev
+          ? diffEntryContent(prev.content as never, v.content as never)
+          : undefined;
         changeLog.push({
           entry: ref,
           version: `v${v.versionNo}`,
@@ -62,6 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           by: v.createdByName,
           ...(v.changeReason ? { reason: v.changeReason } : {}),
           hash: v.contentHash.slice(0, 12),
+          ...(changes && changes.length > 0 ? { changes } : {}),
         });
       }
     });

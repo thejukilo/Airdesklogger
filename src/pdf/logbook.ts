@@ -279,6 +279,8 @@ export interface ChangeLogRow {
   by: string;
   reason?: string;
   hash?: string;
+  /** Field-by-field before/after for an edit. Empty / undefined for the initial CREATE or for a void. */
+  changes?: ReadonlyArray<{ label: string; before: string; after: string }>;
 }
 
 export interface AuditAppendix {
@@ -636,7 +638,94 @@ function drawChangeLogAppendix(
     { title: "Reason", width: 130, value: (r) => r.reason ?? "" },
     { title: "Hash", width: 90, value: (r) => r.hash ?? "" },
   ];
-  drawTable(doc, font, bold, "CHANGE LOG", cols, rows, pilotName, page);
+
+  const top = page.h - MARGIN;
+  const bottom = MARGIN + 24;
+  const lineH = 13;
+  const changeLineH = 11;
+  const headerY = 18;
+  const tableLeft = MARGIN;
+  const tableWidth = cols.reduce((a, c) => a + c.width, 0);
+  const tableRight = tableLeft + tableWidth;
+
+  const drawPageHeader = (p: PDFPage) => {
+    p.drawText("CHANGE LOG", { x: MARGIN, y: top - 12, size: 12, font: bold, color: BLACK });
+    p.drawText(`Holder: ${pilotName}    All times UTC`, { x: MARGIN, y: top - 26, size: 8, font, color: GREY });
+  };
+  const drawTableHeader = (p: PDFPage, y: number) => {
+    p.drawRectangle({ x: tableLeft, y: y - 4, width: tableWidth, height: headerY, color: SHADE });
+    hline(p, tableLeft, tableRight, y + headerY - 4, GREY, 0.5);
+    hline(p, tableLeft, tableRight, y - 4, GREY, 0.5);
+    let x = tableLeft;
+    cols.forEach((c) => {
+      p.drawText(c.title, { x: x + (c.pad ?? 6), y: y + 4, size: 8, font: bold, color: BLACK });
+      x += c.width;
+    });
+    let vx = tableLeft;
+    for (let i = 0; i <= cols.length; i++) {
+      vline(p, vx, y - 4, y + headerY - 4, GREY, 0.4);
+      vx += cols[i]?.width ?? 0;
+    }
+  };
+
+  if (rows.length === 0) {
+    const p = doc.addPage([page.w, page.h]);
+    drawPageHeader(p);
+    p.drawText("None recorded.", { x: MARGIN, y: top - 60, size: 9, font, color: GREY });
+    return;
+  }
+
+  let p = doc.addPage([page.w, page.h]);
+  drawPageHeader(p);
+  let y = top - 48 - headerY;
+  drawTableHeader(p, y);
+  let zebra = false;
+  for (const row of rows) {
+    const nChanges = row.changes?.length ?? 0;
+    const blockH = lineH + nChanges * changeLineH;
+    // Page break if the whole row+changes block won't fit.
+    if (y - blockH < bottom) {
+      p = doc.addPage([page.w, page.h]);
+      drawPageHeader(p);
+      y = top - 48 - headerY;
+      drawTableHeader(p, y);
+      zebra = false;
+    }
+    y -= lineH;
+    if (zebra) {
+      p.drawRectangle({ x: tableLeft, y: y - 3, width: tableWidth, height: lineH, color: rgb(0.97, 0.97, 0.97) });
+    }
+    zebra = !zebra;
+    // Row cells
+    let x = tableLeft;
+    cols.forEach((c) => {
+      const text = c.value(row);
+      if (text) {
+        const innerW = c.width - 2 * (c.pad ?? 6);
+        p.drawText(clip(text, innerW, 8, c.bold ? bold : font), { x: x + (c.pad ?? 6), y: y + 1, size: 8, font: c.bold ? bold : font, color: BLACK });
+      }
+      x += c.width;
+    });
+    let vx = tableLeft;
+    for (let i = 0; i <= cols.length; i++) {
+      vline(p, vx, y - 3, y + lineH - 3, GREY, 0.4);
+      vx += cols[i]?.width ?? 0;
+    }
+    hline(p, tableLeft, tableRight, y - 3, GREY, 0.3);
+
+    // Sub-rows: bullet list of field changes, indented under the row.
+    if (row.changes && row.changes.length > 0) {
+      for (const ch of row.changes) {
+        y -= changeLineH;
+        const labelText = `• ${ch.label}:`;
+        const valueText = `${ch.before || "(empty)"}  →  ${ch.after || "(empty)"}`;
+        p.drawText(clip(labelText, 130, 7.5, bold), { x: tableLeft + 18, y: y + 1, size: 7.5, font: bold, color: BLACK });
+        p.drawText(clip(valueText, tableWidth - 160, 7.5, font), { x: tableLeft + 150, y: y + 1, size: 7.5, font, color: BLACK });
+      }
+      // Separator under the whole block.
+      hline(p, tableLeft, tableRight, y - 3, GREY, 0.3);
+    }
+  }
 }
 
 /**

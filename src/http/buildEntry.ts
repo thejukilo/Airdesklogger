@@ -289,6 +289,58 @@ function clockZ(v: unknown): string {
   return s.length >= 16 ? `${s.slice(11, 16)}Z` : "";
 }
 
+export interface FieldChange {
+  label: string;
+  before: string;
+  after: string;
+}
+
+/**
+ * Structured diff between two stored entry-content payloads (the shape
+ * buildVersionContent produces: { picName, remarks, aircraft, columns, ... }).
+ * Returns only the fields that actually changed; an unchanged entry returns
+ * an empty list. Used by the PDF change-log appendix to show a clear
+ * before/after under each version row.
+ */
+export function diffEntryContent(
+  oldContent: {
+    columns?: Record<string, unknown>;
+    picName?: string;
+    remarks?: string;
+    aircraft?: { registration?: string; makeModelVariant?: string };
+  } | null,
+  newContent: {
+    columns?: Record<string, unknown>;
+    picName?: string;
+    remarks?: string;
+    aircraft?: { registration?: string; makeModelVariant?: string };
+  } | null,
+): FieldChange[] {
+  const oc = (oldContent?.columns ?? {}) as Record<string, unknown>;
+  const nc = (newContent?.columns ?? {}) as Record<string, unknown>;
+  const category = String(nc.category ?? oc.category ?? "AEROPLANE");
+  const offLabel = category === "HELICOPTER" ? "Rotor start" : category === "BALLOON" ? "Departure time" : "Block off";
+  const onLabel = category === "HELICOPTER" ? "Rotor stop" : category === "BALLOON" ? "Arrival time" : "Block on";
+  const pairs: FieldChange[] = [];
+  const add = (label: string, before: string, after: string) => {
+    if (before !== after) pairs.push({ label, before, after });
+  };
+  add("Date", String(oc.date ?? ""), String(nc.date ?? ""));
+  add("From", String(oc.departurePlace ?? ""), String(nc.departurePlace ?? ""));
+  add("To", String(oc.arrivalPlace ?? ""), String(nc.arrivalPlace ?? ""));
+  add(offLabel, clockZ(oc.departureTime), clockZ(nc.departureTime));
+  add(onLabel, clockZ(oc.arrivalTime), clockZ(nc.arrivalTime));
+  add("Total time", minutesToHHMM(Number(oc.total ?? 0)), minutesToHHMM(Number(nc.total ?? 0)));
+  add("PIC", String(oldContent?.picName ?? ""), String(newContent?.picName ?? ""));
+  add("Aircraft", String(oldContent?.aircraft?.registration ?? ""), String(newContent?.aircraft?.registration ?? ""));
+  add("Day landings", String(Number(oc.dayLandings ?? 0)), String(Number(nc.dayLandings ?? 0)));
+  add("Night landings", String(Number(oc.nightLandings ?? 0)), String(Number(nc.nightLandings ?? 0)));
+  add("Night", minutesToHHMM(Number(oc.night ?? 0)), minutesToHHMM(Number(nc.night ?? 0)));
+  add("IFR", minutesToHHMM(Number(oc.ifr ?? 0)), minutesToHHMM(Number(nc.ifr ?? 0)));
+  add("Remarks", String(oldContent?.remarks ?? ""), String(newContent?.remarks ?? ""));
+  return pairs;
+}
+
 /** A human-readable list of what changed, for the notice sent to a signer. */
 export function summarizeChanges(
   oldContent: { columns?: Record<string, unknown>; picName?: string } | null,
@@ -296,27 +348,16 @@ export function summarizeChanges(
   newDerived: DerivedColumns,
   newPicName: string,
 ): string[] {
-  const oc = (oldContent?.columns ?? {}) as Record<string, unknown>;
-  const category = newDerived.category;
-  const offLabel = category === "HELICOPTER" ? "Rotor start" : category === "BALLOON" ? "Departure time" : "Block off";
-  const onLabel = category === "HELICOPTER" ? "Rotor stop" : category === "BALLOON" ? "Arrival time" : "Block on";
-  const fields = (cols: Record<string, unknown>, pic: string): Record<string, string> => ({
-    Date: String(cols.date ?? ""),
-    From: String(cols.departurePlace ?? ""),
-    To: String(cols.arrivalPlace ?? ""),
-    [offLabel]: clockZ(cols.departureTime),
-    [onLabel]: clockZ(cols.arrivalTime),
-    "Total time": minutesToHHMM(Number(cols.total ?? 0)),
-    PIC: pic,
-    Night: minutesToHHMM(Number(cols.night ?? 0)),
-    IFR: minutesToHHMM(Number(cols.ifr ?? 0)),
-    Landings: String((Number(cols.dayLandings ?? 0)) + (Number(cols.nightLandings ?? 0))),
-  });
-  const before = fields(oc, oldPicName);
-  const after = fields(newDerived as unknown as Record<string, unknown>, newPicName);
-  const out: string[] = [];
-  for (const key of Object.keys(before)) {
-    if (before[key] !== after[key]) out.push(`${key}: ${before[key] || "(empty)"} to ${after[key] || "(empty)"}`);
-  }
-  return out;
+  const oldForDiff = oldContent ? { ...oldContent, picName: oldPicName } : null;
+  const newForDiff = {
+    picName: newPicName,
+    columns: {
+      ...newDerived,
+      departureTime: toUtcIso(newDerived.departureTime),
+      arrivalTime: toUtcIso(newDerived.arrivalTime),
+    } as unknown as Record<string, unknown>,
+  };
+  return diffEntryContent(oldForDiff, newForDiff).map(
+    (c) => `${c.label}: ${c.before || "(empty)"} to ${c.after || "(empty)"}`,
+  );
 }

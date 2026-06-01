@@ -31,6 +31,8 @@ export interface ExportVersion {
   changeReason: string | null;
   createdByName: string;
   contentHash: string;
+  /** Full stored content of this version, used to compute the change-log diff. */
+  content: Record<string, unknown>;
 }
 
 export interface ExportEntry {
@@ -141,7 +143,7 @@ export async function loadLogbookForExport(
   const currentVersionByEntry = new Map<string, number>(entryRows.map((r) => [r.id as string, Number(r.current_version)]));
 
   const { rows: histRows } = await pool.query(
-    `SELECT v.entry_id, v.version_no, v.change_reason, v.content_hash, v.created_at, p.name AS by_name
+    `SELECT v.entry_id, v.version_no, v.change_reason, v.content_hash, v.content, v.created_at, p.name AS by_name
        FROM flight_entry_versions v JOIN pilots p ON p.id = v.created_by
       WHERE v.entry_id = ANY($1::uuid[]) AND v.logged = true
       ORDER BY v.entry_id, v.version_no ASC`,
@@ -192,6 +194,7 @@ export async function loadLogbookForExport(
       changeReason: h.change_reason ?? null,
       createdByName: h.by_name,
       contentHash: h.content_hash,
+      content: (h.content as Record<string, unknown>) ?? {},
     });
     historyByEntry.set(h.entry_id, list);
   }
