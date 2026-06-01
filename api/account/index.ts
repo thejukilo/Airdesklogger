@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       const updated = await updateProfile(claims.sub, parsed.data);
-      res.status(200).json(publicProfile(updated, await pilotHasEntries(claims.sub)));
+      res.status(200).json(publicProfile(updated, await pilotHasEntries(claims.sub), await getSubscription(claims.sub)));
       return;
     }
 
