@@ -350,6 +350,8 @@ export interface AirportRef {
   country: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  /** IANA timezone derived from coords; null when unavailable. */
+  timezone?: string | null;
 }
 
 /**

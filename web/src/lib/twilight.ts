@@ -56,6 +56,45 @@ export function isNightAt(instant: Date, coords: LatLon | null | undefined): boo
 }
 
 /**
+ * Convert a wall-clock string ("YYYY-MM-DDTHH:MM" or with seconds) interpreted
+ * at a given IANA timezone into the corresponding UTC instant. Mirrors the
+ * server-side zonedWallClockToUtc in src/domain/localTime.ts so the SPA's
+ * day/night judgement matches what classifyLandings will compute on save when
+ * the form is in local-time mode.
+ */
+const WALL_CLOCK = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+function offsetMs(timeZone: string, instantMs: number): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const map: Record<string, string> = {};
+  for (const p of dtf.formatToParts(new Date(instantMs))) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  const asUtc = Date.UTC(
+    Number(map.year), Number(map.month) - 1, Number(map.day),
+    Number(map.hour), Number(map.minute), Number(map.second),
+  );
+  return asUtc - instantMs;
+}
+
+export function zonedWallClockToUtc(wallClock: string, timeZone: string): Date | null {
+  const m = WALL_CLOCK.exec(wallClock.trim());
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  const guess = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? "0"));
+  let off = offsetMs(timeZone, guess);
+  let utc = guess - off;
+  const off2 = offsetMs(timeZone, utc);
+  if (off2 !== off) utc = guess - off2;
+  const result = new Date(utc);
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
+/**
  * Whether the day/night classification at departure differs from the one at
  * arrival, using the arrival airport's coordinates for both samples (the same
  * convention the server uses when classifying landings). When true, the form

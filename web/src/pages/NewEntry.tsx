@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Button, Card, Field, Select } from "../components/ui";
 import { SEVERE_SKEW_MS, useClockSkew } from "../lib/clockSkew";
-import { spansTwilight } from "../lib/twilight";
+import { spansTwilight, zonedWallClockToUtc } from "../lib/twilight";
 import { CATEGORY_LABELS } from "../labels";
 import { ATTR_SPEC, type AttrCategory, type AttrGroup, type AttrItem, type AttrSubGroup } from "../lib/attributesSpec";
 import { SimulatorSession } from "./SimulatorSession";
@@ -774,31 +774,48 @@ export function NewEntry() {
   // night (or vice versa) at the arrival aerodrome, the landings field splits
   // into day and night inputs so the pilot can record intermediate landings
   // accurately. arrivalCoords is fetched lazily on each ICAO change.
-  const [arrivalCoords, setArrivalCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [arrivalAirport, setArrivalAirport] = useState<{
+    coords: { latitude: number; longitude: number };
+    timezone: string | null;
+  } | null>(null);
   useEffect(() => {
     let cancelled = false;
     const icao = f.arrivalPlace.trim().toUpperCase();
-    if (icao.length !== 4 || icao === "ZZZZ") { setArrivalCoords(null); return; }
+    if (icao.length !== 4 || icao === "ZZZZ") { setArrivalAirport(null); return; }
     api.findAirport(icao)
       .then((row) => {
         if (cancelled) return;
         if (row && row.latitude != null && row.longitude != null) {
-          setArrivalCoords({ latitude: row.latitude, longitude: row.longitude });
+          setArrivalAirport({
+            coords: { latitude: row.latitude, longitude: row.longitude },
+            timezone: row.timezone ?? null,
+          });
         } else {
-          setArrivalCoords(null);
+          setArrivalAirport(null);
         }
       })
-      .catch(() => { if (!cancelled) setArrivalCoords(null); });
+      .catch(() => { if (!cancelled) setArrivalAirport(null); });
     return () => { cancelled = true; };
   }, [f.arrivalPlace]);
   const splitLandings = (() => {
-    if (!arrivalCoords) return false;
+    if (!arrivalAirport) return false;
     if (!f.blockStart || !f.blockEnd || !f.date) return false;
-    const dep = new Date(`${f.date}T${f.blockStart}:00Z`);
     const arrDate = f.blockEnd > f.blockStart ? f.date : nextDay(f.date);
-    const arr = new Date(`${arrDate}T${f.blockEnd}:00Z`);
-    if (Number.isNaN(dep.getTime()) || Number.isNaN(arr.getTime())) return false;
-    return spansTwilight(dep, arr, arrivalCoords);
+    // Local-mode entries are wall-clock at the aerodrome; convert through the
+    // arrival airport's IANA timezone before classifying. UTC-mode entries are
+    // already absolute instants.
+    let dep: Date | null;
+    let arr: Date | null;
+    if (timeMode === "local") {
+      if (!arrivalAirport.timezone) return false;
+      dep = zonedWallClockToUtc(`${f.date}T${f.blockStart}`, arrivalAirport.timezone);
+      arr = zonedWallClockToUtc(`${arrDate}T${f.blockEnd}`, arrivalAirport.timezone);
+    } else {
+      dep = new Date(`${f.date}T${f.blockStart}:00Z`);
+      arr = new Date(`${arrDate}T${f.blockEnd}:00Z`);
+    }
+    if (!dep || !arr || Number.isNaN(dep.getTime()) || Number.isNaN(arr.getTime())) return false;
+    return spansTwilight(dep, arr, arrivalAirport.coords);
   })();
   // Keep day+night in sync with the single-input total when toggling modes.
   useEffect(() => {

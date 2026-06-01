@@ -11,6 +11,7 @@
 import { getPool, withTransaction } from "./pool.js";
 import { normalizeIcao } from "../domain/icao.js";
 import { allowedCategoriesForType } from "../data/icaoTypes.js";
+import { timezoneAt } from "../http/timezone.js";
 
 export interface Airport {
   icao: string;
@@ -18,6 +19,8 @@ export interface Airport {
   country?: string | null | undefined;
   latitude?: number | null | undefined;
   longitude?: number | null | undefined;
+  /** IANA timezone derived from coordinates; null when coords are missing. */
+  timezone?: string | null | undefined;
 }
 
 export async function upsertAirport(a: Airport): Promise<void> {
@@ -53,13 +56,18 @@ export async function searchAirports(query: string, limit = 20): Promise<Airport
       WHERE icao ILIKE $1 OR name ILIKE $1 ORDER BY icao LIMIT $2`,
     [`%${query}%`, limit],
   );
-  return rows.map((r) => ({
-    icao: r.icao,
-    name: r.name,
-    country: r.country ?? null,
-    latitude: r.latitude !== null ? Number(r.latitude) : null,
-    longitude: r.longitude !== null ? Number(r.longitude) : null,
-  }));
+  return rows.map((r) => {
+    const lat = r.latitude !== null ? Number(r.latitude) : null;
+    const lon = r.longitude !== null ? Number(r.longitude) : null;
+    return {
+      icao: r.icao,
+      name: r.name,
+      country: r.country ?? null,
+      latitude: lat,
+      longitude: lon,
+      timezone: lat !== null && lon !== null ? timezoneAt(lat, lon) : null,
+    };
+  });
 }
 
 export interface AircraftRecord {
