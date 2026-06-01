@@ -1105,7 +1105,6 @@ function drawGrid(
 
   // Entry rows. Flight rows only; FSTD sessions are listed in their own table.
   const LINK = rgb(0.13, 0.32, 0.78); // approximate Tailwind sky-700, for the "signed" link.
-  const MISSING = rgb(0.75, 0.13, 0.13);
   page.rows.forEach((row, r) => {
     const y = bodyTop - (r + 1) * ROW_H + 5;
     const e = row as LogbookEntryForPdf;
@@ -1133,10 +1132,10 @@ function drawGrid(
         c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "BALLOON" || c.group === "DATE";
       if (c.group === "REMARKS") {
         // Reserve a small strip at the right of the remarks cell for the
-        // "attributes" link, "signed" / "missing" tag, and the amber EDITED
+        // "attributes" link, "signed" tag, and the amber EDITED
         // chip. The free-text part is drawn clipped to fit the remainder.
         const hasAttrs = hasAppendixAttributes(e);
-        const signTagW = e.signed || e.signatureMissing ? 36 : 0;
+        const signTagW = e.signed ? 36 : 0;
         const attrTagW = hasAttrs ? 38 : 0;
         const editTagW = e.edited ? 36 : 0;
         const TAG_W = signTagW + attrTagW + editTagW;
@@ -1165,11 +1164,6 @@ function drawGrid(
               rect: toPdfRect(lx - 1, y - 2, lw + 2, 9),
             });
           }
-          rightCursor -= signTagW;
-        } else if (e.signatureMissing) {
-          const label = "missing";
-          const lx = rightCursor - signTagW + 2;
-          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: MISSING });
           rightCursor -= signTagW;
         }
         if (hasAttrs) {
