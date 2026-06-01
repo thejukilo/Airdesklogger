@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import * as api from "../api";
 import { useAuth } from "../auth";
 
 /**
@@ -8,6 +9,42 @@ import { useAuth } from "../auth";
  * always visible. Hidden on `active` accounts so there's no noise when nothing
  * needs attention.
  */
+function useCheckout() {
+  const [busy, setBusy] = useState(false);
+  return {
+    busy,
+    async go() {
+      setBusy(true);
+      try {
+        const { url } = await api.startCheckout();
+        window.location.href = url;
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Could not open checkout.");
+        setBusy(false);
+      }
+    },
+  };
+}
+
+function CTA({ label, color }: { label: string; color: "amber" | "brand" | "rose" }) {
+  const { busy, go } = useCheckout();
+  const cls = {
+    amber: "bg-amber-600 hover:bg-amber-700",
+    brand: "bg-brand-600 hover:bg-brand-700",
+    rose: "bg-rose-600 hover:bg-rose-700",
+  }[color];
+  return (
+    <button
+      type="button"
+      onClick={go}
+      disabled={busy}
+      className={`rounded-md px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60 ${cls}`}
+    >
+      {busy ? "Opening checkout..." : label}
+    </button>
+  );
+}
+
 export function SubscriptionBanner() {
   const { profile } = useAuth();
   const sub = profile?.subscription;
@@ -30,12 +67,7 @@ export function SubscriptionBanner() {
             <span className="font-semibold">{label}.</span>{" "}
             <span className="text-amber-800">Add a card to keep your logbook live after the trial ends.</span>
           </span>
-          <Link
-            to="/account?subscribe=1"
-            className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-700"
-          >
-            Subscribe — CHF 5.99 / mo
-          </Link>
+          <CTA label="Subscribe — CHF 5.99 / mo" color="amber" />
         </div>
       </div>
     );
@@ -49,12 +81,7 @@ export function SubscriptionBanner() {
             <span className="font-semibold">Payment failed.</span>{" "}
             <span className="text-amber-800">Update your card to avoid losing access.</span>
           </span>
-          <Link
-            to="/account?subscribe=1"
-            className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-700"
-          >
-            Update payment
-          </Link>
+          <CTA label="Update payment" color="amber" />
         </div>
       </div>
     );
@@ -72,12 +99,7 @@ export function SubscriptionBanner() {
                 : "Read-only after this period ends."}
             </span>
           </span>
-          <Link
-            to="/account?subscribe=1"
-            className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-700"
-          >
-            Resume
-          </Link>
+          <CTA label="Resume" color="brand" />
         </div>
       </div>
     );
@@ -91,12 +113,7 @@ export function SubscriptionBanner() {
             <span className="font-semibold">Read-only mode.</span>{" "}
             <span className="text-rose-800">Subscribe to log new flights and to generate FOCA exports.</span>
           </span>
-          <Link
-            to="/account?subscribe=1"
-            className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-700"
-          >
-            Subscribe — CHF 5.99 / mo
-          </Link>
+          <CTA label="Subscribe — CHF 5.99 / mo" color="rose" />
         </div>
       </div>
     );

@@ -429,6 +429,20 @@ export function adminListUsers(mfaCode: string): Promise<{ users: AdminUserRow[]
   return request("/admin/users", { method: "GET", headers: { "X-MFA-Code": mfaCode } });
 }
 
+/**
+ * Open Stripe Checkout. Returns the URL to redirect the browser to; the
+ * SPA does the redirect itself so the back-button after cancellation
+ * lands cleanly back on the SPA route the user came from.
+ */
+export function startCheckout(): Promise<{ url: string }> {
+  return request("/billing/checkout", { method: "POST" });
+}
+
+/** Open the Stripe-hosted Customer Portal for self-serve management. */
+export function openBillingPortal(): Promise<{ url: string }> {
+  return request("/billing/portal", { method: "POST" });
+}
+
 export function getProfile(): Promise<Profile> {
   return request("/account", { method: "GET" });
 }

@@ -8,6 +8,8 @@ import { Register } from "./pages/Register";
 import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
 import { Logbook } from "./pages/Logbook";
+import { BillingSuccess } from "./pages/BillingSuccess";
+import { BillingCancelled } from "./pages/BillingCancelled";
 import { NewEntry } from "./pages/NewEntry";
 import { EntryDetail } from "./pages/EntryDetail";
 import { Account } from "./pages/Account";
@@ -220,6 +222,22 @@ function AppShell() {
           element={
             <RequireAuth>
               <Account />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/billing/success"
+          element={
+            <RequireAuth>
+              <BillingSuccess />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/billing/cancelled"
+          element={
+            <RequireAuth>
+              <BillingCancelled />
             </RequireAuth>
           }
         />

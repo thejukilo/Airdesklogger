@@ -143,6 +143,8 @@ export function Account() {
     <div className="mx-auto max-w-xl space-y-4">
       <h1 className="text-xl font-semibold">Account</h1>
 
+      <SubscriptionCard />
+
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-medium">Profile</h2>
@@ -665,6 +667,106 @@ function ImportTokensCard() {
         For the request shape and field mapping, see <code>docs/api-import-v1.md</code> in the
         Airdesklogger repository, or the OpenAPI spec in <code>docs/openapi-import-v1.yaml</code>.
       </p>
+    </Card>
+  );
+}
+
+/**
+ * Subscription card on the Account page. Shows the current plan state, the
+ * next charge date, and (for any state that has a Stripe customer behind
+ * it) a button that opens the Stripe-hosted Customer Portal where the
+ * holder can change card, see invoices, or cancel. New / trial accounts
+ * see a one-button Subscribe CTA that opens Stripe Checkout.
+ */
+function SubscriptionCard() {
+  const { profile } = useAuth();
+  const sub = profile?.subscription;
+  const [busy, setBusy] = useState<"checkout" | "portal" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!sub) return null;
+
+  async function openCheckout() {
+    setError(null);
+    setBusy("checkout");
+    try {
+      const { url } = await api.startCheckout();
+      window.location.href = url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open checkout.");
+      setBusy(null);
+    }
+  }
+
+  async function openPortal() {
+    setError(null);
+    setBusy("portal");
+    try {
+      const { url } = await api.openBillingPortal();
+      window.location.href = url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open billing portal.");
+      setBusy(null);
+    }
+  }
+
+  const labels: Record<api.SubscriptionState, { title: string; tone: string; }> = {
+    trialing:  { title: "Trial",                tone: "bg-amber-100 text-amber-800"   },
+    active:    { title: "Active",               tone: "bg-emerald-100 text-emerald-800" },
+    past_due:  { title: "Payment failed",       tone: "bg-amber-100 text-amber-900"   },
+    cancelled: { title: "Cancelled",            tone: "bg-slate-100 text-slate-700"   },
+    read_only: { title: "Read-only",            tone: "bg-rose-100 text-rose-800"     },
+  };
+  const l = labels[sub.state];
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-medium">Subscription</h2>
+          <p className="text-xs text-slate-500">Single plan · CHF 5.99 / month · cancel anytime</p>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${l.tone}`}>{l.title}</span>
+      </div>
+
+      {error && <div className="mt-3"><Alert>{error}</Alert></div>}
+
+      <dl className="mt-4 grid grid-cols-2 gap-y-2 text-sm">
+        {sub.state === "trialing" && sub.trialEndsAt && (
+          <>
+            <dt className="text-slate-500">Trial ends</dt>
+            <dd className="text-right tabular-nums">{sub.trialEndsAt.slice(0, 10)}</dd>
+          </>
+        )}
+        {sub.subscriptionPeriodEnd && (sub.state === "active" || sub.state === "cancelled" || sub.state === "past_due") && (
+          <>
+            <dt className="text-slate-500">{sub.state === "cancelled" ? "Access until" : "Next charge"}</dt>
+            <dd className="text-right tabular-nums">{sub.subscriptionPeriodEnd.slice(0, 10)}</dd>
+          </>
+        )}
+      </dl>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {(sub.state === "trialing" || sub.state === "read_only" || sub.state === "cancelled" || sub.state === "past_due") && (
+          <Button onClick={openCheckout} disabled={busy !== null}>
+            {busy === "checkout"
+              ? "Opening checkout..."
+              : sub.state === "cancelled" ? "Resume — CHF 5.99 / mo"
+              : sub.state === "past_due" ? "Update payment"
+              : "Subscribe — CHF 5.99 / mo"}
+          </Button>
+        )}
+        {(sub.state === "active" || sub.state === "past_due" || sub.state === "cancelled") && (
+          <button
+            type="button"
+            onClick={openPortal}
+            disabled={busy !== null}
+            className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {busy === "portal" ? "Opening portal..." : "Manage payment / cancel"}
+          </button>
+        )}
+      </div>
     </Card>
   );
 }

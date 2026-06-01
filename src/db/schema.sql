@@ -167,6 +167,15 @@ ALTER TABLE pilots ADD COLUMN IF NOT EXISTS subscription_started_at timestamptz;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS subscription_period_end  timestamptz;
 CREATE INDEX IF NOT EXISTS idx_pilots_trial_ends ON pilots(trial_ends_at)
   WHERE subscription_state = 'trialing';
+-- Stripe linkage. customer_id is one-to-one with the pilot; subscription_id
+-- moves over the lifetime of the account as plans cancel and resubscribe;
+-- price_id is denormalised so the admin overview can show the plan name
+-- without an extra Stripe round-trip.
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS stripe_customer_id     text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS stripe_price_id        text;
+CREATE INDEX IF NOT EXISTS idx_pilots_stripe_customer ON pilots(stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_pilots_stripe_subscription ON pilots(stripe_subscription_id);
 -- One-off backfill: grandfather every pre-existing account so it is not
 -- caught by the trial gate the moment this migration runs. New accounts get
 -- trial_started_at set explicitly in createUser(); a pre-existing one has
@@ -175,6 +184,25 @@ UPDATE pilots
    SET subscription_state = 'active'
  WHERE subscription_state = 'trialing'
    AND trial_started_at IS NULL;
+
+-- Append-only log of every Stripe webhook delivery. Used for idempotency
+-- (Stripe retries every event up to 3 days) and as the audit trail when the
+-- state machine and Stripe disagree. UNIQUE (stripe_event_id) catches a
+-- duplicate at insert time; the handler then short-circuits to a 200.
+CREATE TABLE IF NOT EXISTS stripe_events (
+  stripe_event_id text PRIMARY KEY,
+  type            text NOT NULL,
+  user_id         uuid REFERENCES pilots(id),
+  payload         jsonb NOT NULL,
+  received_at     timestamptz NOT NULL DEFAULT now(),
+  processed_at    timestamptz,
+  result          text
+);
+CREATE INDEX IF NOT EXISTS idx_stripe_events_user ON stripe_events(user_id, received_at DESC);
+DROP TRIGGER IF EXISTS trg_stripe_events_immutable ON stripe_events;
+CREATE TRIGGER trg_stripe_events_immutable
+  BEFORE DELETE ON stripe_events
+  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
 -- Password reset: a hashed, single-use, time-limited token (FOCA-agnostic, a
 -- standard account-recovery measure). The token itself is only ever emailed.
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_reset_token_hash  text;

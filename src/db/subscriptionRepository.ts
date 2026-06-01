@@ -117,6 +117,122 @@ export interface AdminUserRow {
   lastLoginAt: string | null;
 }
 
+/**
+ * Persist the Stripe customer/subscription identifiers on the holder row.
+ * Called at the start of every checkout (customer id) and on the first
+ * subscription.created webhook (subscription id + price id). Idempotent:
+ * re-running with the same ids is a no-op.
+ */
+export async function setStripeIds(
+  userId: string,
+  ids: { customerId?: string | null; subscriptionId?: string | null; priceId?: string | null },
+): Promise<void> {
+  const sets: string[] = [];
+  const args: unknown[] = [];
+  if (ids.customerId !== undefined)     { args.push(ids.customerId);     sets.push(`stripe_customer_id = $${args.length}`); }
+  if (ids.subscriptionId !== undefined) { args.push(ids.subscriptionId); sets.push(`stripe_subscription_id = $${args.length}`); }
+  if (ids.priceId !== undefined)        { args.push(ids.priceId);        sets.push(`stripe_price_id = $${args.length}`); }
+  if (sets.length === 0) return;
+  args.push(userId);
+  await getPool().query(
+    `UPDATE pilots SET ${sets.join(", ")} WHERE id = $${args.length}`,
+    args,
+  );
+}
+
+export async function findUserByStripeCustomer(customerId: string): Promise<string | null> {
+  const { rows } = await getPool().query(
+    `SELECT id FROM pilots WHERE stripe_customer_id = $1`,
+    [customerId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Translate a Stripe subscription's status into our subscription_state. The
+ * Stripe lifecycle is richer than what we use; this picks the closest match.
+ */
+export function stripeStatusToState(
+  stripeStatus: string,
+  cancelAtPeriodEnd: boolean,
+): SubscriptionState {
+  // 'trialing' on Stripe means "in their trial"; we keep our own 3-day trial
+  // separate from Stripe's, so a Stripe 'trialing' coming back should never
+  // happen in our flow. Treat it as 'active' just in case.
+  if (stripeStatus === "active" || stripeStatus === "trialing") {
+    return cancelAtPeriodEnd ? "cancelled" : "active";
+  }
+  if (stripeStatus === "past_due" || stripeStatus === "unpaid") return "past_due";
+  if (stripeStatus === "canceled" || stripeStatus === "incomplete_expired") return "read_only";
+  if (stripeStatus === "incomplete") return "past_due";
+  return "read_only";
+}
+
+/**
+ * Apply the consequences of a Stripe subscription event to the pilots row.
+ * Stores period end so the SPA can render "access until <date>" on the
+ * banner and the Account page; updates subscription_state via the helper
+ * above. Returns the new state for the webhook handler to log.
+ */
+export async function applyStripeSubscription(
+  userId: string,
+  sub: {
+    id: string;
+    status: string;
+    cancel_at_period_end: boolean;
+    current_period_start: number | null;
+    current_period_end: number | null;
+    items: { data: Array<{ price: { id: string } }> };
+  },
+): Promise<SubscriptionState> {
+  const state = stripeStatusToState(sub.status, Boolean(sub.cancel_at_period_end));
+  const start = sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null;
+  const end = sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null;
+  const priceId = sub.items.data[0]?.price.id ?? null;
+  await getPool().query(
+    `UPDATE pilots
+        SET subscription_state = $2,
+            stripe_subscription_id = $3,
+            stripe_price_id = COALESCE($4, stripe_price_id),
+            subscription_started_at = COALESCE(subscription_started_at, $5::timestamptz),
+            subscription_period_end = $6::timestamptz
+      WHERE id = $1`,
+    [userId, state, sub.id, priceId, start, end],
+  );
+  return state;
+}
+
+/**
+ * Idempotent recording of a Stripe event. Returns true on first delivery,
+ * false on a duplicate (so the webhook handler can short-circuit a retry).
+ */
+export async function recordStripeEvent(
+  stripeEventId: string,
+  type: string,
+  userId: string | null,
+  payload: unknown,
+): Promise<boolean> {
+  try {
+    await getPool().query(
+      `INSERT INTO stripe_events (stripe_event_id, type, user_id, payload)
+         VALUES ($1, $2, $3, $4)`,
+      [stripeEventId, type, userId, payload],
+    );
+    return true;
+  } catch (err) {
+    // PK violation on duplicate. Anything else rethrows.
+    if (err && typeof err === "object" && (err as { code?: string }).code === "23505") return false;
+    throw err;
+  }
+}
+
+export async function markStripeEventProcessed(stripeEventId: string, result: string): Promise<void> {
+  await getPool().query(
+    `UPDATE stripe_events SET processed_at = now(), result = $2 WHERE stripe_event_id = $1`,
+    [stripeEventId, result],
+  );
+}
+
 export async function listUsersForAdmin(): Promise<AdminUserRow[]> {
   const { rows } = await getPool().query(
     `SELECT

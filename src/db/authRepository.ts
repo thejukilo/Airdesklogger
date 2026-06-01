@@ -33,6 +33,10 @@ export interface UserRow {
   mfaRequiredForLogin: boolean;
   signingPublicKey: string | null;
   signingKeyWrapped: string | null;
+  /** Stripe linkage; null until the first checkout opens. */
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  stripePriceId: string | null;
 }
 
 /** A date column may arrive as a JS Date (node-postgres) or a string; either way return yyyy-mm-dd. */
@@ -66,11 +70,14 @@ function mapUser(r: Record<string, unknown>): UserRow {
     mfaRequiredForLogin: Boolean(r.mfa_required_for_login),
     signingPublicKey: (r.signing_public_key as string) ?? null,
     signingKeyWrapped: (r.signing_key_wrapped as string) ?? null,
+    stripeCustomerId: (r.stripe_customer_id as string) ?? null,
+    stripeSubscriptionId: (r.stripe_subscription_id as string) ?? null,
+    stripePriceId: (r.stripe_price_id as string) ?? null,
   };
 }
 
 const USER_COLUMNS =
-  "id, email, name, first_name, last_name, date_of_birth, license_number, address, address_street, address_zip, address_country, instructor_certificate, examiner_certificate, export_paper_size, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, mfa_required_for_login, signing_public_key, signing_key_wrapped";
+  "id, email, name, first_name, last_name, date_of_birth, license_number, address, address_street, address_zip, address_country, instructor_certificate, examiner_certificate, export_paper_size, email_verified, roles, password_hash, mfa_secret_wrapped, mfa_enabled, mfa_required_for_login, signing_public_key, signing_key_wrapped, stripe_customer_id, stripe_subscription_id, stripe_price_id";
 
 /** One-line address composed from its parts, for the export and display. */
 function composeAddress(street?: string | null, zip?: string | null, country?: string | null): string | null {
