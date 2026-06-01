@@ -4,6 +4,7 @@ import { useAuth } from "./auth";
 import { ClockSkewBanner } from "./components/ClockSkewBanner";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
 import { Logbook } from "./pages/Logbook";
 import { NewEntry } from "./pages/NewEntry";
@@ -146,9 +147,21 @@ export function App() {
     <Routes>
       {/* Public, no account: external signers reach the signing page by token. */}
       <Route path="/sign/:token" element={<Sign />} />
-      <Route path="/*" element={<AppShell />} />
+      <Route path="/*" element={<MaybeLandingOrShell />} />
     </Routes>
   );
+}
+
+/**
+ * On "/" with no session, render the public landing page bare (it brings its
+ * own header and full-bleed sections). Everywhere else falls through to the
+ * usual AppShell so the authenticated SPA chrome wraps the page.
+ */
+function MaybeLandingOrShell() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (location.pathname === "/" && !user && !loading) return <Landing />;
+  return <AppShell />;
 }
 
 function AppShell() {
