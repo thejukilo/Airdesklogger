@@ -71,12 +71,12 @@ function Hero() {
             <Link to="/register" className="rounded-md bg-brand-600 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-700">
               Start 3-day free trial
             </Link>
-            <a href="#pricing" className="rounded-md px-5 py-3 text-base font-semibold text-slate-700 hover:bg-slate-100">
-              See pricing →
-            </a>
+            <Link to="/register?plan=paid" className="rounded-md border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+              Subscribe — CHF 5.99 / mo
+            </Link>
           </div>
           <p className="mt-4 text-xs text-slate-500">
-            No card required to start · cancel anytime · your entries are always yours
+            Trial · no card required · cancel anytime — or skip the trial and pay directly
           </p>
         </div>
         <div className="hidden md:block">
@@ -190,6 +190,17 @@ function Pricing() {
               </Link>
               <p className="mt-3 text-center text-xs text-slate-500">
                 No card required to start. We'll ask for it when your trial ends.
+              </p>
+              <div className="mt-4 flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200"></span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">or</span>
+                <span className="h-px flex-1 bg-slate-200"></span>
+              </div>
+              <Link to="/register?plan=paid" className="mt-4 block w-full rounded-xl border border-slate-300 bg-white py-3 text-center text-base font-semibold text-slate-700 hover:bg-slate-50">
+                Subscribe immediately — CHF 5.99
+              </Link>
+              <p className="mt-2 text-center text-xs text-slate-500">
+                Skip the trial and start paying right away.
               </p>
             </div>
             <div className="border-t border-slate-100 bg-slate-50 px-8 py-5">
