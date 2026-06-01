@@ -51,19 +51,31 @@ function reviveColumns(columns: Record<string, unknown>): DerivedColumns {
   };
 }
 
+function normReg(r: string): string {
+  return r.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 function toRow(
   entryId: string,
   content: Record<string, unknown>,
   signed: boolean,
   signatureMissing: boolean,
+  icaoTypeByReg: Map<string, string>,
 ): LogbookEntryForPdf {
   const columns = reviveColumns(content.columns as Record<string, unknown>);
   const aircraft = content.aircraft as { makeModelVariant?: string; registration?: string } | undefined;
+  // AMC1 FCL.050 expects the standardised ICAO type designator in the Type
+  // column (e.g. C172, A320, EC35) rather than the manufacturer's marketing
+  // name. We resolve it from the reference table by registration (dash- and
+  // case-insensitive, same as the import lookup). The long makeModelVariant
+  // stays as a fallback when the reference table has no match.
+  const registration = aircraft?.registration ?? "";
+  const icaoType = registration ? icaoTypeByReg.get(normReg(registration)) : undefined;
   return {
     ...columns,
     entryId,
-    aircraftType: aircraft?.makeModelVariant ?? "",
-    aircraftReg: aircraft?.registration ?? "",
+    aircraftType: icaoType ?? aircraft?.makeModelVariant ?? "",
+    aircraftReg: registration,
     picName: (content.picName as string) ?? "",
     remarks: (content.remarks as string) ?? "",
     signed,
@@ -199,6 +211,26 @@ export async function loadLogbookForExport(
     historyByEntry.set(h.entry_id, list);
   }
 
+  // One bulk lookup over the aircraft reference table for every distinct
+  // registration in the export, so toRow can resolve the ICAO type designator
+  // in O(1) per entry instead of querying once per row.
+  const normRegs = Array.from(new Set(
+    entryRows
+      .map((e) => normReg((e.content as { aircraft?: { registration?: string } }).aircraft?.registration ?? ""))
+      .filter((r) => r.length > 0),
+  ));
+  const icaoTypeByReg = new Map<string, string>();
+  if (normRegs.length > 0) {
+    const { rows: acRows } = await pool.query(
+      `SELECT regexp_replace(upper(registration), '[^A-Z0-9]', '', 'g') AS norm, icao_type
+         FROM aircraft
+        WHERE regexp_replace(upper(registration), '[^A-Z0-9]', '', 'g') = ANY($1::text[])
+          AND icao_type IS NOT NULL`,
+      [normRegs],
+    );
+    for (const r of acRows) icaoTypeByReg.set(String(r.norm), String(r.icao_type));
+  }
+
   return entryRows.map((e) => {
     const signatures = signaturesByEntry.get(e.id) ?? [];
     const signed = currentValid.has(e.id);
@@ -208,7 +240,7 @@ export async function loadLogbookForExport(
     const signatureMissing = (Boolean(columns.signatureRequired) || anySignature.has(e.id)) && !signed;
     return {
       entryId: e.id as string,
-      row: toRow(e.id as string, e.content, signed, signatureMissing),
+      row: toRow(e.id as string, e.content, signed, signatureMissing, icaoTypeByReg),
       signatures,
       history: historyByEntry.get(e.id) ?? [],
     };
