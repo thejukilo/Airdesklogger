@@ -127,8 +127,8 @@ export async function listUsersForAdmin(): Promise<AdminUserRow[]> {
         (SELECT max(v.content->'columns'->>'date') FROM flight_entry_versions v
            JOIN flight_entries fe ON fe.id = v.entry_id
           WHERE fe.pilot_id = p.id AND fe.voided = false) AS last_flight_at,
-        (SELECT max(occurred_at) FROM account_events ae
-          WHERE ae.user_id = p.id AND ae.event_type IN ('LOGIN','LOGIN_MFA','LOGIN_OK')) AS last_login_at
+        (SELECT max(created_at) FROM account_events ae
+          WHERE ae.user_id = p.id AND ae.event_type = 'LOGIN_SUCCESS') AS last_login_at
        FROM pilots p
       ORDER BY p.created_at DESC NULLS LAST`,
   );
