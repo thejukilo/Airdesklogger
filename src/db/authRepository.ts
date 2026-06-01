@@ -98,12 +98,18 @@ export interface NewUser {
 export async function createUser(u: NewUser): Promise<UserRow> {
   const verificationToken = u.emailVerificationToken ?? randomBytes(24).toString("base64url");
   const address = composeAddress(u.addressStreet, u.addressZip, u.addressCountry);
+  // 3-day trial starts now. State is 'trialing' until the cron expires it.
+  const TRIAL_DAYS = 3;
+  const trialStart = new Date();
+  const trialEnd = new Date(trialStart.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
   const { rows } = await getPool().query(
     `INSERT INTO pilots
        (email, password_hash, name, first_name, last_name, date_of_birth, roles,
         license_number, address, address_street, address_zip, address_country,
-        email_verification_token, signing_public_key, signing_key_wrapped)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING ${USER_COLUMNS}`,
+        email_verification_token, signing_public_key, signing_key_wrapped,
+        subscription_state, trial_started_at, trial_ends_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'trialing',$16,$17)
+     RETURNING ${USER_COLUMNS}`,
     [
       u.email.toLowerCase(),
       u.passwordHash,
@@ -120,6 +126,8 @@ export async function createUser(u: NewUser): Promise<UserRow> {
       verificationToken,
       u.signingPublicKey,
       u.signingKeyWrapped,
+      trialStart.toISOString(),
+      trialEnd.toISOString(),
     ],
   );
   return mapUser(rows[0]);

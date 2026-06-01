@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { RequestError } from "../../src/http/parseEntry.js";
 import { prepareFlightEntry } from "../../src/http/buildEntry.js";
 import { createEntry, listEntriesForPilot } from "../../src/db/repository.js";
-import { requireUser, AuthError } from "../../src/http/auth.js";
+import { requireUser, requireWriteCapability, AuthError } from "../../src/http/auth.js";
 
 /**
  * The logbook collection for the signed-in holder.
@@ -21,6 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     if (req.method === "POST") {
+      await requireWriteCapability(claims.sub);
       const raw = typeof req.body === "string" ? safeJson(req.body) : req.body;
       const prepared = await prepareFlightEntry(raw, claims.sub);
       if (!prepared.ok) {

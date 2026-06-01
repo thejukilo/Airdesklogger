@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, Link, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "./auth";
 import { ClockSkewBanner } from "./components/ClockSkewBanner";
+import { SubscriptionBanner } from "./components/SubscriptionBanner";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Landing } from "./pages/Landing";
@@ -136,6 +137,7 @@ function Shell({ children }: { children: ReactNode }) {
           <UserMenu />
         </div>
         <ClockSkewBanner />
+        <SubscriptionBanner />
       </header>
       <main className="mx-auto max-w-screen-2xl px-4 py-6">{children}</main>
     </div>

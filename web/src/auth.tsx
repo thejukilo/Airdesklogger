@@ -3,6 +3,8 @@ import * as api from "./api";
 
 interface AuthState {
   user: api.SessionUser | null;
+  /** Full profile including subscription state. Loaded lazily after sign-in. */
+  profile: api.Profile | null;
   mfaEnabled: boolean;
   loading: boolean;
   /** True when the session was dropped because the token expired, for a notice on login. */
@@ -11,6 +13,7 @@ interface AuthState {
   logout: () => void;
   setMfaEnabled: (enabled: boolean) => void;
   refreshUser: (user: api.SessionUser) => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -20,9 +23,20 @@ const MFA_KEY = "airdesk.mfa";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<api.SessionUser | null>(null);
+  const [profile, setProfile] = useState<api.Profile | null>(null);
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
+
+  async function loadProfile() {
+    try {
+      const p = await api.getProfile();
+      setProfile(p);
+    } catch {
+      // Profile is non-critical; the banner just won't show until next fetch.
+      setProfile(null);
+    }
+  }
 
   // Restore the session from storage on first load. The token is validated by
   // the API on the next request; here we only rehydrate the cached identity.
@@ -32,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token && cached) {
       setUser(JSON.parse(cached) as api.SessionUser);
       setMfaEnabled(localStorage.getItem(MFA_KEY) === "true");
+      void loadProfile();
     }
     setLoading(false);
   }, []);
@@ -54,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthState>(
     () => ({
       user,
+      profile,
       mfaEnabled,
       loading,
       sessionExpired,
@@ -66,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(res.user ?? null);
         setMfaEnabled(Boolean(res.mfaEnabled));
         setSessionExpired(false);
+        void loadProfile();
         return { mfaRequired: false };
       },
       logout() {
@@ -73,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(USER_KEY);
         localStorage.removeItem(MFA_KEY);
         setUser(null);
+        setProfile(null);
         setMfaEnabled(false);
         setSessionExpired(false);
       },
@@ -84,8 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(USER_KEY, JSON.stringify(next));
         setUser(next);
       },
+      async refreshProfile() {
+        await loadProfile();
+      },
     }),
-    [user, mfaEnabled, loading, sessionExpired],
+    [user, profile, mfaEnabled, loading, sessionExpired],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

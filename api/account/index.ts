@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { getUserById, pilotHasEntries, updateProfile, IdentityLockedError } from "../../src/db/authRepository.js";
+import { getSubscription, type SubscriptionSnapshot } from "../../src/db/subscriptionRepository.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 import type { UserRow } from "../../src/db/authRepository.js";
 
@@ -24,7 +25,7 @@ const Body = z.object({
   mfaRequiredForLogin: z.boolean().optional(),
 });
 
-function publicProfile(u: UserRow, identityLocked: boolean) {
+function publicProfile(u: UserRow, identityLocked: boolean, subscription: SubscriptionSnapshot | null) {
   return {
     id: u.id,
     email: u.email,
@@ -44,6 +45,7 @@ function publicProfile(u: UserRow, identityLocked: boolean) {
     mfaEnabled: u.mfaEnabled,
     mfaRequiredForLogin: u.mfaRequiredForLogin,
     identityLocked,
+    subscription,
   };
 }
 
@@ -57,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(404).json({ error: "Account not found." });
         return;
       }
-      res.status(200).json(publicProfile(user, await pilotHasEntries(claims.sub)));
+      res.status(200).json(publicProfile(user, await pilotHasEntries(claims.sub), await getSubscription(claims.sub)));
       return;
     }
 

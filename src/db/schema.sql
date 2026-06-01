@@ -154,6 +154,27 @@ ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_activated_at   timestamptz;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS mfa_required_for_login boolean NOT NULL DEFAULT false;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_public_key text;
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS signing_key_wrapped text;
+-- Subscription / trial state (single plan, CHF 5.99/month, 3-day trial). The
+-- subscription_state is the source of truth for the write-gate; trial_ends_at
+-- drives the in-app banner countdown and the daily expire cron. No PSP fields
+-- yet - those land when the payment integration ships.
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS subscription_state text
+  NOT NULL DEFAULT 'trialing'
+  CHECK (subscription_state IN ('trialing','active','past_due','cancelled','read_only'));
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS trial_started_at timestamptz;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS trial_ends_at    timestamptz;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS subscription_started_at timestamptz;
+ALTER TABLE pilots ADD COLUMN IF NOT EXISTS subscription_period_end  timestamptz;
+CREATE INDEX IF NOT EXISTS idx_pilots_trial_ends ON pilots(trial_ends_at)
+  WHERE subscription_state = 'trialing';
+-- One-off backfill: grandfather every pre-existing account so it is not
+-- caught by the trial gate the moment this migration runs. New accounts get
+-- trial_started_at set explicitly in createUser(); a pre-existing one has
+-- NULL there and is therefore a tester, the owner, or a test fixture.
+UPDATE pilots
+   SET subscription_state = 'active'
+ WHERE subscription_state = 'trialing'
+   AND trial_started_at IS NULL;
 -- Password reset: a hashed, single-use, time-limited token (FOCA-agnostic, a
 -- standard account-recovery measure). The token itself is only ever emailed.
 ALTER TABLE pilots ADD COLUMN IF NOT EXISTS password_reset_token_hash  text;

@@ -4,7 +4,7 @@ import { getUserById } from "../../src/db/authRepository.js";
 import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type ChangeLogRow, type ChangeLogSnapshot, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
 import { formatAttributeRows } from "../../src/pdf/attributeLines.js";
 import { zonedUtcToWallClock } from "../../src/domain/localTime.js";
-import { requireUser, AuthError } from "../../src/http/auth.js";
+import { requireUser, requireWriteCapability, AuthError } from "../../src/http/auth.js";
 
 /**
  * Build a ChangeLogSnapshot from a stored version content payload. The
@@ -62,6 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
   try {
     const claims = await requireUser(req);
+    await requireWriteCapability(claims.sub);
     const user = await getUserById(claims.sub);
     if (!user) {
       res.status(404).json({ error: "Account not found." });

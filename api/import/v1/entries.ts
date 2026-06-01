@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
+import { userCanWrite } from "../../../src/db/subscriptionRepository.js";
 import {
   bearerToken,
   clientIp,
@@ -68,6 +69,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
   if (token.scope !== "entries:append") {
     res.status(403).json({ error: `Token scope ${token.scope} cannot write entries.` });
+    return;
+  }
+  // The import API writes to the token-owner's logbook, not the caller's. Gate
+  // on the owner's subscription state so a school cannot push flights into a
+  // logbook whose owner has stopped paying.
+  if (!(await userCanWrite(token.userId))) {
+    res.status(402).json({ error: "Holder's subscription does not allow new writes." });
     return;
   }
 

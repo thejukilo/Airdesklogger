@@ -107,9 +107,11 @@ function Dashboard() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4">
       <h1 className="text-xl font-semibold">Admin</h1>
       {error && <Alert>{error}</Alert>}
+
+      <UsersCard />
 
       <Card>
         <div className="mb-3 flex items-center justify-between">
@@ -290,4 +292,169 @@ function DangerZone({
       </div>
     </Card>
   );
+}
+
+/**
+ * Customer-side overview: every user with their subscription state, trial
+ * countdown, flight count, last activity and MFA status. Gated by a TOTP code
+ * step-up: the caller is already an authenticated admin via the route guard,
+ * but every load of this card re-prompts for the 6-digit code so the data
+ * here is never visible from an idle, abandoned session.
+ */
+function UsersCard() {
+  const [mfaCode, setMfaCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [users, setUsers] = useState<api.AdminUserRow[] | null>(null);
+  const [q, setQ] = useState("");
+
+  async function load(e?: FormEvent) {
+    if (e) e.preventDefault();
+    if (!/^\d{6}$/.test(mfaCode)) {
+      setErr("Enter the 6-digit code from your authenticator.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const { users } = await api.adminListUsers(mfaCode);
+      setUsers(users);
+      setMfaCode("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not load users.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!users) {
+    return (
+      <Card>
+        <h2 className="mb-2 font-medium">Users</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          Confirm your 6-digit code to reveal the user list. Every load re-prompts.
+        </p>
+        {err && <Alert>{err}</Alert>}
+        <form onSubmit={load} className="flex items-end gap-2">
+          <Field
+            label="Authenticator code"
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            inputMode="numeric"
+            placeholder="123456"
+            autoComplete="one-time-code"
+          />
+          <Button type="submit" disabled={busy || mfaCode.length !== 6}>
+            {busy ? "Verifying..." : "Show users"}
+          </Button>
+        </form>
+      </Card>
+    );
+  }
+
+  const filtered = users.filter(
+    (u) =>
+      !q ||
+      u.email.toLowerCase().includes(q.toLowerCase()) ||
+      u.name.toLowerCase().includes(q.toLowerCase()),
+  );
+
+  const counts = users.reduce(
+    (acc, u) => {
+      acc[u.subscription.state] = (acc[u.subscription.state] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-medium">Users ({users.length})</h2>
+        <button
+          type="button"
+          onClick={() => setUsers(null)}
+          className="text-xs text-slate-500 underline"
+        >
+          Hide (require code again)
+        </button>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2 text-xs">
+        {[
+          ["trialing", "amber"],
+          ["active", "emerald"],
+          ["past_due", "amber"],
+          ["cancelled", "slate"],
+          ["read_only", "rose"],
+        ].map(([state, color]) => (
+          <span
+            key={state}
+            className={`rounded-full px-2 py-0.5 font-medium bg-${color}-50 text-${color}-800`}
+          >
+            {state}: {counts[state] ?? 0}
+          </span>
+        ))}
+      </div>
+      <input
+        type="search"
+        placeholder="Filter by email or name..."
+        className="mb-3 w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-2 py-2 text-left">Name / email</th>
+              <th className="px-2 py-2 text-left">State</th>
+              <th className="px-2 py-2 text-right">Trial ends</th>
+              <th className="px-2 py-2 text-right">Flights</th>
+              <th className="px-2 py-2 text-right">Last login</th>
+              <th className="px-2 py-2 text-center">MFA</th>
+              <th className="px-2 py-2 text-center">Email ✓</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((u) => (
+              <tr key={u.id} className="border-t border-slate-100">
+                <td className="px-2 py-2">
+                  <div className="font-medium">{u.name}</div>
+                  <div className="text-xs text-slate-500">{u.email}</div>
+                </td>
+                <td className="px-2 py-2"><StateChip state={u.subscription.state} /></td>
+                <td className="px-2 py-2 text-right tabular-nums text-xs">
+                  {u.subscription.trialEndsAt ? u.subscription.trialEndsAt.slice(0, 10) : "—"}
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums">{u.flightCount}</td>
+                <td className="px-2 py-2 text-right text-xs text-slate-500">
+                  {u.lastLoginAt ? u.lastLoginAt.slice(0, 10) : "—"}
+                </td>
+                <td className="px-2 py-2 text-center">{u.mfaEnabled ? "✓" : ""}</td>
+                <td className="px-2 py-2 text-center">{u.emailVerified ? "✓" : ""}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-2 py-6 text-center text-slate-400">
+                  No users match.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function StateChip({ state }: { state: api.SubscriptionState }) {
+  const map: Record<api.SubscriptionState, string> = {
+    trialing: "bg-amber-50 text-amber-800",
+    active: "bg-emerald-50 text-emerald-800",
+    past_due: "bg-amber-100 text-amber-900",
+    cancelled: "bg-slate-100 text-slate-700",
+    read_only: "bg-rose-50 text-rose-800",
+  };
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${map[state]}`}>{state}</span>;
 }

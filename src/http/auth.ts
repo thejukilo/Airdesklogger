@@ -9,6 +9,7 @@
 
 import { verifySession, type SessionClaims } from "../auth/tokens.js";
 import { getJwtSecret } from "../config.js";
+import { userCanWrite } from "../db/subscriptionRepository.js";
 
 export interface IncomingLike {
   headers: Record<string, string | string[] | undefined>;
@@ -43,6 +44,22 @@ export async function requireUser(req: IncomingLike): Promise<SessionClaims> {
     return await verifySession(token, getJwtSecret());
   } catch {
     throw new AuthError("Invalid or expired session.");
+  }
+}
+
+/**
+ * Throws AuthError 402 (Payment Required) when the holder's subscription
+ * state does not allow writes. Called by every write endpoint at the same
+ * point as requireUser. Read endpoints and DELETE-as-void are intentionally
+ * not gated - the holder can always view and clean up their own data.
+ */
+export async function requireWriteCapability(userId: string): Promise<void> {
+  const ok = await userCanWrite(userId);
+  if (!ok) {
+    throw new AuthError(
+      "Your trial has ended. Subscribe to keep logging flights.",
+      402,
+    );
   }
 }
 

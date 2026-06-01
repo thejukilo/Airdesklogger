@@ -391,6 +391,42 @@ export interface Profile {
   mfaRequiredForLogin: boolean;
   /** True once any flight has been logged: name and DOB become read-only. */
   identityLocked: boolean;
+  /** Subscription / trial state. Drives the in-app banner and the write gate. */
+  subscription: Subscription | null;
+}
+
+export type SubscriptionState =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "cancelled"
+  | "read_only";
+
+export interface Subscription {
+  state: SubscriptionState;
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  subscriptionStartedAt: string | null;
+  subscriptionPeriodEnd: string | null;
+  trialMinutesRemaining: number | null;
+}
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+  emailVerified: boolean;
+  mfaEnabled: boolean;
+  roles: string[];
+  subscription: Subscription;
+  flightCount: number;
+  lastFlightAt: string | null;
+  lastLoginAt: string | null;
+}
+
+export function adminListUsers(mfaCode: string): Promise<{ users: AdminUserRow[] }> {
+  return request("/admin/users", { method: "GET", headers: { "X-MFA-Code": mfaCode } });
 }
 
 export function getProfile(): Promise<Profile> {

@@ -13,7 +13,7 @@ import {
 } from "../../src/db/repository.js";
 import type { SignerRole } from "../../src/domain/signature.js";
 import { canEditOwnLogbook } from "../../src/auth/roles.js";
-import { requireUser, AuthError } from "../../src/http/auth.js";
+import { requireUser, requireWriteCapability, AuthError } from "../../src/http/auth.js";
 import { sendEntryReopenedEmail } from "../../src/http/email.js";
 
 const SIGNER_ROLES = ["INSTRUCTOR", "EXAMINER", "ATO", "DTO", "HOT", "AIRPORT"];
@@ -61,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(403).json({ error: "Only the holder may amend their logbook." });
         return;
       }
+      await requireWriteCapability(claims.sub);
       const raw = typeof req.body === "string" ? safeJson(req.body) : req.body;
       const prepared = await prepareFlightEntry(raw, claims.sub, { excludeEntryId: entryId });
       if (!prepared.ok) {

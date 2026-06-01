@@ -7,7 +7,7 @@ import { getUserById, logAccountEvent, type UserRow } from "../../../src/db/auth
 import { getEntryMeta, signCurrentVersion } from "../../../src/db/repository.js";
 import { signEntry } from "../../../src/domain/signature.js";
 import { getSigningMasterKey } from "../../../src/config.js";
-import { requireUser, AuthError, clientIp, type IncomingLike } from "../../../src/http/auth.js";
+import { requireUser, requireWriteCapability, AuthError, clientIp, type IncomingLike } from "../../../src/http/auth.js";
 
 /**
  * Counter-sign one entry, or several at once, which permanently locks them.
@@ -128,6 +128,14 @@ async function signOne(
   if (!meta) return { entryId, ok: false, status: 404, error: "Entry not found." };
   if (meta.pilotId === user.id) {
     return { entryId, ok: false, status: 403, error: "You cannot countersign your own logbook entry." };
+  }
+  // Signing creates a row in the holder's logbook (signatures + lock state),
+  // which is a write against THEIR account. If the holder's trial is over and
+  // they're read-only, even a signer can't add to their logbook.
+  try {
+    await requireWriteCapability(meta.pilotId);
+  } catch (err) {
+    return { entryId, ok: false, status: 402, error: err instanceof Error ? err.message : "Holder's subscription does not allow new writes." };
   }
   if (meta.locked) return { entryId, ok: false, status: 409, error: "Entry is already locked." };
 

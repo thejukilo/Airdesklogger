@@ -9,5 +9,8 @@
     "api/admin/seed-aircraft-europe.ts": { "includeFiles": "src/data/aircraftEurope.csv" },
     "api/admin/seed-simulators.ts": { "includeFiles": "src/data/simulators.csv" }
   },
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "crons": [
+    { "path": "/api/cron/expire-trials", "schedule": "0 3 * * *" }
+  ]
 }
