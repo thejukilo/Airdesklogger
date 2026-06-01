@@ -3,12 +3,22 @@ import { loadLogbookForExport, loadDeletionsForExport } from "../../src/db/expor
 import { getUserById } from "../../src/db/authRepository.js";
 import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type ChangeLogRow, type ChangeLogSnapshot, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
 import { formatAttributeRows } from "../../src/pdf/attributeLines.js";
+import { zonedUtcToWallClock } from "../../src/domain/localTime.js";
 import { requireUser, AuthError } from "../../src/http/auth.js";
 
-/** Build a ChangeLogSnapshot from a stored version content payload. */
-function snapshotFromContent(content: Record<string, unknown>): ChangeLogSnapshot {
+/**
+ * Build a ChangeLogSnapshot from a stored version content payload. The
+ * optional `airportTz` is the IANA timezone of the version's departure
+ * aerodrome; when the holder entered the time in local civil time, the stored
+ * UTC instant is projected back to wall-clock at that zone before rendering,
+ * with an "L" suffix instead of "Z". Without a tz (ZZZZ, unknown aerodrome)
+ * the stored time is shown as-is with whichever suffix matches the flags.
+ */
+function snapshotFromContent(content: Record<string, unknown>, airportTz?: string): ChangeLogSnapshot {
   const cols = (content.columns ?? {}) as Record<string, unknown>;
   const ac = (content.aircraft ?? {}) as { registration?: string; makeModelVariant?: string };
+  const timesLocal = Boolean(cols.timesLocal);
+  const enteredLocal = Boolean(cols.enteredInLocalTime);
   const hhmm = (m: unknown): string => {
     const n = Number(m ?? 0);
     if (!Number.isFinite(n) || n <= 0) return "00:00";
@@ -16,7 +26,11 @@ function snapshotFromContent(content: Record<string, unknown>): ChangeLogSnapsho
   };
   const clockZ = (v: unknown): string => {
     const s = typeof v === "string" ? v : "";
-    return s.length >= 16 ? `${s.slice(11, 16)}Z` : "";
+    if (s.length < 16) return "";
+    if (enteredLocal && airportTz && !timesLocal) {
+      return zonedUtcToWallClock(s, airportTz).slice(11, 16) + "L";
+    }
+    return s.slice(11, 16) + (timesLocal || enteredLocal ? "L" : "Z");
   };
   return {
     date: String(cols.date ?? ""),
@@ -97,8 +111,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         // full before/after snapshot of every column on the AMC1 FCL.050 row,
         // so an auditor can read the original vs the new entry verbatim.
         const isEdit = prev !== null;
-        const before = prev ? snapshotFromContent(prev.content) : undefined;
-        const after = isEdit ? snapshotFromContent(v.content) : undefined;
+        // Reuse the entry's resolved departure-aerodrome tz for both versions;
+        // they share the same departure place in the overwhelmingly common
+        // case (an amendment doesn't change the aerodrome).
+        const tz = e.row.airportTz;
+        const before = prev ? snapshotFromContent(prev.content, tz) : undefined;
+        const after = isEdit ? snapshotFromContent(v.content, tz) : undefined;
         changeLog.push({
           entry: ref,
           version: `v${v.versionNo}`,

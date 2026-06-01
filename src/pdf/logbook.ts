@@ -27,6 +27,7 @@ import {
 } from "pdf-lib";
 import { formatHHMM } from "../domain/duration.js";
 import { formatLogbookDate } from "../domain/time.js";
+import { zonedUtcToWallClock } from "../domain/localTime.js";
 import { paginate, type ColumnTotals, type LogbookPage } from "../domain/totals.js";
 import type { DerivedColumns } from "../domain/types.js";
 import type { SummableField } from "../domain/columns.js";
@@ -42,8 +43,18 @@ interface LeafColumn {
 
 const MIN = (m: number) => (m > 0 ? formatHHMM(m) : "");
 const NUM = (n: number) => (n > 0 ? String(n) : "");
-// HH:MM with Z for UTC, or L when the time is stored as local (could not be converted).
-const TIME = (d: Date, e: DerivedColumns) => d.toISOString().slice(11, 16) + (e.timesLocal ? "L" : "Z");
+// HH:MM with Z for UTC, or L when the holder entered the time in local civil
+// time at the aerodrome. When the conversion to UTC succeeded the stored
+// instant is projected back to wall-clock at the departure aerodrome's IANA
+// zone before being formatted, so the holder sees the value they typed; when
+// it didn't (timesLocal=true, e.g. a ZZZZ aerodrome), the stored value is
+// already wall-clock and rendered as-is.
+const TIME = (d: Date, e: DerivedColumns & { airportTz?: string }): string => {
+  if (e.enteredInLocalTime && e.airportTz && !e.timesLocal) {
+    return zonedUtcToWallClock(d.toISOString(), e.airportTz).slice(11, 16) + "L";
+  }
+  return d.toISOString().slice(11, 16) + (e.timesLocal || e.enteredInLocalTime ? "L" : "Z");
+};
 
 const DEFAULT_COLUMNS: LeafColumn[] = [
   { group: "DATE", sub: "dd/mm/yy", width: 58, value: (e) => formatLogbookDate(e.departureTime) },
@@ -236,6 +247,8 @@ export interface LogbookEntryForPdf extends DerivedColumns {
   signatureMissing?: boolean;
   /** True when the entry has at least one logged change after creation (post-48h amendment). */
   edited?: boolean;
+  /** IANA timezone of the departure aerodrome, used to project stored UTC back to local wall-clock for the L suffix. */
+  airportTz?: string;
 }
 
 export interface PdfOptions {

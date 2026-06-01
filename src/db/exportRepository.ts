@@ -14,6 +14,8 @@ import { verifySignature } from "../domain/signature.js";
 import type { SignerRole } from "../domain/signature.js";
 import type { DerivedColumns } from "../domain/types.js";
 import type { LogbookEntryForPdf } from "../pdf/logbook.js";
+import { timezoneAt } from "../http/timezone.js";
+import { isNoLocationIndicator } from "../domain/icao.js";
 
 export interface ExportSignature {
   signerName: string;
@@ -61,6 +63,7 @@ function toRow(
   signed: boolean,
   signatureMissing: boolean,
   icaoTypeByReg: Map<string, string>,
+  airportTzByIcao: Map<string, string>,
 ): LogbookEntryForPdf {
   const columns = reviveColumns(content.columns as Record<string, unknown>);
   const aircraft = content.aircraft as { makeModelVariant?: string; registration?: string } | undefined;
@@ -71,6 +74,10 @@ function toRow(
   // stays as a fallback when the reference table has no match.
   const registration = aircraft?.registration ?? "";
   const icaoType = registration ? icaoTypeByReg.get(normReg(registration)) : undefined;
+  // IANA timezone of the departure aerodrome, so the PDF can project the
+  // stored UTC instant back to local wall-clock when the holder originally
+  // entered the time in local civil time. ZZZZ legs have no tz.
+  const tz = airportTzByIcao.get(String(columns.departurePlace ?? "").toUpperCase());
   return {
     ...columns,
     entryId,
@@ -79,6 +86,7 @@ function toRow(
     picName: (content.picName as string) ?? "",
     remarks: (content.remarks as string) ?? "",
     signed,
+    ...(tz ? { airportTz: tz } : {}),
     signatureMissing,
   };
 }
@@ -231,6 +239,29 @@ export async function loadLogbookForExport(
     for (const r of acRows) icaoTypeByReg.set(String(r.norm), String(r.icao_type));
   }
 
+  // Same trick for departure-aerodrome timezones: gather every distinct ICAO
+  // appearing on a stored column, pull its coords from the airports table in
+  // one query, then resolve to an IANA timezone via the existing tz-lookup
+  // wrapper. The PDF uses this to project stored UTC back to local wall-clock
+  // when the holder originally entered the time in local civil time.
+  const icaos = Array.from(new Set(
+    entryRows
+      .map((e) => String(((e.content as { columns?: { departurePlace?: string } }).columns?.departurePlace) ?? "").toUpperCase())
+      .filter((i) => i.length === 4 && !isNoLocationIndicator(i)),
+  ));
+  const airportTzByIcao = new Map<string, string>();
+  if (icaos.length > 0) {
+    const { rows: apRows } = await pool.query(
+      `SELECT icao, latitude, longitude FROM airports
+        WHERE icao = ANY($1::text[]) AND latitude IS NOT NULL AND longitude IS NOT NULL`,
+      [icaos],
+    );
+    for (const r of apRows) {
+      const tz = timezoneAt(Number(r.latitude), Number(r.longitude));
+      if (tz) airportTzByIcao.set(String(r.icao).toUpperCase(), tz);
+    }
+  }
+
   return entryRows.map((e) => {
     const signatures = signaturesByEntry.get(e.id) ?? [];
     const signed = currentValid.has(e.id);
@@ -240,7 +271,7 @@ export async function loadLogbookForExport(
     const signatureMissing = (Boolean(columns.signatureRequired) || anySignature.has(e.id)) && !signed;
     return {
       entryId: e.id as string,
-      row: toRow(e.id as string, e.content, signed, signatureMissing, icaoTypeByReg),
+      row: toRow(e.id as string, e.content, signed, signatureMissing, icaoTypeByReg, airportTzByIcao),
       signatures,
       history: historyByEntry.get(e.id) ?? [],
     };
