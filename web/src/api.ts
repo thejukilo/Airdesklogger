@@ -348,6 +348,21 @@ export interface AirportRef {
   icao: string;
   name: string;
   country: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+/**
+ * Resolve an exact ICAO to its coords (and metadata). Used by the Log-a-flight
+ * form to decide whether a flight crosses civil twilight and the landings
+ * field should split into day and night inputs. Returns null when the airport
+ * isn't in our reference table.
+ */
+export async function findAirport(icao: string): Promise<AirportRef | null> {
+  const normalized = icao.trim().toUpperCase();
+  if (normalized.length !== 4) return null;
+  const { airports } = await searchAirports(normalized);
+  return airports.find((a) => a.icao === normalized) ?? null;
 }
 
 export function searchAirports(q: string): Promise<{ airports: AirportRef[] }> {

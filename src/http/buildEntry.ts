@@ -161,7 +161,14 @@ async function computeNight(input: FlightEntryInput): Promise<number> {
 }
 
 async function classifyLandings(input: FlightEntryInput): Promise<{ day: number; night: number }> {
-  const total = (input.landings.day || 0) + (input.landings.night || 0);
+  const day = input.landings.day || 0;
+  const night = input.landings.night || 0;
+  // Trust an explicit day/night split (typically supplied by the SPA when the
+  // flight crosses civil twilight, so a multi-leg or sunset-crossing flight
+  // can record landings in both buckets). When only one bucket is non-zero we
+  // fall back to the original auto-classification against the final arrival.
+  if (day > 0 && night > 0) return { day, night };
+  const total = day + night;
   if (total === 0) return { day: 0, night: 0 };
   const lastLeg = input.legs[input.legs.length - 1]!;
   const coords = await getAirportCoords(lastLeg.arrivalPlace);

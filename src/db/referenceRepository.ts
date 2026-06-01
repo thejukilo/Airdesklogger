@@ -49,11 +49,17 @@ export async function getAirportCoords(
 
 export async function searchAirports(query: string, limit = 20): Promise<Airport[]> {
   const { rows } = await getPool().query(
-    `SELECT icao, name, country FROM airports
+    `SELECT icao, name, country, latitude, longitude FROM airports
       WHERE icao ILIKE $1 OR name ILIKE $1 ORDER BY icao LIMIT $2`,
     [`%${query}%`, limit],
   );
-  return rows.map((r) => ({ icao: r.icao, name: r.name, country: r.country ?? null }));
+  return rows.map((r) => ({
+    icao: r.icao,
+    name: r.name,
+    country: r.country ?? null,
+    latitude: r.latitude !== null ? Number(r.latitude) : null,
+    longitude: r.longitude !== null ? Number(r.longitude) : null,
+  }));
 }
 
 export interface AircraftRecord {

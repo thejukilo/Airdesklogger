@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
 import { Button, Card, Field, Select } from "../components/ui";
 import { SEVERE_SKEW_MS, useClockSkew } from "../lib/clockSkew";
+import { spansTwilight } from "../lib/twilight";
 import { CATEGORY_LABELS } from "../labels";
 import { ATTR_SPEC, type AttrCategory, type AttrGroup, type AttrItem, type AttrSubGroup } from "../lib/attributesSpec";
 import { SimulatorSession } from "./SimulatorSession";
@@ -621,6 +622,11 @@ const empty = {
   inflations: 1,
   seriesTime: "",
   landings: 1,
+  // Separate day/night counts, used when the flight crosses civil twilight at
+  // the arrival aerodrome. When the form is in the single-input mode these
+  // are not read; on submit `landings` is what the server sees.
+  dayLandings: 1,
+  nightLandings: 0,
   picName: "SELF",
   remarks: "",
   attributes: [] as string[],
@@ -654,6 +660,8 @@ function fromContent(c: api.EntryContent): typeof empty {
     inflations: cols?.inflations ?? 1,
     seriesTime: cols?.flightTimeMinutes ? fmtHHMM(cols.flightTimeMinutes) : "",
     landings: (cols?.dayLandings ?? 0) + (cols?.nightLandings ?? 0),
+    dayLandings: cols?.dayLandings ?? 0,
+    nightLandings: cols?.nightLandings ?? 0,
     picName: c.picName ?? "SELF",
     remarks: c.remarks ?? "",
     attributes: migrateLegacyAttributes(cols?.attributes ?? [], cols?.attributeDetails),
@@ -761,6 +769,51 @@ export function NewEntry() {
   // Calculated flight time from the block times, used as the ceiling for a
   // series of flights (which may only be logged with a reduced time).
   const computedBlock = f.blockStart && f.blockEnd ? blockMinutes(f.date || "1970-01-01", f.blockStart, f.blockEnd) : 0;
+
+  // Civil-twilight detection: if the flight starts during the day and lands at
+  // night (or vice versa) at the arrival aerodrome, the landings field splits
+  // into day and night inputs so the pilot can record intermediate landings
+  // accurately. arrivalCoords is fetched lazily on each ICAO change.
+  const [arrivalCoords, setArrivalCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const icao = f.arrivalPlace.trim().toUpperCase();
+    if (icao.length !== 4 || icao === "ZZZZ") { setArrivalCoords(null); return; }
+    api.findAirport(icao)
+      .then((row) => {
+        if (cancelled) return;
+        if (row && row.latitude != null && row.longitude != null) {
+          setArrivalCoords({ latitude: row.latitude, longitude: row.longitude });
+        } else {
+          setArrivalCoords(null);
+        }
+      })
+      .catch(() => { if (!cancelled) setArrivalCoords(null); });
+    return () => { cancelled = true; };
+  }, [f.arrivalPlace]);
+  const splitLandings = (() => {
+    if (!arrivalCoords) return false;
+    if (!f.blockStart || !f.blockEnd || !f.date) return false;
+    const dep = new Date(`${f.date}T${f.blockStart}:00Z`);
+    const arrDate = f.blockEnd > f.blockStart ? f.date : nextDay(f.date);
+    const arr = new Date(`${arrDate}T${f.blockEnd}:00Z`);
+    if (Number.isNaN(dep.getTime()) || Number.isNaN(arr.getTime())) return false;
+    return spansTwilight(dep, arr, arrivalCoords);
+  })();
+  // Keep day+night in sync with the single-input total when toggling modes.
+  useEffect(() => {
+    if (splitLandings) {
+      // entering split mode: seed from the single total if both sub-fields are empty
+      if (f.dayLandings === 0 && f.nightLandings === 0 && f.landings > 0) {
+        setF((prev) => ({ ...prev, dayLandings: prev.landings, nightLandings: 0 }));
+      }
+    } else {
+      // leaving split mode: collapse to the single total
+      const total = (f.dayLandings || 0) + (f.nightLandings || 0);
+      if (total !== f.landings) setF((prev) => ({ ...prev, landings: total }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitLandings]);
   // The entered series time, in minutes; extending beyond the calculated block
   // time is not allowed and is flagged rather than silently clamped.
   const seriesMinutes = parseHHMM(f.seriesTime);
@@ -997,7 +1050,9 @@ export function NewEntry() {
           },
         ],
         picName: f.picName,
-        landings: { day: Number(f.landings), night: 0 },
+        landings: splitLandings
+          ? { day: Number(f.dayLandings), night: Number(f.nightLandings) }
+          : { day: Number(f.landings), night: 0 },
         conditions: { night: 0, ifr },
         function: {
           primary: fn.primary,
@@ -1287,14 +1342,22 @@ export function NewEntry() {
 
         <Section title="Landings and time">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field label="Landings" type="number" min={0} inputMode="numeric" value={f.landings} onChange={(e) => set("landings", Number(e.target.value))} />
+            {splitLandings ? (
+              <>
+                <Field label="Landings (day)" type="number" min={0} inputMode="numeric" value={f.dayLandings} onChange={(e) => set("dayLandings", Number(e.target.value))} />
+                <Field label="Landings (night)" type="number" min={0} inputMode="numeric" value={f.nightLandings} onChange={(e) => set("nightLandings", Number(e.target.value))} />
+              </>
+            ) : (
+              <Field label="Landings" type="number" min={0} inputMode="numeric" value={f.landings} onChange={(e) => set("landings", Number(e.target.value))} />
+            )}
             {isBalloon && (
               <Field label="Inflations" type="number" min={0} inputMode="numeric" value={f.inflations} onChange={(e) => set("inflations", Number(e.target.value))} />
             )}
           </div>
           <p className="text-xs text-slate-500">
-            Night time, and whether the landings count as day or night, are worked out automatically from the
-            aerodrome positions and the block times.
+            {splitLandings
+              ? "This flight crosses civil twilight at the arrival aerodrome, so day and night landings are entered separately."
+              : "Night time, and whether the landings count as day or night, are worked out automatically from the aerodrome positions and the block times."}
           </p>
         </Section>
 
