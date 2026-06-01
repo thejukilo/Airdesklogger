@@ -20,6 +20,9 @@ export function Register() {
   const [busy, setBusy] = useState(false);
   const [verifyToken, setVerifyToken] = useState<string | null>(null);
   const [emailed, setEmailed] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string>("");
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendNote, setResendNote] = useState<string | null>(null);
 
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -44,8 +47,12 @@ export function Register() {
         ...(form.licenseNumber ? { licenseNumber: form.licenseNumber } : {}),
       });
       // The account must confirm its email before it can sign in (FOCA 2.1.3).
-      setVerifyToken(res.emailVerificationToken);
+      // In production, the server only sends the verification link by email -
+      // emailVerificationToken comes back only as a developer fallback when
+      // SMTP is not configured, never in production.
+      setVerifyToken(res.emailVerificationToken ?? null);
       setEmailed(res.emailed);
+      setSubmittedEmail(form.email);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the account.");
     } finally {
@@ -53,21 +60,64 @@ export function Register() {
     }
   }
 
-  if (verifyToken) {
+  async function resend() {
+    setResendNote(null);
+    setResendBusy(true);
+    try {
+      await api.resendVerification(submittedEmail);
+      setResendNote(`We just sent another verification email to ${submittedEmail}.`);
+    } catch (err) {
+      setResendNote(err instanceof Error ? err.message : "Could not resend the email.");
+    } finally {
+      setResendBusy(false);
+    }
+  }
+
+  if (submittedEmail) {
     return (
       <div className="mx-auto max-w-sm pt-10">
-        <h1 className="mb-4 text-xl font-semibold">Confirm your email</h1>
+        <h1 className="mb-4 text-xl font-semibold">Check your inbox</h1>
         <Card>
           <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              Your account was created. Before you can sign in, confirm your email address.
-              {emailed
-                ? ` A verification link was sent to ${form.email}.`
-                : " Use the button below to confirm."}
-            </p>
-            <Link to={`/verify?token=${encodeURIComponent(verifyToken)}`}>
-              <Button className="w-full">Verify now</Button>
-            </Link>
+            {emailed ? (
+              <>
+                <p>
+                  Your account was created. We sent a verification link to{" "}
+                  <span className="font-medium text-slate-800">{submittedEmail}</span>.
+                  Open the email and click the link to activate the account.
+                </p>
+                <p className="text-xs text-slate-500">
+                  Didn't get it? Check your spam folder. The link expires after 24 hours.
+                </p>
+                <Button className="w-full" onClick={resend} disabled={resendBusy}>
+                  {resendBusy ? "Resending..." : "Resend verification email"}
+                </Button>
+                {resendNote && (
+                  <p className="text-xs text-slate-600">{resendNote}</p>
+                )}
+              </>
+            ) : verifyToken ? (
+              <>
+                <p>
+                  Your account was created, but the verification email could not be sent
+                  (SMTP is not configured on this environment).
+                </p>
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <strong>Developer fallback:</strong> the link below appears only when no
+                  email could be delivered. In production it is never shown.
+                </p>
+                <Link to={`/verify?token=${encodeURIComponent(verifyToken)}`}>
+                  <Button className="w-full">Verify (developer link)</Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <p>
+                  Your account was created but the verification email could not be sent
+                  and no fallback is available. Please contact support.
+                </p>
+              </>
+            )}
           </div>
         </Card>
       </div>

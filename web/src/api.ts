@@ -99,7 +99,7 @@ export function register(input: {
   addressZip: string;
   addressCountry: string;
   licenseNumber?: string;
-}): Promise<{ id: string; email: string; emailVerificationToken: string; emailed: boolean }> {
+}): Promise<{ id: string; email: string; emailVerificationToken?: string; emailed: boolean }> {
   return request("/auth/register", { method: "POST", body: JSON.stringify(input) });
 }
 

@@ -139,8 +139,12 @@ async function register(req: VercelRequest, res: VercelResponse): Promise<void> 
   const ip = clientIp(req);
   await logAccountEvent({ userId: user.id, email, eventType: "REGISTER", ...(ip !== undefined ? { ip } : {}) });
 
-  // Send the confirmation email if SMTP is configured. The token is also returned
-  // so the link can be shown on screen as a fallback during setup.
+  // Send the confirmation email if SMTP is configured. When the email was
+  // delivered, the verification token is NOT returned to the client - the
+  // holder must open the email to confirm ownership of the address. Only in
+  // a non-production / no-SMTP setup, where the email cannot be delivered,
+  // do we fall back to surfacing the token so a developer can complete the
+  // flow on screen.
   const emailed = await sendVerificationEmail({
     to: email,
     name: user.name,
@@ -152,8 +156,8 @@ async function register(req: VercelRequest, res: VercelResponse): Promise<void> 
     email: user.email,
     name: user.name,
     roles: user.roles,
-    emailVerificationToken,
     emailed,
+    ...(emailed ? {} : { emailVerificationToken }),
   });
 }
 
