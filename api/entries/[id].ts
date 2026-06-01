@@ -67,14 +67,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(prepared.status).json(prepared.body);
         return;
       }
-      // After the grace window the flight time may only be reduced (FOCA 2.3.5).
-      if (!within48h && prepared.derived.total > ctx.total) {
-        res.status(422).json({
-          valid: false,
-          issues: [{ field: "total", message: "After 48 hours the flight time may not be increased. You may only reduce it." }],
-        });
-        return;
-      }
+      // An amendment after the 48-hour grace window is always permitted - the
+      // holder may reduce or increase the flight time - but it is recorded in
+      // the change log (logged = true) so the edit is fully auditable.
       const logged = !within48h;
       const reasonRaw = (raw as { reason?: unknown })?.reason;
       const reason = typeof reasonRaw === "string" && reasonRaw.trim() ? reasonRaw.trim() : "correction";
