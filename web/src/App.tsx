@@ -160,10 +160,15 @@ export function App() {
  * On "/" with no session, render the public landing page bare (it brings its
  * own header and full-bleed sections). Everywhere else falls through to the
  * usual AppShell so the authenticated SPA chrome wraps the page.
+ *
+ * TEMPORARY (FOCA review): unauthenticated "/" redirects to /login so the
+ * approval agent reaches the sign-in form directly. Revert by removing the
+ * Navigate line below and keeping the Landing branch only.
  */
 function MaybeLandingOrShell() {
   const { user, loading } = useAuth();
   const location = useLocation();
+  if (location.pathname === "/" && !user && !loading) return <Navigate to="/login" replace />;
   if (location.pathname === "/" && !user && !loading) return <Landing />;
   return <AppShell />;
 }
