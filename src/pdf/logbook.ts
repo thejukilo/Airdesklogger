@@ -1118,6 +1118,11 @@ function drawGrid(
 
   // Entry rows. Flight rows only; FSTD sessions are listed in their own table.
   const LINK = rgb(0.13, 0.32, 0.78); // approximate Tailwind sky-700, for the "signed" link.
+  // Rose, for the "sign-off req." tag on entries that require a signature
+  // (a check/test attribute, DUAL/PICUS/SPIC, etc.) but do not have a valid
+  // one. FOCA GM/INFO 2.4.6 requires such entries to be clearly indicated on
+  // the export, so this tag is a compliance element, not decoration.
+  const MISSING = rgb(0.70, 0.12, 0.12);
   page.rows.forEach((row, r) => {
     const y = bodyTop - (r + 1) * ROW_H + 5;
     const e = row as LogbookEntryForPdf;
@@ -1148,7 +1153,7 @@ function drawGrid(
         // "attributes" link, "signed" tag, and the amber EDITED
         // chip. The free-text part is drawn clipped to fit the remainder.
         const hasAttrs = hasAppendixAttributes(e);
-        const signTagW = e.signed ? 36 : 0;
+        const signTagW = e.signed ? 36 : e.signatureMissing ? 56 : 0;
         const attrTagW = hasAttrs ? 38 : 0;
         const editTagW = e.edited ? 36 : 0;
         const TAG_W = signTagW + attrTagW + editTagW;
@@ -1177,6 +1182,13 @@ function drawGrid(
               rect: toPdfRect(lx - 1, y - 2, lw + 2, 9),
             });
           }
+          rightCursor -= signTagW;
+        } else if (e.signatureMissing) {
+          // FOCA GM/INFO 2.4.6: an entry that requires a signature but has
+          // none is flagged here so the reviewer sees it on the print-out.
+          const label = "sign-off req.";
+          const lx = rightCursor - signTagW + 2;
+          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: MISSING });
           rightCursor -= signTagW;
         }
         if (hasAttrs) {
