@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
+import { useAuth } from "../auth";
 import { Alert, Button, Card } from "../components/ui";
 
 /**
  * Guided CSV import. Three steps the pilot moves through explicitly:
- *   1. Upload — drop in the filled template, say whether times are UTC or local.
+ *   1. Upload — drop in the filled template, say whether times are UTC or local,
+ *      how the dates are written, and whether the PIC column uses their own name.
  *   2. Review — the server validates every row (no write yet); the pilot sees a
  *      per-row table with the computed total and any errors, so they confirm
  *      exactly what will be added.
@@ -17,11 +19,19 @@ import { Alert, Button, Card } from "../components/ui";
 const TEMPLATE_HEADER =
   "external_id,date,off_block_utc,on_block_utc,departure_icao,arrival_icao,registration,type,engine_class,multi_pilot,category,pic_name,function,day_landings,night_landings,night_minutes,ifr_minutes,instructor_minutes,remarks,attributes";
 
+// The aircraft columns are left blank here on purpose: the importer fills the
+// type, engine class, category and multi-pilot from the registration.
 const TEMPLATE_ROWS = [
-  "LEGACY-000001,2019-04-06,08:15,09:40,LSZH,LSGG,HB-PNT,Cessna 172S,SE,false,AEROPLANE,SELF,PIC,1,0,0,0,0,VFR nav Zurich to Geneva,",
-  "LEGACY-000002,2019-04-13,13:20,14:05,LSGG,LSGG,HB-PNT,Cessna 172S,SE,false,AEROPLANE,M. Schmidt,DUAL,4,0,0,0,45,PPL circuits and stalls,",
-  "LEGACY-000003,2020-11-21,17:30,19:10,LSZB,LSZB,HB-KFG,Piper PA-28-181,SE,false,AEROPLANE,SELF,PIC,0,3,55,0,0,Night rating currency,cross_country",
+  "LEGACY-000001,2019-04-06,08:15,09:40,LSZH,LSGG,HB-PNT,,,,,SELF,PIC,1,0,0,0,0,VFR nav Zurich to Geneva,",
+  "LEGACY-000002,2019-04-13,13:20,14:05,LSGG,LSGG,HB-PNT,,,,,M. Schmidt,DUAL,4,0,0,0,45,PPL circuits,",
+  "LEGACY-000003,2020-11-21,17:30,19:10,LSZB,LSZB,HB-KFG,,,,,SELF,PIC,0,3,55,0,0,Night rating,cross_country",
 ];
+
+const DATE_FORMAT_LABELS: Record<Exclude<api.CsvDateFormat, "auto">, string> = {
+  YMD: "YYYY-MM-DD",
+  DMY: "DD/MM/YYYY (day first)",
+  MDY: "MM/DD/YYYY (month first)",
+};
 
 function hhmm(m: number | null): string {
   if (m === null || !Number.isFinite(m) || m <= 0) return "—";
@@ -96,11 +106,15 @@ function ResultTable({ rows }: { rows: api.CsvImportRow[] }) {
 
 export function ImportLogbook() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("upload");
   const [csv, setCsv] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [timeZone, setTimeZone] = useState<"UTC" | "LOCAL">("UTC");
+  const [dateFormat, setDateFormat] = useState<api.CsvDateFormat>("auto");
+  const [selfEnabled, setSelfEnabled] = useState(true);
+  const [selfName, setSelfName] = useState(user?.name ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<api.CsvImportResult | null>(null);
@@ -124,6 +138,15 @@ export function ImportLogbook() {
     reader.readAsText(file);
   }
 
+  function callOpts(commit: boolean) {
+    return {
+      timeZone,
+      dateFormat,
+      selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
+      commit,
+    };
+  }
+
   async function preview() {
     if (!csv.trim()) {
       setError("Add a CSV file or paste its contents first.");
@@ -132,7 +155,7 @@ export function ImportLogbook() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.importLogbookCsv(csv, { timeZone, commit: false });
+      const r = await api.importLogbookCsv(csv, callOpts(false));
       setResult(r);
       setStep("review");
     } catch (e) {
@@ -146,7 +169,7 @@ export function ImportLogbook() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.importLogbookCsv(csv, { timeZone, commit: true });
+      const r = await api.importLogbookCsv(csv, callOpts(true));
       setResult(r);
       setStep("done");
     } catch (e) {
@@ -176,8 +199,11 @@ export function ImportLogbook() {
                 upload it here. Nothing is added to your logbook until you have reviewed it on the next step.
               </p>
               <p>
-                Times are <strong>UTC</strong> and durations are in <strong>minutes</strong>. Airport codes are
-                4-letter ICAO (use <code className="rounded bg-slate-100 px-1">ZZZZ</code> for a site without one).
+                You only need the <strong>date</strong>, <strong>times</strong>, <strong>airports</strong>,{" "}
+                <strong>registration</strong> and <strong>function</strong>. The aircraft type, engine class
+                and category are filled in from the registration. Durations are in <strong>minutes</strong>;
+                airports are 4-letter ICAO (use <code className="rounded bg-slate-100 px-1">ZZZZ</code> if there
+                is no code).
               </p>
             </div>
 
@@ -204,22 +230,71 @@ export function ImportLogbook() {
                 value={csv}
                 onChange={(e) => { setCsv(e.target.value); setFileName(null); }}
                 rows={6}
-                placeholder="external_id,date,off_block_utc,on_block_utc,departure_icao,..."
+                placeholder="date,off_block_utc,on_block_utc,departure_icao,arrival_icao,registration,function,..."
                 className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
               />
             </label>
 
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium text-slate-700">The times in my file are</legend>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="radio" name="tz" checked={timeZone === "UTC"} onChange={() => setTimeZone("UTC")} />
-                UTC (recommended)
+            <div className="grid gap-5 sm:grid-cols-2">
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium text-slate-700">The times in my file are</legend>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="radio" name="tz" checked={timeZone === "UTC"} onChange={() => setTimeZone("UTC")} />
+                  UTC (recommended)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="radio" name="tz" checked={timeZone === "LOCAL"} onChange={() => setTimeZone("LOCAL")} />
+                  Local time at the airport
+                </label>
+              </fieldset>
+
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Date format in my file</span>
+                <select
+                  value={dateFormat}
+                  onChange={(e) => setDateFormat(e.target.value as api.CsvDateFormat)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                >
+                  <option value="auto">Detect automatically</option>
+                  <option value="YMD">YYYY-MM-DD</option>
+                  <option value="DMY">DD/MM/YYYY (day first)</option>
+                  <option value="MDY">MM/DD/YYYY (month first)</option>
+                </select>
+                <span className="mt-1 block text-xs text-slate-500">
+                  We normalise every date to YYYY-MM-DD and show you the result before importing.
+                </span>
               </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="radio" name="tz" checked={timeZone === "LOCAL"} onChange={() => setTimeZone("LOCAL")} />
-                Local time at the airport (we convert to UTC where the airport is known)
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={selfEnabled}
+                  onChange={(e) => setSelfEnabled(e.target.checked)}
+                />
+                <span>
+                  My own flights list my name in the PIC column. Log those as <strong>myself (SELF)</strong>.
+                </span>
               </label>
-            </fieldset>
+              {selfEnabled && (
+                <label className="mt-2 block text-sm">
+                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    My name as written in the file
+                  </span>
+                  <input
+                    value={selfName}
+                    onChange={(e) => setSelfName(e.target.value)}
+                    placeholder="e.g. your full name"
+                    className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                  />
+                  <span className="mt-1 block text-xs text-slate-500">
+                    Only rows whose PIC exactly matches this become SELF. Instructor names on your dual flights are left as they are.
+                  </span>
+                </label>
+              )}
+            </div>
 
             <div className="flex justify-end">
               <Button onClick={preview} disabled={busy || !csv.trim()}>
@@ -244,6 +319,10 @@ export function ImportLogbook() {
                   </>
                 )}
                 .
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Dates read as <strong>{DATE_FORMAT_LABELS[result.dateFormat]}</strong>. Check the Date column below;
+                if a date looks wrong, go back and set the date format explicitly.
               </p>
               {result.summary.errors > 0 && (
                 <p className="mt-1 text-xs text-slate-500">

@@ -663,8 +663,12 @@ export interface CsvImportRow {
   issues?: Array<{ field: string; message: string }>;
 }
 
+export type CsvDateFormat = "auto" | "YMD" | "DMY" | "MDY";
+
 export interface CsvImportResult {
   committed: boolean;
+  /** The concrete date order that was applied (after auto-detection). */
+  dateFormat: Exclude<CsvDateFormat, "auto">;
   summary: { total: number; ready: number; created: number; errors: number };
   rows: CsvImportRow[];
 }
@@ -672,16 +676,26 @@ export interface CsvImportResult {
 /**
  * Bulk-import a filled-in logbook CSV. With commit=false the server validates
  * every row and returns a per-row preview without writing anything; with
- * commit=true it writes the rows that validate. timeZone says whether the
- * file's times are UTC or local wall-clock.
+ * commit=true it writes the rows that validate.
+ *
+ * - timeZone   says whether the file's times are UTC or local wall-clock.
+ * - dateFormat says how the date column is written ("auto" detects it).
+ * - selfName   is the pilot's own name as it appears in the PIC column;
+ *   matching rows are logged as "SELF". Pass null to disable the substitution.
  */
 export function importLogbookCsv(
   csv: string,
-  opts: { timeZone: "UTC" | "LOCAL"; commit: boolean },
+  opts: { timeZone: "UTC" | "LOCAL"; dateFormat: CsvDateFormat; selfName: string | null; commit: boolean },
 ): Promise<CsvImportResult> {
   return request("/import/csv", {
     method: "POST",
-    body: JSON.stringify({ csv, timeZone: opts.timeZone, commit: opts.commit }),
+    body: JSON.stringify({
+      csv,
+      timeZone: opts.timeZone,
+      dateFormat: opts.dateFormat,
+      selfName: opts.selfName,
+      commit: opts.commit,
+    }),
   });
 }
 

@@ -3,7 +3,8 @@ import { requireUser, requireWriteCapability, AuthError } from "../../src/http/a
 import { prepareFlightEntry } from "../../src/http/buildEntry.js";
 import { RequestError } from "../../src/http/parseEntry.js";
 import { createEntry } from "../../src/db/repository.js";
-import { parseImportCsv, type MappedRow } from "../../src/http/importCsv.js";
+import { getAircraftForFlight } from "../../src/db/referenceRepository.js";
+import { parseImportCsv, type DateFormat, type MappedRow } from "../../src/http/importCsv.js";
 
 /**
  * Self-service CSV logbook import for the signed-in holder.
@@ -15,7 +16,14 @@ import { parseImportCsv, type MappedRow } from "../../src/http/importCsv.js";
  * pipeline (time conversion, night/landing classification, reference and
  * overlap checks, cross-column validation).
  *
- *   POST /api/import/csv   { csv, timeZone?, commit? }
+ *   POST /api/import/csv
+ *     { csv, timeZone?, dateFormat?, selfName?, commit? }
+ *
+ * dateFormat ("auto" by default) says how the date column is written; the
+ * detected order is returned so the UI can show what was assumed. selfName is
+ * the pilot's own name as it appears in the file's PIC column: matching rows
+ * are logged as "SELF". Blank aircraft columns (type, engine class, category,
+ * multi-pilot) are filled from the registration.
  *
  * commit=false (default) is a dry run: nothing is written, and each row comes
  * back marked "ready" or "error" with the derived total so the pilot can review
@@ -55,6 +63,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const body = (typeof req.body === "string" ? safeJson(req.body) : req.body) as {
       csv?: unknown;
       timeZone?: unknown;
+      dateFormat?: unknown;
+      selfName?: unknown;
       commit?: unknown;
     };
 
@@ -64,6 +74,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
     const timeZone: "UTC" | "LOCAL" = body.timeZone === "LOCAL" ? "LOCAL" : "UTC";
+    const dateFormat: DateFormat = ["YMD", "DMY", "MDY", "auto"].includes(body.dateFormat as string)
+      ? (body.dateFormat as DateFormat)
+      : "auto";
+    const selfName = typeof body.selfName === "string" ? body.selfName : null;
     const commit = body.commit === true;
 
     // A commit writes to the logbook, so it needs write capability. A dry-run
@@ -71,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // so a lapsed pilot can still see what an import would do.
     if (commit) await requireWriteCapability(claims.sub);
 
-    const parsed = parseImportCsv(csv);
+    const parsed = parseImportCsv(csv, { dateFormat, selfName });
     if (parsed.fatal) {
       res.status(400).json({ error: parsed.fatal });
       return;
@@ -95,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       errors: results.filter((r) => r.status === "error").length,
     };
 
-    res.status(200).json({ committed: commit, summary, rows: results });
+    res.status(200).json({ committed: commit, dateFormat: parsed.dateFormat, summary, rows: results });
   } catch (err) {
     if (err instanceof AuthError) {
       res.status(err.status).json({ error: err.message });
@@ -107,6 +121,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     throw err;
   }
+}
+
+/**
+ * Fill the aircraft fields the pilot left blank from the reference database.
+ * Returns an error issue when the registration is unknown and something is
+ * still missing (so we can't proceed), otherwise mutates the entry in place.
+ */
+async function resolveAircraft(row: MappedRow): Promise<{ field: string; message: string } | null> {
+  const ac = row.entry!.aircraft;
+  const onDate = row.entry!.legs[0]!.departureTime.slice(0, 10);
+  const rec = await getAircraftForFlight(ac.registration, onDate);
+  if (!rec) {
+    return {
+      field: "aircraft.registration",
+      message: `${ac.registration} is not in the reference database, so its type and class could not be filled in automatically. Add the aircraft in the app first, or fill the type, engine_class and category columns for this flight.`,
+    };
+  }
+  if (ac.makeModelVariant === "") ac.makeModelVariant = rec.model;
+  if (ac.engineClass === "") ac.engineClass = rec.engineCount && rec.engineCount > 1 ? "ME" : "SE";
+  if (ac.multiPilot === null) ac.multiPilot = rec.multiPilot ?? false;
+  if (ac.category === "") ac.category = rec.category;
+  return null;
 }
 
 async function processRow(
@@ -131,6 +167,13 @@ async function processRow(
   }
 
   try {
+    if (row.needsAircraftLookup) {
+      const miss = await resolveAircraft(row);
+      if (miss) return { ...base, issues: [miss] };
+      // Reflect the resolved type back into the preview line.
+      base.aircraft = [row.entry.aircraft.registration, row.entry.aircraft.makeModelVariant].filter(Boolean).join(" ");
+    }
+
     const entryBody = { ...row.entry, ...(opts.timeZone === "LOCAL" ? { timeZone: "LOCAL" as const } : {}) };
     const prepared = await prepareFlightEntry(entryBody, pilotId);
     if (!prepared.ok) {

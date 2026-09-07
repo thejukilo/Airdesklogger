@@ -36,17 +36,17 @@ one already in the logbook is skipped (the overlap guard), never duplicated.
 | Column | Required | Maps to | Notes |
 |---|---|---|---|
 | `external_id` | yes | `externalId` | Any stable unique id per flight. Use a running number like `LEGACY-000001`. Re-importing the same id is a no-op, so a partial run is safe to repeat. |
-| `date` | yes | leg date | `YYYY-MM-DD`, UTC. |
-| `off_block_utc` | yes | `legs[0].departureTime` | `HH:MM`, 24-hour, **UTC**. Combined with `date`. |
-| `on_block_utc` | yes | `legs[0].arrivalTime` | `HH:MM`, 24-hour, UTC. If it is earlier than `off_block_utc` the flight is treated as crossing midnight (arrival next day). |
+| `date` | yes | leg date | Any consistent order; the importer detects it (or you pick `YYYY-MM-DD` / `DD/MM/YYYY` / `MM/DD/YYYY`) and normalises to `YYYY-MM-DD`. `-`, `/` and `.` separators all work; 2-digit years use a 1970 pivot. |
+| `off_block_utc` | yes | `legs[0].departureTime` | `HH:MM`, 24-hour. Combined with `date`. UTC unless you tell the importer the file is local. |
+| `on_block_utc` | yes | `legs[0].arrivalTime` | `HH:MM`, 24-hour. If it is earlier than `off_block_utc` the flight is treated as crossing midnight (arrival next day). |
 | `departure_icao` | yes | `legs[0].departurePlace` | 4 uppercase letters. Use `ZZZZ` for a site with no ICAO code and put the name in `remarks`. |
 | `arrival_icao` | yes | `legs[0].arrivalPlace` | Same rules. |
-| `registration` | yes | `aircraft.registration` | Dash-tolerant: `HBPNT`, `hb-pnt`, `HB-PNT` all resolve to the reference row. |
-| `type` | yes | `aircraft.makeModelVariant` | e.g. `Cessna 172S`. The PDF shows the ICAO type designator; the app resolves it from this. |
-| `engine_class` | yes | `aircraft.engineClass` | `SE` or `ME`. Drives columns 5a/5b. |
-| `multi_pilot` | yes | `aircraft.multiPilot` | `true` or `false`. Drives column 6. |
-| `category` | yes | `aircraft.category` | `AEROPLANE`, `HELICOPTER`, `SAILPLANE`, or `BALLOON`. |
-| `pic_name` | yes | `picName` | Free text, or `SELF` for own-PIC flights. |
+| `registration` | yes | `aircraft.registration` | Dash-tolerant: `HBPNT`, `hb-pnt`, `HB-PNT` all resolve to the reference row. This drives the aircraft columns below. |
+| `type` | auto | `aircraft.makeModelVariant` | **Leave blank** to fill from the registration. Provide a value only to override. |
+| `engine_class` | auto | `aircraft.engineClass` | **Leave blank** to fill from the registration (`SE`/`ME`). |
+| `multi_pilot` | auto | `aircraft.multiPilot` | **Leave blank** to fill from the registration (`true`/`false`). |
+| `category` | auto | `aircraft.category` | **Leave blank** to fill from the registration (`AEROPLANE`/`HELICOPTER`/`SAILPLANE`/`BALLOON`). |
+| `pic_name` | no | `picName` | Free text, or `SELF`. Blank counts as `SELF`. If the file uses your own name, tell the importer your name and matching rows become `SELF` automatically — instructor names on your dual flights are left alone. |
 | `function` | yes | `function.primary` | One of `PIC`, `PICUS`, `SPIC`, `CO_PILOT`, `DUAL`, `SAFETY_PILOT`. |
 | `day_landings` | yes | `landings.day` | Integer count. |
 | `night_landings` | yes | `landings.night` | Integer count. |
@@ -60,8 +60,10 @@ one already in the logbook is skipped (the overlap guard), never duplicated.
 
 1. **Durations are minutes.** 1 h 30 m is `90`, not `1.5` and not `01:30`. This
    applies to `night_minutes`, `ifr_minutes`, `instructor_minutes`.
-2. **Enums are case-sensitive.** `PIC` works, `pic` is rejected. Same for
-   `SE`/`ME`, the category, and every attribute key.
+2. **The registration drives the aircraft.** Leave `type`, `engine_class`,
+   `category` and `multi_pilot` blank and they are filled from the reference
+   database. If the registration is not on file, either add the aircraft in the
+   app first or fill those columns in by hand for that flight.
 3. **ICAO codes are 4 uppercase letters.** No IATA codes (`ZRH`), no lowercase.
    Unknown field → `ZZZZ` and describe it in `remarks`.
 4. **Times are UTC.** If your source is local time, keep it consistent and flag
