@@ -650,6 +650,41 @@ export function revokeImportToken(id: string): Promise<void> {
   return request(`/account/import-tokens/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export interface CsvImportRow {
+  line: number;
+  externalId: string | null;
+  date: string;
+  route: string;
+  aircraft: string;
+  function: string;
+  status: "ready" | "created" | "error";
+  totalMinutes: number | null;
+  entryId?: string;
+  issues?: Array<{ field: string; message: string }>;
+}
+
+export interface CsvImportResult {
+  committed: boolean;
+  summary: { total: number; ready: number; created: number; errors: number };
+  rows: CsvImportRow[];
+}
+
+/**
+ * Bulk-import a filled-in logbook CSV. With commit=false the server validates
+ * every row and returns a per-row preview without writing anything; with
+ * commit=true it writes the rows that validate. timeZone says whether the
+ * file's times are UTC or local wall-clock.
+ */
+export function importLogbookCsv(
+  csv: string,
+  opts: { timeZone: "UTC" | "LOCAL"; commit: boolean },
+): Promise<CsvImportResult> {
+  return request("/import/csv", {
+    method: "POST",
+    body: JSON.stringify({ csv, timeZone: opts.timeZone, commit: opts.commit }),
+  });
+}
+
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
   const res = await fetch("/api/export/logbook", {

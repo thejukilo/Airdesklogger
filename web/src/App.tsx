@@ -11,6 +11,7 @@ import { Logbook } from "./pages/Logbook";
 import { BillingSuccess } from "./pages/BillingSuccess";
 import { BillingCancelled } from "./pages/BillingCancelled";
 import { NewEntry } from "./pages/NewEntry";
+import { ImportLogbook } from "./pages/ImportLogbook";
 import { EntryDetail } from "./pages/EntryDetail";
 import { Account } from "./pages/Account";
 import { Admin } from "./pages/Admin";
@@ -203,6 +204,14 @@ function AppShell() {
           element={
             <RequireAuth>
               <NewEntry />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/import"
+          element={
+            <RequireAuth>
+              <ImportLogbook />
             </RequireAuth>
           }
         />

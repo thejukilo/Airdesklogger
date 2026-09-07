@@ -11,15 +11,25 @@ in, Airdesk computes every column total, the brought-forward / carried-forward
 subtotals, and the grand total automatically.
 
 `import-template.csv` (next to this file) is the staging sheet. One row = one
-flight. Fill it in a spreadsheet, then hand it back and it is converted into
-Import API v1 calls (`POST /api/import/v1/entries`, batched). Each row's
-`external_id` is the idempotency key, so a re-run never duplicates a flight.
+flight. Fill it in a spreadsheet and upload it.
 
-> **Heads-up on scope.** Today the importer ingests **JSON** (see
-> `docs/api-import-v1.md`). This CSV is a human-friendly front for that API; the
-> CSV-to-JSON step is a small converter that is not wired into the SPA yet. If
-> you want a "Import from CSV" button on the Account page, say so and it gets
-> built on top of this exact column layout.
+## Two ways to use it
+
+1. **In-app, guided (self-service).** In the app, open **Logbook → Import**.
+   Download the template, fill it in, upload it, and the importer validates
+   every row and shows you a preview (with the computed total time per flight
+   and any problems) *before* anything is written. You confirm, and only the
+   valid rows are added. This is the path for a pilot bringing their own
+   history across. Endpoint: `POST /api/import/csv` (session-authenticated).
+
+2. **Machine-to-machine (schools / partner software).** The same column
+   meanings map onto the token-based Import API v1
+   (`POST /api/import/v1/entries`, JSON, batched), documented in
+   `docs/api-import-v1.md`. Each row's `external_id` is the idempotency key
+   there, so a re-run never duplicates a flight.
+
+Re-running an in-app import is safe too: a flight whose block time clashes with
+one already in the logbook is skipped (the overlap guard), never duplicated.
 
 ## The columns
 

@@ -38,6 +38,11 @@ function DownloadIcon() {
     <svg className={ICON} {...iconProps}><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
   );
 }
+function UploadIcon() {
+  return (
+    <svg className={ICON} {...iconProps}><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14" /></svg>
+  );
+}
 function LogIcon() {
   return (
     <svg className={ICON} {...iconProps}><path d="M4 5h16M4 12h16M4 19h10" /></svg>
@@ -427,6 +432,9 @@ export function Logbook() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Logbook</h1>
         <div className="hidden gap-2 md:flex">
+          <Link to="/import">
+            <Button variant="ghost">Import</Button>
+          </Link>
           <Button variant="ghost" onClick={exportPdf} disabled={exporting || entries.length === 0}>
             {exporting ? "Preparing..." : "Export PDF"}
           </Button>
@@ -450,6 +458,7 @@ export function Logbook() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Tile icon={<PlusIcon />} label="New flight" onClick={() => navigate("/new")} />
+          <Tile icon={<UploadIcon />} label="Import CSV" onClick={() => navigate("/import")} />
           <Tile icon={<DownloadIcon />} label="Download report" onClick={exportPdf} disabled={exporting || entries.length === 0} />
           <Tile icon={<LogIcon />} label="Flight log" onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })} />
           <Tile icon={<GearIcon />} label="Settings" onClick={() => navigate("/account")} />
