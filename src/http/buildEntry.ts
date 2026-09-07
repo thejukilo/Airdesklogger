@@ -54,6 +54,17 @@ function asInstantString(wallClock: unknown): string {
   return /(Z|[+-]\d{2}:\d{2})$/.test(s) ? s : `${s}Z`;
 }
 
+/**
+ * A wall-clock value for zonedWallClockToUtc, which requires a bare
+ * "YYYY-MM-DDTHH:MM(:SS)" with no zone marker. A LOCAL-source time is civil time
+ * at the aerodrome, so any trailing Z or numeric offset the caller attached is
+ * not a real UTC marker (the SPA sends bare wall-clock; the import paths often
+ * append Z) and is dropped before conversion.
+ */
+function toWallClock(v: unknown): string {
+  return String(v).replace(/(Z|[+-]\d{2}:?\d{2})$/, "");
+}
+
 async function tzCacheFor(legs: RawLeg[]): Promise<Map<string, string | null>> {
   const cache = new Map<string, string | null>();
   for (const leg of legs) {
@@ -92,8 +103,8 @@ async function resolveLocalLegs(raw: unknown): Promise<{ legs: RawLeg[]; timesLo
     try {
       return {
         ...leg,
-        departureTime: toUtcIso(zonedWallClockToUtc(String(leg.departureTime), depTz)),
-        arrivalTime: toUtcIso(zonedWallClockToUtc(String(leg.arrivalTime), arrTz)),
+        departureTime: toUtcIso(zonedWallClockToUtc(toWallClock(leg.departureTime), depTz)),
+        arrivalTime: toUtcIso(zonedWallClockToUtc(toWallClock(leg.arrivalTime), arrTz)),
       };
     } catch (err) {
       if (err instanceof LocalTimeError) throw new RequestError(err.message);

@@ -14,6 +14,16 @@ describe("local wall-clock to UTC against an aerodrome timezone", () => {
     expect(utc.toISOString()).toBe("2026-01-15T13:30:00.000Z");
   });
 
+  it("rejects a value carrying a zone marker (must be bare wall-clock)", () => {
+    // The importer builds leg times with a trailing Z; a LOCAL-source time must
+    // have that stripped before conversion (buildEntry.toWallClock), otherwise
+    // the wall-clock regex refuses it. This documents that constraint.
+    expect(() => zonedWallClockToUtc("2024-09-06T11:15:00Z", "Europe/Zurich")).toThrow(LocalTimeError);
+    // And with the marker removed it converts (11:15 CEST -> 09:15 UTC).
+    const utc = zonedWallClockToUtc("2024-09-06T11:15:00", "Europe/Zurich");
+    expect(utc.toISOString()).toBe("2024-09-06T09:15:00.000Z");
+  });
+
   it("handles a timezone west of UTC (New York, summer)", () => {
     // 09:00 local EDT is UTC-4, so 13:00 UTC.
     const utc = zonedWallClockToUtc("2026-06-10T09:00", "America/New_York");
