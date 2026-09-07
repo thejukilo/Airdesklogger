@@ -1,0 +1,6 @@
+external_id,date,off_block_utc,on_block_utc,departure_icao,arrival_icao,registration,type,engine_class,multi_pilot,category,pic_name,function,day_landings,night_landings,night_minutes,ifr_minutes,instructor_minutes,remarks,attributes
+LEGACY-000001,2019-04-06,08:15,09:40,LSZH,LSGG,HB-PNT,Cessna 172S,SE,false,AEROPLANE,SELF,PIC,1,0,0,0,0,VFR nav Zurich to Geneva,
+LEGACY-000002,2019-04-13,13:20,14:05,LSGG,LSGG,HB-PNT,Cessna 172S,SE,false,AEROPLANE,M. Schmidt,DUAL,4,0,0,0,45,PPL circuits and stalls,
+LEGACY-000003,2020-11-21,17:30,19:10,LSZB,LSZB,HB-KFG,Piper PA-28-181,SE,false,AEROPLANE,SELF,PIC,0,3,55,0,0,Night rating currency,cross_country
+LEGACY-000004,2021-06-02,06:05,08:40,LSZH,LFPG,HB-JGA,Cessna 510 Mustang,ME,true,AEROPLANE,J. Weber,CO_PILOT,1,0,0,90,0,IFR line flight,
+LEGACY-000005,2022-09-18,10:00,11:30,ZZZZ,ZZZZ,HB-2417,Schleicher ASK 21,SE,false,SAILPLANE,SELF,PIC,1,0,0,0,0,Winch launch Schaenis,launch_privilege
