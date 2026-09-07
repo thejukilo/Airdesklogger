@@ -5,15 +5,18 @@ import { useAuth } from "../auth";
 import { Alert, Button, Card } from "../components/ui";
 
 /**
- * Guided CSV import. Three steps the pilot moves through explicitly:
+ * Guided CSV import. Steps the pilot moves through explicitly:
  *   1. Upload — drop in the filled template, say whether times are UTC or local,
- *      how the dates are written, and whether the PIC column uses their own name.
- *   2. Review — the server validates every row (no write yet); the pilot sees a
- *      per-row table with the computed total and any errors, so they confirm
- *      exactly what will be added.
+ *      how the dates are written, and whether the PIC column uses their name.
+ *   2. Review & fix — the server validates every row (no write yet). Each row
+ *      with a problem gets inline editors for the exact fields that are wrong
+ *      (a dropdown for a missing function, etc.), with an "apply to all" option,
+ *      and a Re-check re-validates. The pilot sees the computed total per row.
  *   3. Done — only the valid rows were written; a summary and a link onward.
  *
- * Nothing is created until the pilot presses "Import" on the review step.
+ * The uploaded CSV is parsed into an editable grid so fixes are applied locally
+ * and the corrected grid is exactly what gets imported. Nothing is created until
+ * the pilot presses "Import" on the review step.
  */
 
 const TEMPLATE_HEADER =
@@ -32,6 +35,108 @@ const DATE_FORMAT_LABELS: Record<Exclude<api.CsvDateFormat, "auto">, string> = {
   DMY: "DD/MM/YYYY (day first)",
   MDY: "MM/DD/YYYY (month first)",
 };
+
+// ---------------------------------------------------------------------------
+// Minimal CSV grid (parse + serialize) so problem rows can be edited in place.
+// ---------------------------------------------------------------------------
+interface Grid {
+  headers: string[];
+  rows: string[][];
+}
+
+function parseGrid(text: string): Grid {
+  const matrix: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let started = false;
+  const s = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const pushField = () => { row.push(field); field = ""; };
+  const pushRow = () => { matrix.push(row); row = []; started = false; };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (inQuotes) {
+      if (ch === '"') { if (s[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += ch;
+      continue;
+    }
+    if (ch === '"') { inQuotes = true; started = true; continue; }
+    if (ch === ",") { pushField(); started = true; continue; }
+    if (ch === "\r") continue;
+    if (ch === "\n") { if (started || field.length > 0 || row.length > 0) { pushField(); pushRow(); } continue; }
+    field += ch; started = true;
+  }
+  if (started || field.length > 0 || row.length > 0) { pushField(); pushRow(); }
+  const nonEmpty = matrix.filter((r) => r.some((c) => c.trim() !== ""));
+  const headers = nonEmpty[0] ?? [];
+  return { headers, rows: nonEmpty.slice(1) };
+}
+
+function csvCell(v: string): string {
+  return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+function toCsv(grid: Grid): string {
+  const lines = [grid.headers, ...grid.rows].map((r) => r.map(csvCell).join(","));
+  return lines.join("\n") + "\n";
+}
+
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/\s+/g, "_");
+}
+function colIndex(grid: Grid, name: string): number {
+  return grid.headers.findIndex((h) => normalizeHeader(h) === name);
+}
+
+// ---------------------------------------------------------------------------
+// Which CSV columns can be fixed inline, and how.
+// ---------------------------------------------------------------------------
+interface ColumnMeta {
+  label: string;
+  type: "text" | "select";
+  options?: string[];
+  /** Placeholder for the blank option of a select (blank = fill from reg). */
+  blankLabel?: string;
+  placeholder?: string;
+}
+
+const COLUMN_META: Record<string, ColumnMeta> = {
+  date: { label: "Date", type: "text", placeholder: "YYYY-MM-DD" },
+  off_block_utc: { label: "Off-block", type: "text", placeholder: "HH:MM" },
+  on_block_utc: { label: "On-block", type: "text", placeholder: "HH:MM" },
+  departure_icao: { label: "From (ICAO)", type: "text", placeholder: "LSZH / ZZZZ" },
+  arrival_icao: { label: "To (ICAO)", type: "text", placeholder: "LSGG / ZZZZ" },
+  registration: { label: "Registration", type: "text" },
+  type: { label: "Type", type: "text", placeholder: "(from registration)" },
+  engine_class: { label: "Engine class", type: "select", options: ["", "SE", "ME"], blankLabel: "From registration" },
+  multi_pilot: { label: "Multi-pilot", type: "select", options: ["", "true", "false"], blankLabel: "From registration" },
+  category: { label: "Category", type: "select", options: ["", "AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"], blankLabel: "From registration" },
+  pic_name: { label: "PIC name", type: "text", placeholder: "SELF" },
+  function: { label: "Function", type: "select", options: ["PIC", "PICUS", "SPIC", "CO_PILOT", "DUAL", "SAFETY_PILOT"] },
+  day_landings: { label: "Day landings", type: "text" },
+  night_landings: { label: "Night landings", type: "text" },
+  night_minutes: { label: "Night (min)", type: "text" },
+  ifr_minutes: { label: "IFR (min)", type: "text" },
+  instructor_minutes: { label: "Instructor (min)", type: "text" },
+  remarks: { label: "Remarks", type: "text" },
+  attributes: { label: "Attributes", type: "text" },
+};
+const EDITABLE = new Set(Object.keys(COLUMN_META));
+const APPLY_ALL = new Set(["function", "category", "engine_class", "multi_pilot", "pic_name"]);
+
+/** Turn a server issue's field path into the CSV columns that would fix it. */
+function fixableColumns(issues: Array<{ field: string }>): string[] {
+  const cols: string[] = [];
+  const add = (c: string) => { if (!cols.includes(c)) cols.push(c); };
+  for (const { field } of issues) {
+    if (EDITABLE.has(field)) add(field);
+    else if (field === "aircraft.category") add("category");
+    else if (field === "aircraft.registration") ["registration", "type", "engine_class", "category", "multi_pilot"].forEach(add);
+    else if (field === "legs.place") { add("departure_icao"); add("arrival_icao"); }
+    else if (field === "legs" || field === "entry") { add("date"); add("off_block_utc"); add("on_block_utc"); }
+  }
+  return cols;
+}
 
 function hhmm(m: number | null): string {
   if (m === null || !Number.isFinite(m) || m <= 0) return "—";
@@ -84,22 +189,115 @@ function ResultTable({ rows }: { rows: api.CsvImportRow[] }) {
               <td className="px-2 py-2 whitespace-nowrap">{r.aircraft}</td>
               <td className="px-2 py-2 whitespace-nowrap">{r.function || "—"}</td>
               <td className="px-2 py-2 text-right font-mono tabular-nums">{hhmm(r.totalMinutes)}</td>
-              <td className="px-2 py-2">
-                <StatusBadge status={r.status} />
-                {r.issues && r.issues.length > 0 && (
-                  <ul className="mt-1 space-y-0.5">
-                    {r.issues.map((iss, i) => (
-                      <li key={i} className="text-xs text-rose-600">
-                        <span className="font-medium">{iss.field}:</span> {iss.message}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </td>
+              <td className="px-2 py-2"><StatusBadge status={r.status} /></td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** One editable field for a problem row, with an optional "apply to all". */
+function CellEditor({
+  grid, line, colName, onSet, onApplyAll,
+}: {
+  grid: Grid;
+  line: number;
+  colName: string;
+  onSet: (line: number, colName: string, value: string) => void;
+  onApplyAll: (colName: string, value: string) => void;
+}) {
+  const idx = colIndex(grid, colName);
+  if (idx < 0) return null; // column not present in the file
+  const meta = COLUMN_META[colName]!;
+  const ri = line - 2;
+  const value = grid.rows[ri]?.[idx] ?? "";
+
+  const control = meta.type === "select" ? (
+    <select
+      value={meta.options!.includes(value) ? value : ""}
+      onChange={(e) => onSet(line, colName, e.target.value)}
+      className="min-w-[9rem] rounded-md border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+    >
+      {!meta.options!.includes(value) && <option value="" disabled hidden>Select…</option>}
+      {meta.options!.map((o) => (
+        <option key={o} value={o}>{o === "" ? (meta.blankLabel ?? "—") : o}</option>
+      ))}
+    </select>
+  ) : (
+    <input
+      value={value}
+      placeholder={meta.placeholder}
+      onChange={(e) => onSet(line, colName, e.target.value)}
+      className="min-w-[9rem] rounded-md border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30"
+    />
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-28 text-xs font-medium text-slate-500">{meta.label}</span>
+      {control}
+      {APPLY_ALL.has(colName) && (
+        <button
+          type="button"
+          onClick={() => onApplyAll(colName, grid.rows[ri]?.[idx] ?? "")}
+          className="text-xs text-brand-600 underline hover:text-brand-700"
+          title="Set this value on every flight in the file"
+        >
+          apply to all
+        </button>
+      )}
+    </div>
+  );
+}
+
+function RowFixer({
+  row, grid, onSet, onApplyAll,
+}: {
+  row: api.CsvImportRow;
+  grid: Grid;
+  onSet: (line: number, colName: string, value: string) => void;
+  onApplyAll: (colName: string, value: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const targeted = fixableColumns(row.issues ?? []);
+  const cols = showAll ? Object.keys(COLUMN_META).filter((c) => colIndex(grid, c) >= 0) : targeted;
+
+  return (
+    <div className="rounded-lg border border-rose-200 bg-rose-50/40 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-sm font-medium text-slate-700">
+          Row {row.line} · {row.date || "?"} · {row.route}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="text-xs text-slate-500 underline hover:text-slate-700"
+        >
+          {showAll ? "Only the problems" : "Edit all fields"}
+        </button>
+      </div>
+      {row.issues && row.issues.length > 0 && (
+        <ul className="mb-2 space-y-0.5">
+          {row.issues.map((iss, i) => (
+            <li key={i} className="text-xs text-rose-600">
+              <span className="font-medium">{iss.field}:</span> {iss.message}
+            </li>
+          ))}
+        </ul>
+      )}
+      {cols.length > 0 ? (
+        <div className="space-y-2">
+          {cols.map((c) => (
+            <CellEditor key={c} grid={grid} line={row.line} colName={c} onSet={onSet} onApplyAll={onApplyAll} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">
+          This problem can't be fixed inline. Edit the row in your file and upload it again.
+        </p>
+      )}
     </div>
   );
 }
@@ -110,53 +308,55 @@ export function ImportLogbook() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("upload");
   const [csv, setCsv] = useState("");
+  const [grid, setGrid] = useState<Grid | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [timeZone, setTimeZone] = useState<"UTC" | "LOCAL">("UTC");
   const [dateFormat, setDateFormat] = useState<api.CsvDateFormat>("auto");
   const [selfEnabled, setSelfEnabled] = useState(true);
   const [selfName, setSelfName] = useState(user?.name ?? "");
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false); // edits made since the last check
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<api.CsvImportResult | null>(null);
 
   const readyCount = result?.summary.ready ?? 0;
-  const sortedRows = useMemo(() => {
-    if (!result) return [];
-    // Surface problem rows first on the review step so they are hard to miss.
-    const rank = (s: api.CsvImportRow["status"]) => (s === "error" ? 0 : 1);
-    return [...result.rows].sort((a, b) => rank(a.status) - rank(b.status) || a.line - b.line);
-  }, [result]);
+  const errorRows = useMemo(
+    () => (result ? result.rows.filter((r) => r.status === "error").sort((a, b) => a.line - b.line) : []),
+    [result],
+  );
+  const tableRows = useMemo(
+    () => (result ? [...result.rows].sort((a, b) => (a.status === "error" ? 0 : 1) - (b.status === "error" ? 0 : 1) || a.line - b.line) : []),
+    [result],
+  );
 
   function onFile(file: File) {
     setError(null);
     const reader = new FileReader();
-    reader.onload = () => {
-      setCsv(String(reader.result ?? ""));
-      setFileName(file.name);
-    };
+    reader.onload = () => { setCsv(String(reader.result ?? "")); setFileName(file.name); setGrid(null); };
     reader.onerror = () => setError("Could not read that file.");
     reader.readAsText(file);
   }
 
-  function callOpts(commit: boolean) {
+  function callOpts(text: string, commit: boolean) {
     return {
-      timeZone,
-      dateFormat,
-      selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
-      commit,
+      text,
+      opts: {
+        timeZone,
+        dateFormat,
+        selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
+        commit,
+      },
     };
   }
 
-  async function preview() {
-    if (!csv.trim()) {
-      setError("Add a CSV file or paste its contents first.");
-      return;
-    }
+  async function runPreview(text: string) {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.importLogbookCsv(csv, callOpts(false));
+      const { opts } = callOpts(text, false);
+      const r = await api.importLogbookCsv(text, opts);
       setResult(r);
+      setDirty(false);
       setStep("review");
     } catch (e) {
       setError(e instanceof api.ApiError ? e.message : "Could not check that file.");
@@ -165,11 +365,21 @@ export function ImportLogbook() {
     }
   }
 
+  async function check() {
+    if (!csv.trim()) { setError("Add a CSV file or paste its contents first."); return; }
+    const g = parseGrid(csv);
+    if (g.rows.length === 0) { setError("The file has no flights to import."); return; }
+    setGrid(g);
+    await runPreview(toCsv(g));
+  }
+
   async function commit() {
+    if (!grid) return;
     setBusy(true);
     setError(null);
     try {
-      const r = await api.importLogbookCsv(csv, callOpts(true));
+      const { opts } = callOpts(toCsv(grid), true);
+      const r = await api.importLogbookCsv(toCsv(grid), opts);
       setResult(r);
       setStep("done");
     } catch (e) {
@@ -179,13 +389,49 @@ export function ImportLogbook() {
     }
   }
 
+  function setCell(line: number, colName: string, value: string) {
+    setGrid((prev) => {
+      if (!prev) return prev;
+      const idx = colIndex(prev, colName);
+      if (idx < 0) return prev;
+      const ri = line - 2;
+      const rows = prev.rows.map((r, i) => {
+        if (i !== ri) return r;
+        const next = r.slice();
+        while (next.length <= idx) next.push("");
+        next[idx] = value;
+        return next;
+      });
+      return { headers: prev.headers, rows };
+    });
+    setDirty(true);
+  }
+
+  function applyToAll(colName: string, value: string) {
+    setGrid((prev) => {
+      if (!prev) return prev;
+      const idx = colIndex(prev, colName);
+      if (idx < 0) return prev;
+      const rows = prev.rows.map((r) => {
+        const next = r.slice();
+        while (next.length <= idx) next.push("");
+        next[idx] = value;
+        return next;
+      });
+      return { headers: prev.headers, rows };
+    });
+    setDirty(true);
+  }
+
+  function resetAll() {
+    setStep("upload"); setCsv(""); setGrid(null); setFileName(null); setResult(null); setDirty(false);
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Import a logbook</h1>
-        <Link to="/logbook" className="text-sm text-slate-500 hover:text-slate-700">
-          Back to logbook
-        </Link>
+        <Link to="/logbook" className="text-sm text-slate-500 hover:text-slate-700">Back to logbook</Link>
       </div>
 
       {error && <Alert>{error}</Alert>}
@@ -203,7 +449,7 @@ export function ImportLogbook() {
                 <strong>registration</strong> and <strong>function</strong>. The aircraft type, engine class
                 and category are filled in from the registration. Durations are in <strong>minutes</strong>;
                 airports are 4-letter ICAO (use <code className="rounded bg-slate-100 px-1">ZZZZ</code> if there
-                is no code).
+                is no code). Anything the checker flags can be fixed on the next step.
               </p>
             </div>
 
@@ -214,11 +460,7 @@ export function ImportLogbook() {
                 type="file"
                 accept=".csv,text/csv"
                 className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onFile(f);
-                  e.target.value = "";
-                }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
               />
               <Button onClick={() => fileRef.current?.click()}>Choose CSV file</Button>
               {fileName && <span className="text-sm text-slate-500">{fileName}</span>}
@@ -228,7 +470,7 @@ export function ImportLogbook() {
               <span className="mb-1 block font-medium text-slate-700">Or paste the CSV</span>
               <textarea
                 value={csv}
-                onChange={(e) => { setCsv(e.target.value); setFileName(null); }}
+                onChange={(e) => { setCsv(e.target.value); setFileName(null); setGrid(null); }}
                 rows={6}
                 placeholder="date,off_block_utc,on_block_utc,departure_icao,arrival_icao,registration,function,..."
                 className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
@@ -268,21 +510,12 @@ export function ImportLogbook() {
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <label className="flex items-start gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={selfEnabled}
-                  onChange={(e) => setSelfEnabled(e.target.checked)}
-                />
-                <span>
-                  My own flights list my name in the PIC column. Log those as <strong>myself (SELF)</strong>.
-                </span>
+                <input type="checkbox" className="mt-0.5" checked={selfEnabled} onChange={(e) => setSelfEnabled(e.target.checked)} />
+                <span>My own flights list my name in the PIC column. Log those as <strong>myself (SELF)</strong>.</span>
               </label>
               {selfEnabled && (
                 <label className="mt-2 block text-sm">
-                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                    My name as written in the file
-                  </span>
+                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">My name as written in the file</span>
                   <input
                     value={selfName}
                     onChange={(e) => setSelfName(e.target.value)}
@@ -297,53 +530,70 @@ export function ImportLogbook() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={preview} disabled={busy || !csv.trim()}>
-                {busy ? "Checking..." : "Check file"}
-              </Button>
+              <Button onClick={check} disabled={busy || !csv.trim()}>{busy ? "Checking..." : "Check file"}</Button>
             </div>
           </div>
         </Card>
       )}
 
-      {step === "review" && result && (
-        <Card>
-          <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-              <p className="text-slate-700">
-                <strong>{result.summary.total}</strong> flights in the file.{" "}
-                <span className="text-sky-700">{result.summary.ready} ready to import</span>
-                {result.summary.errors > 0 && (
-                  <>
-                    {" · "}
-                    <span className="text-rose-700">{result.summary.errors} with problems (will be skipped)</span>
-                  </>
-                )}
-                .
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Dates read as <strong>{DATE_FORMAT_LABELS[result.dateFormat]}</strong>. Check the Date column below;
-                if a date looks wrong, go back and set the date format explicitly.
-              </p>
-              {result.summary.errors > 0 && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Fix the flagged rows in your file and import them in a second pass. Re-importing is safe:
-                  a flight that clashes with one already in your logbook is skipped, never duplicated.
+      {step === "review" && result && grid && (
+        <>
+          <Card>
+            <div className="space-y-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <p className="text-slate-700">
+                  <strong>{result.summary.total}</strong> flights in the file.{" "}
+                  <span className="text-sky-700">{result.summary.ready} ready to import</span>
+                  {result.summary.errors > 0 && (<>{" · "}<span className="text-rose-700">{result.summary.errors} with problems</span></>)}.
                 </p>
-              )}
+                <p className="mt-1 text-xs text-slate-500">
+                  Dates read as <strong>{DATE_FORMAT_LABELS[result.dateFormat]}</strong>. Check the Date column below;
+                  if a date looks wrong, go back and set the date format explicitly.
+                </p>
+              </div>
+              <ResultTable rows={tableRows} />
+              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); }} disabled={busy}>Back</Button>
+                <div className="flex items-center gap-2">
+                  {dirty && <span className="text-xs text-amber-700">Unsaved fixes — re-check to validate.</span>}
+                  {(dirty || result.summary.errors > 0) && (
+                    <Button variant="ghost" onClick={() => runPreview(toCsv(grid))} disabled={busy}>
+                      {busy ? "Checking..." : "Re-check"}
+                    </Button>
+                  )}
+                  <Button onClick={commit} disabled={busy || dirty || readyCount === 0}>
+                    {busy ? "Importing..." : `Import ${readyCount} ${readyCount === 1 ? "flight" : "flights"}`}
+                  </Button>
+                </div>
+              </div>
             </div>
+          </Card>
 
-            <ResultTable rows={sortedRows} />
-
-            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-              <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); }} disabled={busy}>
-                Back
-              </Button>
-              <Button onClick={commit} disabled={busy || readyCount === 0}>
-                {busy ? "Importing..." : `Import ${readyCount} ${readyCount === 1 ? "flight" : "flights"}`}
-              </Button>
-            </div>
-          </div>
-        </Card>
+          {errorRows.length > 0 && (
+            <Card>
+              <div className="space-y-3">
+                <div>
+                  <h2 className="text-base font-semibold">Fix problems ({errorRows.length})</h2>
+                  <p className="mt-0.5 text-sm text-slate-600">
+                    Set the missing or invalid values below, then <strong>Re-check</strong>. Use “apply to all”
+                    to set the same value on every flight (handy when a whole column is missing). Re-importing is
+                    safe: a flight already in your logbook is skipped, never duplicated.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  {errorRows.map((r) => (
+                    <RowFixer key={r.line} row={r} grid={grid} onSet={setCell} onApplyAll={applyToAll} />
+                  ))}
+                </div>
+                <div className="flex justify-end border-t border-slate-100 pt-3">
+                  <Button onClick={() => runPreview(toCsv(grid))} disabled={busy}>
+                    {busy ? "Checking..." : "Re-check"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+        </>
       )}
 
       {step === "done" && result && (
@@ -363,20 +613,14 @@ export function ImportLogbook() {
                 </p>
               </div>
             </div>
-
             {result.summary.errors > 0 && (
               <>
-                <p className="text-sm text-slate-600">
-                  These rows were not imported. Fix them in your file and run the import again.
-                </p>
-                <ResultTable rows={sortedRows.filter((r) => r.status === "error")} />
+                <p className="text-sm text-slate-600">These rows were not imported. Go back to fix them, or edit your file and import again.</p>
+                <ResultTable rows={result.rows.filter((r) => r.status === "error")} />
               </>
             )}
-
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-              <Button variant="ghost" onClick={() => { setStep("upload"); setCsv(""); setFileName(null); setResult(null); }}>
-                Import another file
-              </Button>
+              <Button variant="ghost" onClick={resetAll}>Import another file</Button>
               <Button onClick={() => navigate("/logbook")}>Go to logbook</Button>
             </div>
           </div>
