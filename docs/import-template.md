@@ -31,6 +31,27 @@ flight. Fill it in a spreadsheet and upload it.
 Re-running an in-app import is safe too: a flight whose block time clashes with
 one already in the logbook is skipped (the overlap guard), never duplicated.
 
+## Importing from capzlog.aero
+
+The in-app importer (Logbook → Import) also reads **capzlog.aero** exports
+directly — pick "capzlog.aero export" under "Where is this data from?". capzlog
+produces one report per category, so export and import them one at a time:
+
+- **Airplane / Helicopter / Sailplane / Balloon** → flights. The report type is
+  detected from the file and pre-selected; because the Airplane and Helicopter
+  reports share an identical layout, pick **Helicopter** by hand for a
+  helicopter file.
+- **Simulator** → FSTD sessions.
+
+capzlog gives the aircraft type, engine class, category and multi-pilot in the
+file, so the importer **registers each aircraft** (and each simulator device) in
+your reference list automatically — a migrated tail number does not have to be
+added first. Dates/times are read as capzlog's `M/D/YYYY H:MM`; balloon
+departure/arrival stay as place names. capzlog times are usually **local**, so
+set the time option to "Local time at the airport" unless your export is UTC.
+Everything else — the review/preview, the totals, the overlap-guard de-dup — is
+the same as the template path.
+
 ## The columns
 
 | Column | Required | Maps to | Notes |

@@ -58,6 +58,38 @@ export interface MappedEntry {
   function: { primary: string; instructor: number };
   remarks: string;
   attributes: string[];
+  /** Sailplane launch method, when known (capzlog). */
+  launchMethod?: string;
+  /** Structured attribute detail counts/levels (capzlog). */
+  attributeDetails?: Record<string, number | string>;
+}
+
+/** A synthetic-training session body (for the capzlog simulator report). */
+export interface MappedFstd {
+  deviceType: string;
+  qualificationNumber: string;
+  pilotFunction?: "TRAINEE" | "SFI_SFE";
+  instruction: string;
+  date: string;
+  totalMinutes: number;
+  landings?: { day: number; night: number };
+  remarks: string;
+  attributes: string[];
+}
+
+/**
+ * Aircraft details carried in a source file (capzlog) so the importer can add
+ * the aircraft to the reference registry before validation, instead of failing
+ * because a migrated aircraft is not yet on file. The same registry that a
+ * registration lookup would populate.
+ */
+export interface AircraftSeed {
+  registration: string;
+  model: string;
+  icaoType?: string;
+  category: "AEROPLANE" | "HELICOPTER" | "SAILPLANE" | "BALLOON";
+  engineClass: "SE" | "ME";
+  multiPilot: boolean;
 }
 
 export interface MappedRow {
@@ -67,9 +99,14 @@ export interface MappedRow {
   /** A short human summary used by the preview even when the row is invalid. */
   summary: { date: string; route: string; aircraft: string; function: string };
   ok: boolean;
+  /** FLIGHT rows carry `entry`; FSTD rows carry `fstd`. */
+  kind: "FLIGHT" | "FSTD";
   /** True when one or more aircraft fields were blank and need registration lookup. */
   needsAircraftLookup: boolean;
+  /** When present, the endpoint registers this aircraft before validating. */
+  aircraftSeed?: AircraftSeed;
   entry?: MappedEntry;
+  fstd?: MappedFstd;
   issues?: CsvIssue[];
 }
 
@@ -355,7 +392,7 @@ export function mapCsvRow(headers: string[], cells: string[], line: number, opts
   const needsAircraftLookup = type === "" || engineClass === "" || multiPilot === null || category === "";
 
   if (issues.length > 0) {
-    return { line, externalId, summary, ok: false, needsAircraftLookup, issues };
+    return { line, externalId, summary, ok: false, kind: "FLIGHT", needsAircraftLookup, issues };
   }
 
   // Cross-midnight: an on-block that is not after the off-block rolls to the
@@ -386,7 +423,7 @@ export function mapCsvRow(headers: string[], cells: string[], line: number, opts
     attributes: splitAttributes(get("attributes")),
   };
 
-  return { line, externalId, summary, ok: true, needsAircraftLookup, entry };
+  return { line, externalId, summary, ok: true, kind: "FLIGHT", needsAircraftLookup, entry };
 }
 
 export interface ParsedCsv {

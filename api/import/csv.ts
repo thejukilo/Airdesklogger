@@ -1,39 +1,33 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireUser, requireWriteCapability, AuthError } from "../../src/http/auth.js";
 import { prepareFlightEntry } from "../../src/http/buildEntry.js";
+import { parseFstdRequest } from "../../src/http/parseFstd.js";
+import { validateFstdSession } from "../../src/domain/validation.js";
 import { RequestError } from "../../src/http/parseEntry.js";
-import { createEntry } from "../../src/db/repository.js";
-import { getAircraftForFlight } from "../../src/db/referenceRepository.js";
+import { createEntry, createFstdEntry } from "../../src/db/repository.js";
+import { getAircraftForFlight, upsertAircraft, fstdDeviceExists, upsertFstdDevice } from "../../src/db/referenceRepository.js";
 import { parseImportCsv, type DateFormat, type MappedRow } from "../../src/http/importCsv.js";
+import { parseCapzlogCsv, type CapzlogReport } from "../../src/http/capzlog.js";
 
 /**
  * Self-service CSV logbook import for the signed-in holder.
  *
- * This is the in-app counterpart to the token-based Import API (api/import/v1):
- * a pilot migrating an existing logbook uploads the filled-in template
- * (docs/import-template.csv) and every row is mapped to the same entry body the
- * Log-a-flight form posts, then run through the identical prepareFlightEntry
- * pipeline (time conversion, night/landing classification, reference and
- * overlap checks, cross-column validation).
- *
  *   POST /api/import/csv
- *     { csv, timeZone?, dateFormat?, selfName?, commit? }
+ *     { csv, source?, reportType?, timeZone?, dateFormat?, selfName?, commit? }
  *
- * dateFormat ("auto" by default) says how the date column is written; the
- * detected order is returned so the UI can show what was assumed. selfName is
- * the pilot's own name as it appears in the file's PIC column: matching rows
- * are logged as "SELF". Blank aircraft columns (type, engine class, category,
- * multi-pilot) are filled from the registration.
+ * `source` selects the file format: "default" (the Airdesk template) or
+ * "capzlog" (capzlog.aero exports). For capzlog, `reportType` names which report
+ * the file is (airplane/helicopter/sailplane/balloon/simulator); it is detected
+ * from the header when omitted. Both sources map onto the same internal entry
+ * shapes and run through the identical prepareFlightEntry / FSTD pipelines.
  *
- * commit=false (default) is a dry run: nothing is written, and each row comes
- * back marked "ready" or "error" with the derived total so the pilot can review
- * exactly what will be added before confirming. commit=true writes only the
- * rows that validate; the rest are reported as errors and skipped.
+ * commit=false (default) is a dry run: nothing is written to the logbook, and
+ * each row comes back "ready" or "error" with its computed total. commit=true
+ * writes only the rows that validate.
  *
- * Re-running the same file is safe: the overlap guard rejects a flight that
- * clashes with one already stored, so a second import of an already-imported
- * flight comes back as an error ("overlaps an existing entry"), never a
- * duplicate.
+ * Aircraft the capzlog file describes but that are not yet on file are added to
+ * the aircraft registry (the same registry a registration lookup populates); a
+ * simulator device is auto-registered on import. Neither is a logbook entry.
  */
 
 const MAX_ROWS = 200;
@@ -62,6 +56,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const claims = await requireUser(req);
     const body = (typeof req.body === "string" ? safeJson(req.body) : req.body) as {
       csv?: unknown;
+      source?: unknown;
+      reportType?: unknown;
       timeZone?: unknown;
       dateFormat?: unknown;
       selfName?: unknown;
@@ -73,32 +69,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(400).json({ error: "No CSV content was provided." });
       return;
     }
+    const source = body.source === "capzlog" ? "capzlog" : "default";
     const timeZone: "UTC" | "LOCAL" = body.timeZone === "LOCAL" ? "LOCAL" : "UTC";
     const dateFormat: DateFormat = ["YMD", "DMY", "MDY", "auto"].includes(body.dateFormat as string)
       ? (body.dateFormat as DateFormat)
       : "auto";
+    const reportType = ["airplane", "helicopter", "sailplane", "balloon", "simulator"].includes(body.reportType as string)
+      ? (body.reportType as CapzlogReport)
+      : undefined;
     const selfName = typeof body.selfName === "string" ? body.selfName : null;
     const commit = body.commit === true;
 
-    // A commit writes to the logbook, so it needs write capability. A dry-run
-    // preview is a read-only validation and stays open even in read-only state,
-    // so a lapsed pilot can still see what an import would do.
     if (commit) await requireWriteCapability(claims.sub);
 
-    const parsed = parseImportCsv(csv, { dateFormat, selfName });
-    if (parsed.fatal) {
-      res.status(400).json({ error: parsed.fatal });
+    // Parse into normalized rows, per source.
+    let rows: MappedRow[];
+    let fatal: string | null;
+    let dateUsed: string | undefined;
+    let reportUsed: CapzlogReport | undefined;
+    if (source === "capzlog") {
+      const parsed = parseCapzlogCsv(csv, { ...(reportType ? { reportType } : {}), selfName });
+      rows = parsed.rows;
+      fatal = parsed.fatal;
+      reportUsed = parsed.report;
+    } else {
+      const parsed = parseImportCsv(csv, { dateFormat, selfName });
+      rows = parsed.rows;
+      fatal = parsed.fatal;
+      dateUsed = parsed.dateFormat;
+    }
+
+    if (fatal) {
+      res.status(400).json({ error: fatal });
       return;
     }
-    if (parsed.rows.length > MAX_ROWS) {
+    if (rows.length > MAX_ROWS) {
       res.status(400).json({
-        error: `This file has ${parsed.rows.length} flights. Please split it into files of at most ${MAX_ROWS} rows and import them one at a time.`,
+        error: `This file has ${rows.length} rows. Please split it into files of at most ${MAX_ROWS} rows and import them one at a time.`,
       });
       return;
     }
 
     const results: RowResult[] = [];
-    for (const row of parsed.rows) {
+    for (const row of rows) {
       results.push(await processRow(row, claims.sub, { timeZone, commit }));
     }
 
@@ -109,7 +122,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       errors: results.filter((r) => r.status === "error").length,
     };
 
-    res.status(200).json({ committed: commit, dateFormat: parsed.dateFormat, summary, rows: results });
+    res.status(200).json({
+      committed: commit,
+      ...(dateUsed ? { dateFormat: dateUsed } : {}),
+      ...(reportUsed ? { report: reportUsed } : {}),
+      summary,
+      rows: results,
+    });
   } catch (err) {
     if (err instanceof AuthError) {
       res.status(err.status).json({ error: err.message });
@@ -123,11 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 }
 
-/**
- * Fill the aircraft fields the pilot left blank from the reference database.
- * Returns an error issue when the registration is unknown and something is
- * still missing (so we can't proceed), otherwise mutates the entry in place.
- */
+/** Fill the aircraft fields left blank (default template) from the reference DB. */
 async function resolveAircraft(row: MappedRow): Promise<{ field: string; message: string } | null> {
   const ac = row.entry!.aircraft;
   const onDate = row.entry!.legs[0]!.departureTime.slice(0, 10);
@@ -161,46 +176,81 @@ async function processRow(
     totalMinutes: null,
   };
 
-  // A row that failed the CSV mapping never reaches the DB pipeline.
-  if (!row.ok || !row.entry) {
+  if (!row.ok) {
     return { ...base, issues: row.issues ?? [{ field: "row", message: "Row could not be read." }] };
   }
 
   try {
-    if (row.needsAircraftLookup) {
-      const miss = await resolveAircraft(row);
-      if (miss) return { ...base, issues: [miss] };
-      // Reflect the resolved type back into the preview line.
-      base.aircraft = [row.entry.aircraft.registration, row.entry.aircraft.makeModelVariant].filter(Boolean).join(" ");
-    }
-
-    const entryBody = { ...row.entry, ...(opts.timeZone === "LOCAL" ? { timeZone: "LOCAL" as const } : {}) };
-    const prepared = await prepareFlightEntry(entryBody, pilotId);
-    if (!prepared.ok) {
-      const issues = (prepared.body as { issues?: Array<{ field: string; message: string }> }).issues;
-      return { ...base, issues: issues ?? [{ field: "entry", message: "Entry failed validation." }] };
-    }
-
-    const total = prepared.derived.total;
-    if (!opts.commit) {
-      return { ...base, status: "ready", totalMinutes: total };
-    }
-
-    const created = await createEntry(
-      prepared.input,
-      prepared.derived,
-      pilotId,
-      row.externalId ? `csv-import:${row.externalId}` : "csv-import",
-    );
-    return { ...base, status: "created", totalMinutes: total, entryId: created.entryId };
+    if (row.kind === "FSTD") return await processFstd(row, pilotId, base, opts.commit);
+    return await processFlight(row, pilotId, base, opts);
   } catch (err) {
-    if (err instanceof RequestError) {
-      return { ...base, issues: [{ field: "entry", message: err.message }] };
-    }
-    // An unexpected error on one row must not sink the whole batch.
+    if (err instanceof RequestError) return { ...base, issues: [{ field: "entry", message: err.message }] };
     const message = err instanceof Error ? err.message : "Unexpected error while importing this row.";
     return { ...base, issues: [{ field: "entry", message }] };
   }
+}
+
+async function processFlight(
+  row: MappedRow,
+  pilotId: string,
+  base: RowResult,
+  opts: { timeZone: "UTC" | "LOCAL"; commit: boolean },
+): Promise<RowResult> {
+  if (!row.entry) return { ...base, issues: [{ field: "row", message: "Missing flight body." }] };
+
+  // capzlog carries the aircraft in the file; register it so validation (which
+  // requires the aircraft on file) passes, instead of failing a migrated tail.
+  if (row.aircraftSeed) {
+    const s = row.aircraftSeed;
+    await upsertAircraft({
+      registration: s.registration,
+      model: s.model,
+      category: s.category,
+      engineCount: s.engineClass === "ME" ? 2 : 1,
+      multiPilot: s.multiPilot,
+      ...(s.icaoType ? { icaoType: s.icaoType } : {}),
+    });
+    base.aircraft = [s.registration, s.model].filter(Boolean).join(" ");
+  } else if (row.needsAircraftLookup) {
+    const miss = await resolveAircraft(row);
+    if (miss) return { ...base, issues: [miss] };
+    base.aircraft = [row.entry.aircraft.registration, row.entry.aircraft.makeModelVariant].filter(Boolean).join(" ");
+  }
+
+  const entryBody = { ...row.entry, ...(opts.timeZone === "LOCAL" ? { timeZone: "LOCAL" as const } : {}) };
+  const prepared = await prepareFlightEntry(entryBody, pilotId);
+  if (!prepared.ok) {
+    const issues = (prepared.body as { issues?: Array<{ field: string; message: string }> }).issues;
+    return { ...base, issues: issues ?? [{ field: "entry", message: "Entry failed validation." }] };
+  }
+
+  const total = prepared.derived.total;
+  if (!opts.commit) return { ...base, status: "ready", totalMinutes: total };
+
+  const created = await createEntry(
+    prepared.input,
+    prepared.derived,
+    pilotId,
+    row.externalId ? `csv-import:${row.externalId}` : "csv-import",
+  );
+  return { ...base, status: "created", totalMinutes: total, entryId: created.entryId };
+}
+
+async function processFstd(row: MappedRow, pilotId: string, base: RowResult, commit: boolean): Promise<RowResult> {
+  if (!row.fstd) return { ...base, issues: [{ field: "row", message: "Missing simulator body." }] };
+  const input = parseFstdRequest({ ...row.fstd, pilotId });
+  const result = validateFstdSession(input);
+  if (!result.valid || !result.derived) {
+    return { ...base, issues: (result.issues as Array<{ field: string; message: string }>) ?? [{ field: "entry", message: "Session failed validation." }] };
+  }
+  if (!commit) return { ...base, status: "ready", totalMinutes: row.fstd.totalMinutes };
+
+  // Auto-register the device, mirroring the single-session FSTD endpoint.
+  if (!(await fstdDeviceExists(input.qualificationNumber))) {
+    await upsertFstdDevice({ qualificationNumber: input.qualificationNumber, deviceKind: "OTHER", aircraftType: input.deviceType });
+  }
+  const created = await createFstdEntry(input, result.derived, pilotId, "csv-import:capzlog");
+  return { ...base, status: "created", totalMinutes: row.fstd.totalMinutes, entryId: created.entryId };
 }
 
 function safeJson(s: string): unknown {

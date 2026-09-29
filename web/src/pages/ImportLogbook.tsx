@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { useAuth } from "../auth";
@@ -35,6 +35,24 @@ const DATE_FORMAT_LABELS: Record<Exclude<api.CsvDateFormat, "auto">, string> = {
   DMY: "DD/MM/YYYY (day first)",
   MDY: "MM/DD/YYYY (month first)",
 };
+
+const CAPZLOG_REPORT_LABELS: Record<api.CapzlogReport, string> = {
+  airplane: "Airplane",
+  helicopter: "Helicopter",
+  sailplane: "Sailplane",
+  balloon: "Balloon",
+  simulator: "Simulator (FSTD)",
+};
+
+/** Mirror of the server's report detection, so the dropdown can pre-select. */
+function detectCapzlogReport(headers: string[]): api.CapzlogReport | null {
+  const set = new Set(headers.map((h) => h.trim().toLowerCase()));
+  if (set.has("session time")) return "simulator";
+  if (set.has("launch method")) return "sailplane";
+  if (set.has("single engine") && set.has("off block")) return "airplane";
+  if (set.has("pic name") && set.has("off block")) return "balloon";
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Minimal CSV grid (parse + serialize) so problem rows can be edited in place.
@@ -310,6 +328,8 @@ export function ImportLogbook() {
   const [csv, setCsv] = useState("");
   const [grid, setGrid] = useState<Grid | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [source, setSource] = useState<api.ImportSource>("default");
+  const [reportType, setReportType] = useState<api.CapzlogReport>("airplane");
   const [timeZone, setTimeZone] = useState<"UTC" | "LOCAL">("UTC");
   const [dateFormat, setDateFormat] = useState<api.CsvDateFormat>("auto");
   const [selfEnabled, setSelfEnabled] = useState(true);
@@ -337,15 +357,24 @@ export function ImportLogbook() {
     reader.readAsText(file);
   }
 
-  function callOpts(text: string, commit: boolean) {
+  // When a capzlog file is present, pre-select the report type from its header
+  // (the user can still override — the Airplane and Helicopter reports look the
+  // same, so a helicopter file needs the manual switch).
+  useEffect(() => {
+    if (source !== "capzlog" || !csv.trim()) return;
+    const headers = parseGrid(csv).headers;
+    const detected = detectCapzlogReport(headers);
+    if (detected) setReportType(detected);
+  }, [source, csv]);
+
+  function callOpts(commit: boolean) {
     return {
-      text,
-      opts: {
-        timeZone,
-        dateFormat,
-        selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
-        commit,
-      },
+      timeZone,
+      dateFormat,
+      selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
+      commit,
+      source,
+      ...(source === "capzlog" ? { reportType } : {}),
     };
   }
 
@@ -353,8 +382,7 @@ export function ImportLogbook() {
     setBusy(true);
     setError(null);
     try {
-      const { opts } = callOpts(text, false);
-      const r = await api.importLogbookCsv(text, opts);
+      const r = await api.importLogbookCsv(text, callOpts(false));
       setResult(r);
       setDirty(false);
       setStep("review");
@@ -378,8 +406,7 @@ export function ImportLogbook() {
     setBusy(true);
     setError(null);
     try {
-      const { opts } = callOpts(toCsv(grid), true);
-      const r = await api.importLogbookCsv(toCsv(grid), opts);
+      const r = await api.importLogbookCsv(toCsv(grid), callOpts(true));
       setResult(r);
       setStep("done");
     } catch (e) {
@@ -453,8 +480,28 @@ export function ImportLogbook() {
               </p>
             </div>
 
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Where is this data from?</span>
+              <select
+                value={source}
+                onChange={(e) => setSource(e.target.value as api.ImportSource)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 sm:max-w-xs"
+              >
+                <option value="default">Airdesk template</option>
+                <option value="capzlog">capzlog.aero export</option>
+              </select>
+              {source === "capzlog" && (
+                <span className="mt-1 block text-xs text-slate-500">
+                  Export each report from capzlog and import them one at a time. capzlog times are usually
+                  local — set the time option below to match.
+                </span>
+              )}
+            </label>
+
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="ghost" onClick={downloadTemplate}>Download template</Button>
+              {source === "default" && (
+                <Button variant="ghost" onClick={downloadTemplate}>Download template</Button>
+              )}
               <input
                 ref={fileRef}
                 type="file"
@@ -490,22 +537,41 @@ export function ImportLogbook() {
                 </label>
               </fieldset>
 
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-700">Date format in my file</span>
-                <select
-                  value={dateFormat}
-                  onChange={(e) => setDateFormat(e.target.value as api.CsvDateFormat)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
-                >
-                  <option value="auto">Detect automatically</option>
-                  <option value="YMD">YYYY-MM-DD</option>
-                  <option value="DMY">DD/MM/YYYY (day first)</option>
-                  <option value="MDY">MM/DD/YYYY (month first)</option>
-                </select>
-                <span className="mt-1 block text-xs text-slate-500">
-                  We normalise every date to YYYY-MM-DD and show you the result before importing.
-                </span>
-              </label>
+              {source === "capzlog" ? (
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-slate-700">Which capzlog report is this?</span>
+                  <select
+                    value={reportType}
+                    onChange={(e) => setReportType(e.target.value as api.CapzlogReport)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                  >
+                    {(Object.keys(CAPZLOG_REPORT_LABELS) as api.CapzlogReport[]).map((r) => (
+                      <option key={r} value={r}>{CAPZLOG_REPORT_LABELS[r]}</option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    Pre-filled from the file. The Airplane and Helicopter reports look identical, so pick
+                    Helicopter yourself for a helicopter file.
+                  </span>
+                </label>
+              ) : (
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-slate-700">Date format in my file</span>
+                  <select
+                    value={dateFormat}
+                    onChange={(e) => setDateFormat(e.target.value as api.CsvDateFormat)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                  >
+                    <option value="auto">Detect automatically</option>
+                    <option value="YMD">YYYY-MM-DD</option>
+                    <option value="DMY">DD/MM/YYYY (day first)</option>
+                    <option value="MDY">MM/DD/YYYY (month first)</option>
+                  </select>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    We normalise every date to YYYY-MM-DD and show you the result before importing.
+                  </span>
+                </label>
+              )}
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -546,10 +612,17 @@ export function ImportLogbook() {
                   <span className="text-sky-700">{result.summary.ready} ready to import</span>
                   {result.summary.errors > 0 && (<>{" · "}<span className="text-rose-700">{result.summary.errors} with problems</span></>)}.
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Dates read as <strong>{DATE_FORMAT_LABELS[result.dateFormat]}</strong>. Check the Date column below;
-                  if a date looks wrong, go back and set the date format explicitly.
-                </p>
+                {result.report ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Read as a capzlog <strong>{CAPZLOG_REPORT_LABELS[result.report]}</strong> export. Check the totals
+                    below before importing.
+                  </p>
+                ) : result.dateFormat ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Dates read as <strong>{DATE_FORMAT_LABELS[result.dateFormat]}</strong>. Check the Date column below;
+                    if a date looks wrong, go back and set the date format explicitly.
+                  </p>
+                ) : null}
               </div>
               <ResultTable rows={tableRows} />
               <div className="flex items-center justify-between border-t border-slate-100 pt-3">
