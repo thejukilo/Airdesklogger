@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, Link, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useAuth } from "./auth";
 import { ClockSkewBanner } from "./components/ClockSkewBanner";
 import { SubscriptionBanner } from "./components/SubscriptionBanner";
@@ -169,6 +170,14 @@ export function App() {
 function MaybeLandingOrShell() {
   const { user, loading } = useAuth();
   const location = useLocation();
+  // The native app is a tool, not a marketing surface: it never shows the
+  // landing page, and an unauthenticated launch goes straight to sign-in. This
+  // holds even after the landing is promoted to "/" on the web.
+  if (Capacitor.isNativePlatform()) {
+    if (location.pathname === "/landing") return <Navigate to="/" replace />;
+    if (location.pathname === "/" && !user && !loading) return <Navigate to="/login" replace />;
+    return <AppShell />;
+  }
   // Public marketing page, reachable by everyone at /landing. Kept off "/" for
   // now so FOCA reviewers still see the sign-in screen as the homepage; promote
   // it to "/" later by pointing the Landing branch below at the landing.

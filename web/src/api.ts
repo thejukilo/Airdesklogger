@@ -4,9 +4,20 @@
  * and attached as a bearer on every request.
  */
 
+import { Capacitor } from "@capacitor/core";
 import { recordServerDate } from "./lib/clockSkew";
 
 const TOKEN_KEY = "airdesk.token";
+
+/**
+ * On the web the SPA and API share an origin, so API paths stay relative. In the
+ * native app the UI loads from a local origin, so calls must target the deployed
+ * backend absolutely. VITE_API_ORIGIN overrides the default (e.g. for a staging
+ * build); it is ignored on the web, where relative paths are always correct.
+ */
+const API_ORIGIN = Capacitor.isNativePlatform()
+  ? ((import.meta.env.VITE_API_ORIGIN as string | undefined) ?? "https://log.airdeck.ch")
+  : "";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -38,7 +49,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const startedAt = Date.now();
-  const res = await fetch(`/api${path}`, { ...init, headers });
+  const res = await fetch(`${API_ORIGIN}/api${path}`, { ...init, headers });
   recordServerDate(res.headers.get("date"), startedAt, Date.now());
   const text = await res.text();
 
@@ -716,7 +727,7 @@ export function importLogbookCsv(
 
 export async function exportLogbookPdf(): Promise<Blob> {
   const token = getToken();
-  const res = await fetch("/api/export/logbook", {
+  const res = await fetch(`${API_ORIGIN}/api/export/logbook`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new ApiError(res.status, "Could not generate the export.");
