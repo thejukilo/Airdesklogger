@@ -4,6 +4,7 @@ import { useAuth } from "../auth";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
 import { AddressAutocomplete } from "../components/AddressAutocomplete";
+import { getBiometry, runBiometric } from "../lib/biometric";
 
 const emptyProfile = {
   firstName: "",
@@ -242,6 +243,8 @@ export function Account() {
       </Card>
 
       <ImportTokensCard />
+
+      <BiometricCard />
 
       <Card>
         <h2 className="mb-1 font-medium">Two-factor authentication</h2>
@@ -767,6 +770,55 @@ function SubscriptionCard() {
           </button>
         )}
       </div>
+    </Card>
+  );
+}
+
+/**
+ * Biometric unlock toggle (native app only). Hides itself on the web and on
+ * devices without Face ID / Touch ID. Turning it on confirms with a live
+ * biometric prompt so the holder knows it works before relying on it.
+ */
+function BiometricCard() {
+  const { biometricEnabled, setBiometricEnabled } = useAuth();
+  const [info, setInfo] = useState<{ available: boolean; label: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getBiometry().then(setInfo);
+  }, []);
+
+  if (!info || !info.available) return null;
+
+  async function toggle(on: boolean) {
+    setErr(null);
+    if (!on) {
+      setBiometricEnabled(false);
+      return;
+    }
+    setBusy(true);
+    const ok = await runBiometric(`Turn on ${info!.label} unlock`);
+    setBusy(false);
+    if (!ok) {
+      setErr(`Could not confirm ${info!.label}. Nothing was changed.`);
+      return;
+    }
+    setBiometricEnabled(true);
+  }
+
+  return (
+    <Card>
+      <h2 className="mb-1 font-medium">{info.label} unlock</h2>
+      <p className="mb-3 text-sm text-slate-500">
+        Require {info.label} to open the app on this device. Your session stays signed in; {info.label} just
+        unlocks it.
+      </p>
+      {err && <Alert>{err}</Alert>}
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={biometricEnabled} disabled={busy} onChange={(e) => void toggle(e.target.checked)} />
+        Unlock with {info.label}
+      </label>
     </Card>
   );
 }

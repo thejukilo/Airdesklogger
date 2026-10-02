@@ -217,12 +217,66 @@ function TabUserIcon({ active }: { active: boolean }) {
 }
 
 export function App() {
+  const { locked } = useAuth();
   return (
-    <Routes>
-      {/* Public, no account: external signers reach the signing page by token. */}
-      <Route path="/sign/:token" element={<Sign />} />
-      <Route path="/*" element={<MaybeLandingOrShell />} />
-    </Routes>
+    <>
+      <Routes>
+        {/* Public, no account: external signers reach the signing page by token. */}
+        <Route path="/sign/:token" element={<Sign />} />
+        <Route path="/*" element={<MaybeLandingOrShell />} />
+      </Routes>
+      {locked && <LockScreen />}
+    </>
+  );
+}
+
+/**
+ * Full-screen biometric gate (native app only). Shown over everything while a
+ * restored session is locked; it runs the Face ID / Touch ID prompt on mount,
+ * and offers a password fallback (sign out) if that is cancelled or fails.
+ */
+function LockScreen() {
+  const { unlock, logout } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const tried = useRef(false);
+
+  async function attempt() {
+    setBusy(true);
+    setFailed(false);
+    const ok = await unlock();
+    setBusy(false);
+    if (!ok) setFailed(true);
+  }
+
+  useEffect(() => {
+    if (tried.current) return;
+    tried.current = true;
+    void attempt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="safe-top safe-bottom fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-brand-600 px-6 text-white">
+      <BrandMark />
+      <div className="text-center">
+        <div className="text-lg font-semibold">Airdeck Logger</div>
+        <div className="text-sm text-white/80">Locked</div>
+      </div>
+      <button
+        type="button"
+        onClick={attempt}
+        disabled={busy}
+        className="rounded-lg bg-white/15 px-6 py-3 text-base font-medium backdrop-blur transition hover:bg-white/25 disabled:opacity-60"
+      >
+        {busy ? "Unlocking..." : "Unlock"}
+      </button>
+      {failed && (
+        <button type="button" onClick={logout} className="text-sm text-white/80 underline">
+          Sign in with password instead
+        </button>
+      )}
+    </div>
   );
 }
 
