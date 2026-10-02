@@ -73,6 +73,23 @@ needs it. Capacitor's generated `.gitignore` already excludes build output and
 3. Xcode Cloud runs `ci_post_clone.sh`, then `pod install`, then builds and
    uploads to TestFlight.
 
+## Keeping app-only commits from redeploying the website
+
+Both Vercel and Xcode Cloud watch the repo, so by default a change under
+`web/ios/**` would trigger a pointless website redeploy. `scripts/vercel-ignore.sh`
+prevents that: it skips the Vercel build when a commit touched nothing but
+`web/ios/**`, and builds for anything else.
+
+Set it once, on the Vercel project that serves `log.airdeck.ch`:
+**Project Settings -> Git -> Ignored Build Step ->**
+```
+bash scripts/vercel-ignore.sh
+```
+It inspects the latest commit, so keep native-only work in its own commits. The
+complementary control on the app side is to build the iOS app only on a release
+tag or branch in the Xcode Cloud workflow, so website deploys and app releases
+run on their own schedules.
+
 ## How updates reach the app
 
 The app bundles the web UI, so a UI change reaches users only through a **new
