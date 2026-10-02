@@ -17,6 +17,12 @@ const config: CapacitorConfig = {
   webDir: "dist",
   plugins: {
     CapacitorHttp: { enabled: true },
+    SplashScreen: {
+      // Shown until the web app has painted, then hidden from JS (see main.tsx).
+      launchAutoHide: false,
+      backgroundColor: "#2563eb",
+      showSpinner: false,
+    },
   },
 };
 

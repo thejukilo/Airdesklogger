@@ -26,3 +26,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+// Hide the native splash once the first frame has painted, so the brand splash
+// covers the few seconds of WebView + bundle startup instead of a blank screen.
+if (Capacitor.isNativePlatform()) {
+  void import("@capacitor/splash-screen").then(({ SplashScreen }) => {
+    requestAnimationFrame(() => setTimeout(() => void SplashScreen.hide().catch(() => {}), 0));
+  }).catch(() => {});
+}

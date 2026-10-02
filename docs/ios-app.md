@@ -44,11 +44,23 @@ In Xcode, select the **App** target → **Signing & Capabilities**:
 Run it on the simulator or a device. Because the app calls the live API, you can
 sign in with a real account straight away.
 
-### App icon
+### App icon and splash screen
 
-Drop a 1024x1024 PNG at `web/resources/icon.png` and run
-`npx @capacitor/assets generate --ios` to fill the icon set, or set it by hand in
-Xcode's asset catalog.
+The source art is in `web/assets/` (the same diamond logo as the website):
+`icon-only.svg`, `splash.svg`, `splash-dark.svg`. Generate all the sized iOS
+icon and splash assets from them (run from `web/`, after `cap add ios`):
+
+```sh
+npx @capacitor/assets generate --ios
+npx cap sync ios
+```
+
+That writes the icon set and splash images into the iOS project; commit them
+with the rest of `web/ios/`. The splash background colour is also set in
+`capacitor.config.ts` (`SplashScreen.backgroundColor`) and the app hides the
+splash from JS once the UI has painted (see `main.tsx`). If `@capacitor/assets`
+rejects the SVGs on your machine, open each in Preview and export a PNG at the
+same name/size (`icon-only.png` 1024x1024, `splash*.png` 2732x2732).
 
 ### Commit the iOS project
 
