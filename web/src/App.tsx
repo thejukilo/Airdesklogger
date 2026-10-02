@@ -169,6 +169,10 @@ export function App() {
 function MaybeLandingOrShell() {
   const { user, loading } = useAuth();
   const location = useLocation();
+  // Public marketing page, reachable by everyone at /landing. Kept off "/" for
+  // now so FOCA reviewers still see the sign-in screen as the homepage; promote
+  // it to "/" later by pointing the Landing branch below at the landing.
+  if (location.pathname === "/landing") return <Landing />;
   if (location.pathname === "/" && !user && !loading) return <Navigate to="/login" replace />;
   if (location.pathname === "/" && !user && !loading) return <Landing />;
   return <AppShell />;
