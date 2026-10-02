@@ -2,32 +2,24 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 
 /**
- * FOCA acceptance status. The application has been SUBMITTED to FOCA but not yet
- * accepted, so this stays `false` and the page makes only truthful "built to /
- * submitted for" claims — never "approved". The day FOCA grants acceptance, set
- * this to `true` and fill in FOCA_REFERENCE; the hero badge, the compliance band
- * and the FAQ all switch to the accepted wording automatically.
+ * FOCA acceptance status. The application has been submitted to FOCA but not yet
+ * accepted, so this stays `false` and the page states only what is true today.
+ * The day FOCA grants acceptance, set this to `true` and fill in FOCA_REFERENCE;
+ * the hero badge, the compliance band and the FAQ all switch to the approved
+ * wording automatically.
  */
 const FOCA_APPROVED = false;
 const FOCA_REFERENCE = ""; // e.g. "FOCA ref. 31-00-0000" once granted
 
 /**
- * Public landing page. Served bare (it brings its own header/footer) at
+ * Public landing page. Served bare (it brings its own header and footer) at
  * "/landing" today, and intended to become "/" once FOCA review completes.
- *
- *   1. Hero         - what the product is, primary CTAs
- *   2. Compliance   - the regulatory standing (EASA Part-FCL / FOCA)
- *   3. Features     - the regulatory and workflow features in one grid
- *   4. Pricing      - single plan with the accepted payment methods
- *   5. FAQ + Footer
- *
- * No external assets; uses the same brand palette as the signed-in app so the
- * visual jump from landing to app is seamless.
+ * Plain copy, same brand palette as the signed-in app, no external assets.
  */
 export function Landing() {
   useEffect(() => {
     const prev = document.title;
-    document.title = "Airdesk Logger — EASA Part-FCL digital pilot logbook";
+    document.title = "Airdesk Logger · pilot logbook for EASA licences";
     return () => { document.title = prev; };
   }, []);
 
@@ -75,27 +67,26 @@ function Hero() {
         <div>
           <span className="inline-flex items-center gap-2 rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-800">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-600"></span>
-            {FOCA_APPROVED ? "Accepted by FOCA · Switzerland" : "Built to the FOCA logbook standard"}
+            {FOCA_APPROVED ? "Approved by FOCA, Switzerland" : "Digital logbook for EASA pilots"}
           </span>
           <h1 className="mt-4 text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
-            Your pilot logbook, <span className="text-brand-600">done right.</span>
+            Your pilot logbook, <span className="text-brand-600">online.</span>
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
-            Airdesk Logger is an electronic flight logbook for EASA Part-FCL
-            licence holders. AMC1 FCL.050 layout, cryptographic sign-off, a
-            tamper-evident audit trail, and a FOCA-format PDF export — at a
-            price every pilot can afford.
+            Airdesk Logger is an electronic logbook for pilots flying under EASA Part-FCL.
+            It keeps your flights in the official layout, adds up your totals, lets an
+            instructor sign off, and produces the FOCA PDF whenever you need it.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link to="/register" className="rounded-md bg-brand-600 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-700">
               Start 3-day free trial
             </Link>
             <Link to="/register?plan=paid" className="rounded-md border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-              Subscribe — CHF 5.99 / mo
+              Subscribe, CHF 5.99 / mo
             </Link>
           </div>
           <p className="mt-4 text-xs text-slate-500">
-            Trial · no card required · cancel anytime — or skip the trial and pay directly
+            Three days free, no card needed. Or subscribe right away.
           </p>
         </div>
         <div className="hidden md:block">
@@ -109,23 +100,23 @@ function Hero() {
 function Compliance() {
   const pillars = [
     {
-      title: "EASA Part-FCL",
-      body: "AMC1 FCL.050 column layouts for aeroplane, helicopter, sailplane and balloon — with computed per-page, brought-forward and grand totals.",
+      title: "EASA Part-FCL layout",
+      body: "The AMC1 FCL.050 columns for aeroplane, helicopter, sailplane and balloon. Page totals and running totals are worked out for you.",
       icon: <IconColumns />,
     },
     {
-      title: "FOCA logbook standard",
-      body: "Built to FOCA's GM/INFO “Accepted Logbook Formats” requirements (Article 2): record content, integrity, retention and the official PDF export.",
+      title: "FOCA logbook rules",
+      body: "Follows the FOCA rules for what a logbook must contain, how it is kept, and the PDF you submit.",
       icon: <IconDocument />,
     },
     {
-      title: "Tamper-evident by design",
-      body: "Ed25519 instructor sign-off and a SHA-256 hash-chained audit ledger make every entry and every correction provable — auditors can verify it offline.",
+      title: "Hard to tamper with",
+      body: "Entries are signed with a cryptographic key and chained together, so a later change is easy to spot. An inspector can verify it.",
       icon: <IconChain />,
     },
     {
       title: "Swiss, and yours",
-      body: "Operated from Switzerland. Export the full FOCA PDF whenever you like, and your records remain yours — readable and exportable even if you cancel.",
+      body: "Run from Switzerland. Export the full PDF any time. Your records stay readable and exportable even if you stop paying.",
       icon: <IconShield />,
     },
   ];
@@ -133,15 +124,15 @@ function Compliance() {
     <section id="compliance" className="border-y border-slate-200/60 bg-white py-20">
       <div className="mx-auto max-w-screen-xl px-4">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="text-xs font-semibold uppercase tracking-wider text-brand-700">Regulatory standing</span>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Made for the authorities, not just pilots</h2>
+          <span className="text-xs font-semibold uppercase tracking-wider text-brand-700">Compliance</span>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Built to the rules, from the start</h2>
           <p className="mt-3 text-base text-slate-600">
-            Airdesk Logger is designed around Switzerland&rsquo;s FOCA logbook requirements and the EASA
-            Part-FCL rules &mdash; by design from day one, not retrofitted.
+            Airdesk Logger follows the EASA Part-FCL layout and the FOCA requirements for an
+            electronic logbook. We built it to those rules, not around them.
           </p>
         </div>
 
-        {/* Authority / approval status card */}
+        {/* Regulatory status card */}
         <div className="mx-auto mt-10 max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-brand-50 to-white shadow-sm">
           <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-6 sm:p-8">
             <div className="flex h-16 w-16 flex-none items-center justify-center rounded-2xl bg-brand-600 text-white shadow-sm">
@@ -150,30 +141,30 @@ function Compliance() {
             <div className="min-w-0">
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  FOCA_APPROVED ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  FOCA_APPROVED ? "bg-emerald-100 text-emerald-800" : "bg-brand-100 text-brand-800"
                 }`}
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${FOCA_APPROVED ? "bg-emerald-600" : "bg-amber-500"}`}></span>
-                {FOCA_APPROVED ? "Accepted" : "Acceptance in review"}
+                <span className={`h-1.5 w-1.5 rounded-full ${FOCA_APPROVED ? "bg-emerald-600" : "bg-brand-600"}`}></span>
+                {FOCA_APPROVED ? "Approved" : "Swiss FOCA standard"}
               </span>
               <h3 className="mt-2 text-xl font-bold tracking-tight">
                 {FOCA_APPROVED
-                  ? "Accepted by FOCA — Switzerland"
-                  : "Submitted to FOCA for acceptance"}
+                  ? "Approved by FOCA, Switzerland"
+                  : "Built to Switzerland's FOCA logbook standard"}
               </h3>
               <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
                 {FOCA_APPROVED ? (
                   <>
-                    Accepted as an electronic logbook by the <strong>Federal Office of Civil Aviation
-                    (FOCA)</strong>, Switzerland&rsquo;s civil aviation authority and an EASA member state.
-                    {FOCA_REFERENCE ? <> {FOCA_REFERENCE}.</> : null}
+                    Airdesk Logger is an electronic logbook approved by the <strong>Federal Office of
+                    Civil Aviation (FOCA)</strong>, Switzerland&rsquo;s civil aviation authority and an EASA
+                    member state.{FOCA_REFERENCE ? <> {FOCA_REFERENCE}.</> : null}
                   </>
                 ) : (
                   <>
-                    Airdesk Logger has been submitted to the <strong>Federal Office of Civil Aviation
-                    (FOCA)</strong> &mdash; Switzerland&rsquo;s civil aviation authority and an EASA member
-                    state &mdash; for acceptance as an electronic logbook under its GM/INFO guidance, and is
-                    built to that standard throughout.
+                    Airdesk Logger meets the EASA Part-FCL layout (AMC1 FCL.050) and Switzerland&rsquo;s
+                    FOCA requirements for an electronic logbook, and has been submitted to the{" "}
+                    <strong>Federal Office of Civil Aviation (FOCA)</strong> for acceptance. FOCA is the
+                    Swiss civil aviation authority and an EASA member state.
                   </>
                 )}
               </p>
@@ -198,45 +189,43 @@ function Compliance() {
 function Features() {
   const features = [
     {
-      title: "AMC1 FCL.050 column layout",
-      body: "Aeroplane, helicopter, sailplane and balloon — each category in its own layout, with auto-classified day / night landings and night-time minutes.",
+      title: "Every EASA category",
+      body: "Aeroplane, helicopter, sailplane and balloon, each in its own layout. Day and night landings and night minutes come from your block times.",
       icon: <IconColumns />,
     },
     {
-      title: "Cryptographic sign-off",
-      body: "Instructors and examiners sign with Ed25519 keys, MFA-protected. The signature commits to the exact entry version — tampering breaks it.",
+      title: "Instructor sign-off",
+      body: "Instructors and examiners sign your entries with a secure key and two-factor login. The signature is tied to the exact entry, so it breaks if anything changes afterwards.",
       icon: <IconShield />,
     },
     {
-      title: "Tamper-evident audit trail",
-      body: "Every change appends one record to a SHA-256 hash-chained ledger. The history is provable, not just stored. Auditors can verify it offline.",
+      title: "A history you can show",
+      body: "Every change adds a record to a chained log. You can show the full history of an entry, not just how it looks now.",
       icon: <IconChain />,
     },
     {
-      title: "FOCA-format PDF export",
-      body: "Generate the FOCA logbook PDF on demand, with the full change-log appendix, sign-off appendix and attributes appendix — ready for dLIS submission.",
+      title: "FOCA PDF export",
+      body: "Make the FOCA logbook PDF any time, with the change log, the sign-offs and the endorsements all included.",
       icon: <IconDocument />,
     },
     {
-      title: "Flight-school import",
-      body: "Personal access tokens let your flight school post flights directly. Write-only, append-only, per-pilot — your school never sees anyone else's logbook.",
+      title: "Bring your flights across",
+      body: "Import your history from a CSV file or from capzlog.aero, with a preview before anything is saved. Flight schools can send flights straight in.",
       icon: <IconImport />,
     },
     {
-      title: "Local time, the right way",
-      body: "Enter times in UTC or local civil time at the aerodrome. We convert against the airport's IANA timezone, automatically and accurately.",
+      title: "UTC or local time",
+      body: "Enter times in UTC or in local time at the airport. We convert them using the airport's time zone, so your night time and dates come out right.",
       icon: <IconClock />,
     },
   ];
   return (
-    <section id="features" className="border-t border-slate-200/60 bg-white py-20">
+    <section id="features" className="border-t border-slate-200/60 bg-gradient-to-b from-slate-50 to-white py-20">
       <div className="mx-auto max-w-screen-xl px-4">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Everything an EASA logbook should be</h2>
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">What you get</h2>
           <p className="mt-3 text-base text-slate-600">
-            Built around the regulatory requirements rather than retrofitted.
-            The features below cover the FOCA 2.x guidance and AMC1 FCL.050 by
-            design, not by accident.
+            The parts you actually need to keep a logbook that holds up to a check.
           </p>
         </div>
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -255,20 +244,19 @@ function Features() {
 
 function Pricing() {
   const bullets = [
-    "Unlimited flight entries and FSTD sessions",
+    "As many flights and simulator sessions as you log",
     "Unlimited FOCA PDF exports",
-    "Sign-off workflow with Ed25519 cryptography",
-    "Flight-school import API",
-    "Cancel anytime — your entries always stay yours",
+    "Instructor and examiner sign-off",
+    "Import from CSV and capzlog.aero",
+    "Cancel any time. Your entries stay yours.",
   ];
   return (
-    <section id="pricing" className="border-t border-slate-200/60 bg-gradient-to-b from-slate-50 to-white py-20">
+    <section id="pricing" className="border-t border-slate-200/60 bg-white py-20">
       <div className="mx-auto max-w-screen-xl px-4">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">One simple plan</h2>
           <p className="mt-3 text-base text-slate-600">
-            No tiers, no add-ons, no surprises. Start with a 3-day free trial
-            — no card required.
+            No tiers and no add-ons. Start with three days free, no card needed.
           </p>
         </div>
 
@@ -280,7 +268,7 @@ function Pricing() {
                 <span className="text-5xl font-bold">CHF 5.99</span>
                 <span className="text-sm text-slate-300">/ month</span>
               </div>
-              <p className="mt-2 text-sm text-slate-300">Cancel anytime · all features included</p>
+              <p className="mt-2 text-sm text-slate-300">Cancel any time. All features included.</p>
             </div>
             <div className="space-y-3 px-8 py-7">
               {bullets.map((b) => (
@@ -297,7 +285,7 @@ function Pricing() {
                 Start 3-day free trial
               </Link>
               <p className="mt-3 text-center text-xs text-slate-500">
-                No card required to start. We'll ask for it when your trial ends.
+                No card to start. We ask for it when your trial ends.
               </p>
               <div className="mt-4 flex items-center gap-3">
                 <span className="h-px flex-1 bg-slate-200"></span>
@@ -305,7 +293,7 @@ function Pricing() {
                 <span className="h-px flex-1 bg-slate-200"></span>
               </div>
               <Link to="/register?plan=paid" className="mt-4 block w-full rounded-xl border border-slate-300 bg-white py-3 text-center text-base font-semibold text-slate-700 hover:bg-slate-50">
-                Subscribe immediately — CHF 5.99
+                Subscribe now, CHF 5.99
               </Link>
               <p className="mt-2 text-center text-xs text-slate-500">
                 Skip the trial and start paying right away.
@@ -319,7 +307,7 @@ function Pricing() {
                 <PaymentBadge label="MASTERCARD" bg="bg-white" text="text-ink" weight="font-bold" />
                 <PaymentBadge label="PayPal" bg="bg-white" text="text-[#003087]" weight="font-extrabold" />
               </div>
-              <p className="mt-3 text-center text-xs text-slate-500">VAT included where applicable.</p>
+              <p className="mt-3 text-center text-xs text-slate-500">VAT included where it applies.</p>
             </div>
           </div>
         </div>
@@ -338,21 +326,33 @@ function PaymentBadge({ label, bg, text, weight }: { label: string; bg: string; 
 
 function Faq() {
   const items = [
-    { q: "What happens after the 3-day trial?", a: "We ask for a payment method. If you don't add one, your logbook switches to read-only — you can still view your entries and the PDF you generated, but you can't log new flights. Subscribe at any time to restore full access." },
-    { q: "Can I cancel anytime?", a: "Yes, in two clicks from your profile. You keep full access until the end of the paid month, then the logbook becomes read-only. Your entries are never deleted." },
+    {
+      q: "What happens after the 3-day trial?",
+      a: "We ask for a payment method. If you don't add one, your logbook goes read-only: you can still see your entries and the PDF you made, but you can't log new flights. Subscribe any time to switch it back on.",
+    },
+    {
+      q: "Can I cancel any time?",
+      a: "Yes, from your profile. You keep access until the end of the month you paid for, then the logbook goes read-only. We never delete your entries.",
+    },
     {
       q: "Is this approved by FOCA?",
       a: FOCA_APPROVED
-        ? `Yes. Airdesk Logger is accepted as an electronic logbook by FOCA, Switzerland's civil aviation authority (an EASA member state)${FOCA_REFERENCE ? ` — ${FOCA_REFERENCE}` : ""}. It is built against AMC1 FCL.050, the FOCA GM/INFO guidance and BFCL.050.`
-        : "It has been submitted to FOCA (Switzerland's civil aviation authority, an EASA member state) for acceptance as an electronic logbook, and is built against AMC1 FCL.050, the FOCA GM/INFO guidance and BFCL.050 from day one. We will update this page the moment acceptance is granted.",
+        ? `Yes. Airdesk Logger is approved as an electronic logbook by FOCA, the Swiss civil aviation authority and an EASA member state${FOCA_REFERENCE ? ` (${FOCA_REFERENCE})` : ""}. It is built to the EASA Part-FCL layout and the FOCA logbook rules.`
+        : "It is built to the EASA Part-FCL layout (AMC1 FCL.050) and the FOCA rules for an electronic logbook, and we have submitted it to FOCA, the Swiss authority and an EASA member state, for acceptance. We will update this page when acceptance is granted.",
     },
-    { q: "Can I import flights from my flight school's system?", a: "Yes. Generate a personal access token in your account, paste it into your school's logbook software, and closed flights will flow into your Airdesk logbook automatically." },
-    { q: "What about my existing logbook?", a: "You can log historic flights one by one or, if your school uses a supported system, bulk-import through the API." },
+    {
+      q: "Can I move my existing logbook over?",
+      a: "Yes. You can import your flights from a CSV file or from a capzlog.aero export, one report at a time, and check the preview before anything is saved. You can also enter older flights by hand.",
+    },
+    {
+      q: "Can my flight school add flights for me?",
+      a: "Yes. You create a token in your account and give it to your school's software. It can add flights to your logbook and nothing else, and it never sees anyone else's.",
+    },
   ];
   return (
-    <section className="border-t border-slate-200/60 bg-white py-20">
+    <section className="border-t border-slate-200/60 bg-gradient-to-b from-slate-50 to-white py-20">
       <div className="mx-auto max-w-screen-md px-4">
-        <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Frequently asked</h2>
+        <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Common questions</h2>
         <dl className="mt-8 space-y-6">
           {items.map((it) => (
             <div key={it.q} className="rounded-xl border border-slate-200 bg-white p-5">
@@ -381,13 +381,13 @@ function Footer() {
           <a href="#pricing" className="hover:text-slate-700">Pricing</a>
           <a href="#features" className="hover:text-slate-700">Features</a>
         </div>
-        <p className="text-xs text-slate-400">© 2026 Jukilo · Switzerland</p>
+        <p className="text-xs text-slate-400">© 2026 Jukilo, Switzerland</p>
       </div>
     </footer>
   );
 }
 
-/* ──────────── Icons & illustration (inline SVG, no asset deps) ──────────── */
+/* Icons and illustration (inline SVG, no asset deps). */
 
 function BrandMark() {
   return (
@@ -412,7 +412,7 @@ function HeroIllustration() {
           { date: "29 May", reg: "HB-PNT", from: "LSZH", to: "LSGG", time: "1:20", tag: "PIC", tagBg: "bg-brand-50", tagText: "text-brand-700" },
           { date: "23 May", reg: "HB-PEW", from: "LSZN", to: "LSZF", time: "0:38", tag: "Dual", tagBg: "bg-amber-50", tagText: "text-amber-700" },
           { date: "21 May", reg: "HB-PNT", from: "LSZH", to: "LSZH", time: "1:10", tag: "PIC", tagBg: "bg-brand-50", tagText: "text-brand-700" },
-          { date: "13 May", reg: "FSTD A320", from: "OPC", to: "—", time: "4:00", tag: "Sim", tagBg: "bg-slate-100", tagText: "text-slate-700" },
+          { date: "13 May", reg: "FSTD A320", from: "OPC", to: "LSZH", time: "4:00", tag: "Sim", tagBg: "bg-slate-100", tagText: "text-slate-700" },
         ].map((r) => (
           <div key={r.date + r.reg} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2 text-sm shadow-sm">
             <div className="flex items-center gap-3">
