@@ -29,6 +29,7 @@ export function Landing() {
       <Hero />
       <Compliance />
       <Features />
+      <Migration />
       <Pricing />
       <Faq />
       <Footer />
@@ -115,8 +116,8 @@ function Compliance() {
       icon: <IconChain />,
     },
     {
-      title: "Swiss, and yours",
-      body: "Run from Switzerland. Export the full PDF any time. Your records stay readable and exportable even if you stop paying.",
+      title: "Your records, yours to keep",
+      body: "Made by a Swiss company. Export the full FOCA PDF any time, and your entries stay readable and exportable even if you stop paying.",
       icon: <IconShield />,
     },
   ];
@@ -234,6 +235,47 @@ function Features() {
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-brand-700">{f.icon}</div>
               <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Migration() {
+  const paths = [
+    {
+      title: "From a CSV file",
+      body: "Upload a CSV from your current logbook. The import checks every row and shows a preview, so you can sort out any problems before a single flight is saved.",
+      icon: <IconImport />,
+    },
+    {
+      title: "From capzlog.aero",
+      body: "Export your flights from capzlog by category and bring them straight in. Airplane, helicopter, sailplane, balloon and simulator are all handled.",
+      icon: <IconColumns />,
+    },
+    {
+      title: "From your flight school",
+      body: "Your school's software can send finished flights into your logbook using a token you create. It can only add flights, and only to yours.",
+      icon: <IconDocument />,
+    },
+  ];
+  return (
+    <section className="border-t border-slate-200/60 bg-slate-50 py-20">
+      <div className="mx-auto max-w-screen-xl px-4">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Moving from another logbook?</h2>
+          <p className="mt-3 text-base text-slate-600">
+            Bring your history across. Nothing is saved until you have looked it over.
+          </p>
+        </div>
+        <div className="mt-12 grid gap-6 sm:grid-cols-3">
+          {paths.map((p) => (
+            <div key={p.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-brand-700">{p.icon}</div>
+              <h3 className="mt-4 text-base font-semibold">{p.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{p.body}</p>
             </div>
           ))}
         </div>
