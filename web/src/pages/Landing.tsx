@@ -211,7 +211,7 @@ function Features() {
     },
     {
       title: "Bring your flights across",
-      body: "Import your history from a CSV file or from capzlog.aero, with a preview before anything is saved. Flight schools can send flights straight in.",
+      body: "Import your history from a CSV file, with a preview before anything is saved. Flight schools can also send flights straight in.",
       icon: <IconImport />,
     },
     {
@@ -251,8 +251,8 @@ function Migration() {
       icon: <IconImport />,
     },
     {
-      title: "From capzlog.aero",
-      body: "Export your flights from capzlog by category and bring them straight in. Airplane, helicopter, sailplane, balloon and simulator are all handled.",
+      title: "From another digital logbook",
+      body: "Export your flights by category and bring them straight in. Airplane, helicopter, sailplane, balloon and simulator are all handled.",
       icon: <IconColumns />,
     },
     {
@@ -289,7 +289,7 @@ function Pricing() {
     "As many flights and simulator sessions as you log",
     "Unlimited FOCA PDF exports",
     "Instructor and examiner sign-off",
-    "Import from CSV and capzlog.aero",
+    "Import from CSV and other digital logbooks",
     "Cancel any time. Your entries stay yours.",
   ];
   return (
@@ -384,7 +384,7 @@ function Faq() {
     },
     {
       q: "Can I move my existing logbook over?",
-      a: "Yes. You can import your flights from a CSV file or from a capzlog.aero export, one report at a time, and check the preview before anything is saved. You can also enter older flights by hand.",
+      a: "Yes. You can import your flights from a CSV file, including exports from other digital logbooks, one report at a time, and check the preview before anything is saved. You can also enter older flights by hand.",
     },
     {
       q: "Can my flight school add flights for me?",
