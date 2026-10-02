@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import * as api from "../api";
 import { useAuth } from "../auth";
 import { Alert, Button, Card, Field } from "../components/ui";
@@ -963,6 +964,24 @@ function BulkSignoffDialog({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{ link: string; emailed: boolean; emailConfigured: boolean; entryCount: number } | null>(null);
+  const navigate = useNavigate();
+
+  // Hand the device to the instructor to sign right here: create the same
+  // one-time token with no email, then open the signing page on this device.
+  async function signInPerson() {
+    setErr(null);
+    setBusy(true);
+    try {
+      const r = await api.requestSignoffBatch({ entryIds, capacity, inPerson: true });
+      const token = r.token ?? new URL(r.link).pathname.split("/sign/")[1];
+      if (!token) throw new Error("Could not open the signing page.");
+      onSuccess();
+      navigate(`/sign/${token}`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not start in-person sign-off.");
+      setBusy(false);
+    }
+  }
 
   async function submit() {
     setErr(null);
@@ -1015,11 +1034,9 @@ function BulkSignoffDialog({
             <h2 className="text-base font-semibold">Request sign-off</h2>
             <p className="text-sm text-slate-600">
               One signer will countersign {entryIds.length} {entryIds.length === 1 ? "entry" : "entries"} with a single
-              signature. They'll get a one-time link.
+              signature.
             </p>
             {err && <Alert>{err}</Alert>}
-            <Field label="Signer name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <Field label="Signer email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-700">Capacity</span>
               <select
@@ -1032,6 +1049,26 @@ function BulkSignoffDialog({
                 ))}
               </select>
             </label>
+
+            {/* In-person hand-over: native app only, so the website is unchanged. */}
+            {Capacitor.isNativePlatform() && (
+              <>
+                <Button onClick={signInPerson} disabled={busy} className="w-full">
+                  {busy ? "Opening..." : "Instructor is here — sign on this device"}
+                </Button>
+                <p className="text-xs text-slate-500">
+                  Hand your device to the instructor to sign now. No email needed.
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">or send a link</span>
+                  <span className="h-px flex-1 bg-slate-200" />
+                </div>
+              </>
+            )}
+
+            <Field label="Signer name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Field label="Signer email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
               <Button onClick={submit} disabled={busy}>{busy ? "Sending..." : "Send request"}</Button>

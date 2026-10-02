@@ -20,10 +20,14 @@ function hhmm(v: unknown): string {
  * POST /api/entries/batch/request-signoff     bulk (entryIds in the body)
  */
 const Body = z.object({
-  signerName: z.string().min(1),
-  signerEmail: z.string().email(),
+  signerName: z.string().min(1).optional(),
+  signerEmail: z.string().email().optional(),
   capacity: z.enum(["INSTRUCTOR", "EXAMINER", "SUPERVISING_PIC", "ATO", "DTO", "HOT", "AIRPORT", "OTHER"]),
   entryIds: z.array(z.string().uuid()).optional(),
+  // In-person: the pilot hands their device to the instructor to sign right
+  // here. No email is collected or sent; the signer fills in their name and
+  // signature on the signing page, which is what gets stored.
+  inPerson: z.boolean().optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -46,6 +50,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(400).json({ error: "At least one entry is required." });
       return;
     }
+
+    const inPerson = parsed.data.inPerson === true;
+    // For an emailed request we need who to send it to; for in-person we don't.
+    const signerName = parsed.data.signerName ?? (inPerson ? "Instructor" : undefined);
+    const signerEmail = parsed.data.signerEmail ?? (inPerson ? "" : undefined);
+    if (!inPerson && (!signerName || !signerEmail)) {
+      res.status(400).json({ error: "signerName and signerEmail are required." });
+      return;
+    }
     // Every entry must exist, belong to the holder, and be unlocked.
     for (const id of entryIds) {
       const meta = await getEntryMeta(id);
@@ -65,14 +78,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const { token, expiresAt } = await createSignoffRequest({
       entryIds,
-      signerName: parsed.data.signerName,
-      signerEmail: parsed.data.signerEmail,
+      signerName: signerName!,
+      signerEmail: signerEmail!,
       capacity: parsed.data.capacity,
       createdBy: claims.sub,
     });
 
     const origin = process.env.APP_BASE_URL ?? `https://${req.headers.host}`;
     const link = `${origin}/sign/${token}`;
+
+    // In-person: no email. Return the token so the app can open the signing
+    // page on this device for the instructor to sign immediately.
+    if (inPerson) {
+      res.status(201).json({ link, token, expiresAt, emailed: false, emailConfigured: emailConfigured(), entryCount: entryIds.length });
+      return;
+    }
 
     // Gather context so the email reads as a genuine, useful request. For a
     // bulk request we point at the first entry and note how many follow.
@@ -84,10 +104,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const more = entryIds.length > 1 ? ` (+${entryIds.length - 1} more)` : "";
 
     const emailed = await sendSignoffEmail({
-      to: parsed.data.signerEmail,
+      to: signerEmail!,
       link,
       holderName: holder?.name || "A pilot",
-      signerName: parsed.data.signerName,
+      signerName: signerName!,
       capacity: parsed.data.capacity,
       flight: {
         date: String(cols.date ?? ""),

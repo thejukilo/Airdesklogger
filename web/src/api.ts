@@ -511,17 +511,27 @@ export function signEntry(
   return request(`/entries/${id}/sign`, { method: "POST", body: JSON.stringify(body) });
 }
 
+export interface SignoffRequestResult {
+  link: string;
+  /** Present for in-person requests, for opening the signing page on this device. */
+  token?: string;
+  expiresAt: string;
+  emailed: boolean;
+  emailConfigured: boolean;
+  entryCount: number;
+}
+
 export function requestSignoff(
   entryId: string,
-  input: { signerName: string; signerEmail: string; capacity: string },
-): Promise<{ link: string; expiresAt: string; emailed: boolean; emailConfigured: boolean; entryCount: number }> {
+  input: { signerName?: string; signerEmail?: string; capacity: string; inPerson?: boolean },
+): Promise<SignoffRequestResult> {
   return request(`/entries/${entryId}/request-signoff`, { method: "POST", body: JSON.stringify(input) });
 }
 
 /** Request one signing link covering multiple entries (FOCA 2.4.2 bulk sign-off). */
 export function requestSignoffBatch(
-  input: { entryIds: string[]; signerName: string; signerEmail: string; capacity: string },
-): Promise<{ link: string; expiresAt: string; emailed: boolean; emailConfigured: boolean; entryCount: number }> {
+  input: { entryIds: string[]; signerName?: string; signerEmail?: string; capacity: string; inPerson?: boolean },
+): Promise<SignoffRequestResult> {
   return request(`/entries/batch/request-signoff`, { method: "POST", body: JSON.stringify(input) });
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import * as api from "../api";
 import { Alert, Button, Card, Field } from "../components/ui";
 import { SignaturePad, type SignaturePadHandle } from "../components/SignaturePad";
@@ -28,6 +29,7 @@ function hhmm(v: number | null): string {
  */
 export function Sign() {
   const { token = "" } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<api.PublicSignoff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,8 +99,14 @@ export function Sign() {
         {done ? (
           <Card>
             <p className="text-sm text-emerald-700">
-              Thank you. {data && data.entries.length > 1 ? `All ${data.entries.length} entries have been signed` : "The entry has been signed"} and locked. You can close this page.
+              Thank you. {data && data.entries.length > 1 ? `All ${data.entries.length} entries have been signed` : "The entry has been signed"} and locked.{" "}
+              {Capacitor.isNativePlatform() ? "Please hand the device back to the pilot." : "You can close this page."}
             </p>
+            {Capacitor.isNativePlatform() && (
+              <div className="mt-3">
+                <Button onClick={() => navigate("/logbook")}>Back to my logbook</Button>
+              </div>
+            )}
           </Card>
         ) : (
           data && (
