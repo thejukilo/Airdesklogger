@@ -18,10 +18,6 @@ const config: CapacitorConfig = {
   plugins: {
     CapacitorHttp: { enabled: true },
   },
-  ios: {
-    // Keep content clear of the status bar / notch.
-    contentInset: "always",
-  },
 };
 
 export default config;

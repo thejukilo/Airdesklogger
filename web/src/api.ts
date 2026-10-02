@@ -733,3 +733,38 @@ export async function exportLogbookPdf(): Promise<Blob> {
   if (!res.ok) throw new ApiError(res.status, "Could not generate the export.");
   return res.blob();
 }
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Generate the logbook PDF and present it. On the web this downloads the file;
+ * in the native app a download link does nothing, so we write the file to the
+ * cache and open the iOS share sheet (Save to Files, open in Books, etc.).
+ */
+export async function presentLogbookPdf(): Promise<void> {
+  const blob = await exportLogbookPdf();
+  const filename = "logbook.pdf";
+  if (Capacitor.isNativePlatform()) {
+    const base64 = await blobToBase64(blob);
+    const { Filesystem, Directory } = await import("@capacitor/filesystem");
+    const { Share } = await import("@capacitor/share");
+    const written = await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache });
+    await Share.share({ title: "Logbook PDF", url: written.uri });
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

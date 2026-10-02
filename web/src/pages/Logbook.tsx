@@ -413,13 +413,7 @@ export function Logbook() {
     setExporting(true);
     setError(null);
     try {
-      const blob = await api.exportLogbookPdf();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "logbook.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
+      await api.presentLogbookPdf();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not export.");
     } finally {

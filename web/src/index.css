@@ -1,3 +1,17 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Safe-area insets for the native app (notch / status bar / home indicator).
+ * env(safe-area-inset-*) is 0 on the web, so these are harmless there and only
+ * take effect inside the Capacitor WebView (viewport-fit=cover is set in the
+ * HTML head). .safe-top pads the sticky header below the status bar; .safe-bottom
+ * keeps the bottom tab bar above the home indicator.
+ */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

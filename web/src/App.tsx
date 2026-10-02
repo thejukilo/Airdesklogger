@@ -125,9 +125,10 @@ function NavTabs() {
 }
 
 function Shell({ children }: { children: ReactNode }) {
+  const isNative = Capacitor.isNativePlatform();
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-50 via-slate-50 to-slate-100 text-ink">
-      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
+      <header className="safe-top sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-2.5">
           <div className="flex items-center gap-6 min-w-0">
             <Link to="/" className="flex items-center gap-2.5">
@@ -143,8 +144,75 @@ function Shell({ children }: { children: ReactNode }) {
         <ClockSkewBanner />
         <SubscriptionBanner />
       </header>
-      <main className="mx-auto max-w-screen-2xl px-4 py-6">{children}</main>
+      <main className={`mx-auto max-w-screen-2xl px-4 py-6 ${isNative ? "pb-28" : ""}`}>{children}</main>
+      {isNative && <BottomTabBar />}
     </div>
+  );
+}
+
+/**
+ * Native bottom tab bar. Shown only inside the app (not on the web), it gives
+ * the logbook a real app navigation instead of the desktop header tabs. The
+ * safe-bottom padding keeps it clear of the home indicator.
+ */
+function BottomTabBar() {
+  const { user } = useAuth();
+  const location = useLocation();
+  if (!user) return null;
+  const p = location.pathname;
+  const tabs = [
+    { to: "/", label: "Home", active: p === "/", icon: TabHomeIcon },
+    { to: "/logbook", label: "Logbook", active: p === "/logbook" || p.startsWith("/entry"), icon: TabBookIcon },
+    { to: "/new", label: "Log", active: p === "/new", icon: TabPlusIcon },
+    { to: "/account", label: "Account", active: p === "/account", icon: TabUserIcon },
+  ];
+  return (
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-screen-sm items-stretch justify-around">
+        {tabs.map((t) => (
+          <Link
+            key={t.to}
+            to={t.to}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${t.active ? "text-brand-700" : "text-slate-500"}`}
+          >
+            <t.icon active={t.active} />
+            <span>{t.label}</span>
+          </Link>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+function TabHomeIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l9-7 9 7v8a2 2 0 0 1-2 2h-3v-6H8v6H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+function TabBookIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" />
+      <path d="M8 3v18" stroke={active ? "white" : "currentColor"} />
+    </svg>
+  );
+}
+function TabPlusIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={active ? 2.4 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v8M8 12h8" />
+    </svg>
+  );
+}
+function TabUserIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </svg>
   );
 }
 
