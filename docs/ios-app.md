@@ -118,6 +118,28 @@ updates (Appflow / capacitor-updater); not set up here.
   case that one request (fetch it without the native-HTTP patch, or add a CORS
   allowance for the app origin on `/api/export/logbook`).
 
+## Face ID / Touch ID unlock
+
+Biometric unlock is implemented, but iOS requires a usage-description string or
+Face ID calls crash. Add it once to the iOS project (it is not auto-generated):
+
+In Xcode, open `App/App/Info.plist` and add a key:
+- Key: `Privacy - Face ID Usage Description` (`NSFaceIDUsageDescription`)
+- Value: `Unlock your logbook with Face ID.`
+
+Or edit `web/ios/App/App/Info.plist` directly and add:
+```xml
+<key>NSFaceIDUsageDescription</key>
+<string>Unlock your logbook with Face ID.</string>
+```
+Commit it with the rest of `web/ios/`.
+
+How it works: it is an unlock over an already signed-in session, not a login
+replacement. The holder signs in with a password once, enables the toggle under
+**Account** (it is hidden on the web and on devices without biometrics), and the
+next app launch shows the lock screen. On the simulator, enrol a face first via
+**Features -> Face ID -> Enrolled**.
+
 ## Recommended native touches (follow-ups)
 
 A wrapped web app is accepted by the App Store when it is a real tool (this is),
