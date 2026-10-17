@@ -22,6 +22,7 @@
     "seed:aircraft": "tsx src/db/seedAircraft.ts",
     "seed:aircraft-europe": "tsx src/db/seedAircraft.ts --europe",
     "seed:simulators": "tsx src/db/seedSimulators.ts",
+    "import:simulators": "tsx src/db/importSimulators.ts",
     "demo": "tsx src/demo.ts"
   },
   "dependencies": {
