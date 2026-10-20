@@ -320,12 +320,30 @@ function mapSimulatorRow(r: Record<string, unknown>): Simulator {
   };
 }
 
-/** Autocomplete simulators by EASA code or serial number. */
+/**
+ * Autocomplete simulators by EASA code or serial number.
+ *
+ * Searches the seeded reference list (`simulators`) AND the devices that have
+ * actually been used in a logged session (`fstd_devices`). Without the second
+ * source, a device a pilot logged against but that is not in the reference list
+ * would never show up in the picker for a later session. Devices already in the
+ * reference list win, so a used device is not listed twice.
+ */
 export async function searchSimulators(query: string, limit = 20): Promise<Simulator[]> {
   const { rows } = await getPool().query(
-    `SELECT * FROM simulators
-       WHERE easa_code ILIKE $1 OR serial_number ILIKE $1
-       ORDER BY easa_code LIMIT $2`,
+    `SELECT id, easa_code, serial_number, aircraft_type, qualification, eval_type,
+            aircraft_manufacturer, sim_manufacturer, location
+       FROM simulators
+      WHERE easa_code ILIKE $1 OR serial_number ILIKE $1
+     UNION ALL
+     SELECT d.id, d.qualification_number AS easa_code, NULL AS serial_number,
+            d.aircraft_type, d.level AS qualification, NULL AS eval_type,
+            NULL AS aircraft_manufacturer, NULL AS sim_manufacturer, NULL AS location
+       FROM fstd_devices d
+      WHERE d.qualification_number ILIKE $1
+        AND NOT EXISTS (SELECT 1 FROM simulators s WHERE lower(s.easa_code) = lower(d.qualification_number))
+      ORDER BY easa_code
+      LIMIT $2`,
     [`%${query}%`, limit],
   );
   return rows.map(mapSimulatorRow);
