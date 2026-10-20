@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { loadLogbookForExport, loadDeletionsForExport } from "../../src/db/exportRepository.js";
+import { loadLogbookForExport, loadDeletionsForExport, type ExportRange } from "../../src/db/exportRepository.js";
 import { getUserById } from "../../src/db/authRepository.js";
 import { generateLogbookPdf, type AppendixAttributeBlock, type AuditAppendix, type ChangeLogRow, type ChangeLogSnapshot, type LogbookEntryForPdf } from "../../src/pdf/logbook.js";
 import { formatAttributeRows } from "../../src/pdf/attributeLines.js";
@@ -56,8 +56,8 @@ function snapshotFromContent(content: Record<string, unknown>, airportTz?: strin
  * the change log and the re-verified signatures are the real record.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (req.method !== "GET") {
-    res.status(405).json({ error: "Use GET." });
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.status(405).json({ error: "Use GET or POST." });
     return;
   }
   try {
@@ -69,10 +69,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const from = typeof req.query.from === "string" ? req.query.from : undefined;
-    const to = typeof req.query.to === "string" ? req.query.to : undefined;
-    const entries = await loadLogbookForExport(claims.sub, { from, to });
-    const deletions = await loadDeletionsForExport(claims.sub, { from, to });
+    // GET exports the full logbook (optional ?from/?to); POST carries a filter
+    // body { from?, to?, ids? } from the Logbook filter (ids can be large).
+    const range =
+      req.method === "POST"
+        ? parseExportFilter(req.body)
+        : {
+            from: typeof req.query.from === "string" ? req.query.from : undefined,
+            to: typeof req.query.to === "string" ? req.query.to : undefined,
+          };
+    const entries = await loadLogbookForExport(claims.sub, range);
+    const deletions = await loadDeletionsForExport(claims.sub, range);
     // An entry is "edited" when it has more than one logged version (a
     // post-48h amendment); pre-48h edits don't appear in the change log, per
     // FOCA 2.3.7, so they don't trigger the EDITED marker either.
@@ -163,5 +170,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
     throw err;
+  }
+}
+
+/** Parse the POST filter body into a safe { from, to, ids } range. */
+function parseExportFilter(body: unknown): ExportRange {
+  const obj = typeof body === "string" ? safeJson(body) : body;
+  if (!obj || typeof obj !== "object") return {};
+  const b = obj as Record<string, unknown>;
+  const from = typeof b.from === "string" ? b.from : undefined;
+  const to = typeof b.to === "string" ? b.to : undefined;
+  // Keep only UUID-shaped ids (the column is uuid) and cap the list so one
+  // request cannot ask for an unbounded id array.
+  const ids = Array.isArray(b.ids)
+    ? b.ids.filter((x): x is string => typeof x === "string" && /^[0-9a-fA-F-]{36}$/.test(x)).slice(0, 20000)
+    : undefined;
+  return { from, to, ...(ids && ids.length > 0 ? { ids } : {}) };
+}
+
+function safeJson(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return {};
   }
 }

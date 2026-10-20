@@ -735,11 +735,26 @@ export function importLogbookCsv(
   });
 }
 
-export async function exportLogbookPdf(): Promise<Blob> {
+/** Optional narrowing for the export: explicit entry ids and/or a date range. */
+export interface ExportFilter {
+  ids?: string[];
+  from?: string;
+  to?: string;
+}
+
+export async function exportLogbookPdf(filter?: ExportFilter): Promise<Blob> {
   const token = getToken();
-  const res = await fetch(`${API_ORIGIN}/api/export/logbook`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  const narrowed = Boolean(filter && ((filter.ids && filter.ids.length) || filter.from || filter.to));
+  // A narrowed export POSTs the filter (the id list can be large); the full
+  // export stays a plain GET.
+  const res = narrowed
+    ? await fetch(`${API_ORIGIN}/api/export/logbook`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(filter),
+      })
+    : await fetch(`${API_ORIGIN}/api/export/logbook`, { headers });
   if (!res.ok) throw new ApiError(res.status, "Could not generate the export.");
   return res.blob();
 }
@@ -758,8 +773,8 @@ function blobToBase64(blob: Blob): Promise<string> {
  * in the native app a download link does nothing, so we write the file to the
  * cache and open the iOS share sheet (Save to Files, open in Books, etc.).
  */
-export async function presentLogbookPdf(): Promise<void> {
-  const blob = await exportLogbookPdf();
+export async function presentLogbookPdf(filter?: ExportFilter): Promise<void> {
+  const blob = await exportLogbookPdf(filter);
   const filename = "logbook.pdf";
   if (Capacitor.isNativePlatform()) {
     const base64 = await blobToBase64(blob);
