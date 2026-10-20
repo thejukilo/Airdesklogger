@@ -110,6 +110,7 @@ function Dashboard() {
     <div className="mx-auto max-w-5xl space-y-4">
       <h1 className="text-xl font-semibold">Admin</h1>
       {error && <Alert>{error}</Alert>}
+      {result && <p className="text-sm text-emerald-700">{result}</p>}
 
       <UsersCard />
 
@@ -140,7 +141,6 @@ function Dashboard() {
           time and local-time conversion). Aircraft come from the configured dataset, if any. Aircraft
           types load the bundled ICAO list used to classify a registration's category.
         </p>
-        {result && <p className="mb-3 text-sm text-emerald-700">{result}</p>}
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => run("airports", async () => {
@@ -222,6 +222,28 @@ function Dashboard() {
             {busy === "balloon-groups" ? "Applying balloon groups..." : "Apply balloon groups (CSV)"}
           </label>
         </div>
+      </Card>
+
+      <Card>
+        <h2 className="mb-1 font-medium">Integrity</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          Recompute the tamper-evident audit ledger. Every create, edit, sign-off
+          and deletion is hash-chained; this walks the whole chain and reports
+          whether it is intact, or the first record where it breaks.
+        </p>
+        <Button
+          variant="ghost"
+          onClick={() => run("audit", async () => {
+            const r = await api.adminVerifyAudit();
+            if (!r.valid) {
+              throw new Error(`Audit trail BROKEN at record #${r.brokenAtSeq}: ${r.reason ?? "chain mismatch"}`);
+            }
+            return `✓ Audit trail intact — ${r.records} records verified.`;
+          })}
+          disabled={busy !== null}
+        >
+          {busy === "audit" ? "Verifying..." : "Verify audit trail"}
+        </Button>
       </Card>
 
       <DangerZone busy={busy} run={run} />
