@@ -4,6 +4,8 @@ import { Capacitor } from "@capacitor/core";
 import * as api from "../api";
 import { useAuth } from "../auth";
 import { Alert, Button, Card, Field } from "../components/ui";
+import { FilterBar } from "../components/FilterBar";
+import { matchesFilter, activeCount as activeFilterCount, type FilterSpec } from "../lib/logbookFilter";
 import { attributeChipSuffix } from "../lib/attributeDisplay";
 import {
   ATTRIBUTE_LABELS,
@@ -345,6 +347,10 @@ export function Logbook() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [showDeleted, setShowDeleted] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<"" | "IMPORTED" | "MANUAL">("");
+  // Advanced, field-by-field filtering (drives both the visible list and the
+  // export). All conditions combine with AND; see lib/logbookFilter.
+  const [filter, setFilter] = useState<FilterSpec>({ match: "AND", conditions: [] });
+  const nActiveFilters = activeFilterCount(filter);
 
   // Sorting and pagination, persisted to localStorage so the pilot's chosen
   // page-size and sort order survive a reload.
@@ -360,6 +366,7 @@ export function Logbook() {
   useEffect(() => { localStorage.setItem("logbook.pageSize", String(pageSize)); }, [pageSize]);
 
   const filteredEntries = entries.filter((e) => {
+    if (!matchesFilter(e, filter)) return false;
     if (categoryFilter) {
       const isFstd = Boolean(e.content.columns?.fstd);
       if (categoryFilter === "FSTD") {
@@ -382,7 +389,7 @@ export function Logbook() {
   const totalPages = Math.max(1, Math.ceil(sortedEntries.length / pageSize));
   // Clamp the current page when filters or page size change.
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [totalPages, page]);
-  useEffect(() => { setPage(1); }, [categoryFilter, sourceFilter, showDeleted, pageSize]);
+  useEffect(() => { setPage(1); }, [categoryFilter, sourceFilter, showDeleted, pageSize, filter]);
   const pageEntries = useMemo(
     () => sortedEntries.slice((page - 1) * pageSize, page * pageSize),
     [sortedEntries, page, pageSize],
@@ -414,7 +421,11 @@ export function Logbook() {
     setExporting(true);
     setError(null);
     try {
-      await api.presentLogbookPdf();
+      // When any filter narrows the list, export exactly the visible entries by
+      // id so the PDF matches what the pilot sees (FOCA 2.5.1 period exports);
+      // otherwise export the complete logbook.
+      const filtersActive = Boolean(categoryFilter) || sourceFilter !== "" || nActiveFilters > 0;
+      await api.presentLogbookPdf(filtersActive ? { ids: filteredEntries.map((e) => e.id) } : undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not export.");
     } finally {
@@ -430,7 +441,7 @@ export function Logbook() {
           <Link to="/import">
             <Button variant="ghost">Import</Button>
           </Link>
-          <Button variant="ghost" onClick={exportPdf} disabled={exporting || entries.length === 0}>
+          <Button variant="ghost" onClick={exportPdf} disabled={exporting || filteredEntries.length === 0}>
             {exporting ? "Preparing..." : "Export PDF"}
           </Button>
           <Link to="/new">
@@ -454,7 +465,7 @@ export function Logbook() {
         <div className="grid grid-cols-2 gap-3">
           <Tile icon={<PlusIcon />} label="New flight" onClick={() => navigate("/new")} />
           <Tile icon={<UploadIcon />} label="Import CSV" onClick={() => navigate("/import")} />
-          <Tile icon={<DownloadIcon />} label="Download report" onClick={exportPdf} disabled={exporting || entries.length === 0} />
+          <Tile icon={<DownloadIcon />} label="Download report" onClick={exportPdf} disabled={exporting || filteredEntries.length === 0} />
           <Tile icon={<LogIcon />} label="Flight log" onClick={() => listRef.current?.scrollIntoView({ behavior: "smooth" })} />
           <Tile icon={<GearIcon />} label="Settings" onClick={() => navigate("/account")} />
         </div>
@@ -495,6 +506,10 @@ export function Logbook() {
         />
       )}
 
+      {entries.length > 0 && (
+        <FilterBar spec={filter} onChange={setFilter} activeCount={nActiveFilters} />
+      )}
+
       <div ref={listRef} className="scroll-mt-4" />
       <Card>
         {loading ? (
@@ -516,6 +531,11 @@ export function Logbook() {
                   />
                   Show deleted
                 </label>
+                {filteredEntries.length !== entries.length && (
+                  <span className="text-xs text-slate-500">
+                    Showing <span className="tabular-nums">{filteredEntries.length}</span> of <span className="tabular-nums">{entries.length}</span>
+                  </span>
+                )}
               </div>
               <button
                 type="button"

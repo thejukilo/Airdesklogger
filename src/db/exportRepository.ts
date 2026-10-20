@@ -94,6 +94,12 @@ function toRow(
 export interface ExportRange {
   from?: string | undefined; // yyyy-mm-dd inclusive
   to?: string | undefined; // yyyy-mm-dd inclusive
+  /**
+   * Explicit entry ids to include. When set, the export is narrowed to exactly
+   * these entries (the Logbook filter passes the matched, visible entries), on
+   * top of any date range. Voided entries are still excluded.
+   */
+  ids?: string[] | undefined;
 }
 
 export interface DeletedEntry {
@@ -108,6 +114,9 @@ export interface DeletedEntry {
  * longer counts.
  */
 export async function loadDeletionsForExport(pilotId: string, range: ExportRange = {}): Promise<DeletedEntry[]> {
+  // A narrowed (by-id) export is a selection of visible, non-voided entries, so
+  // deleted entries are not part of it. The full export still lists them.
+  if (range.ids && range.ids.length > 0) return [];
   const { rows } = await getPool().query(
     `SELECT e.voided_at,
             v.content->'columns'->>'date' AS date,
@@ -136,6 +145,7 @@ export async function loadLogbookForExport(
   // Dates are stored as yyyy-mm-dd strings, so a lexicographic comparison is a
   // correct date comparison. A range lets an export cover just a revalidation
   // period (FOCA 2.5.1).
+  const filterIds = range.ids && range.ids.length > 0 ? range.ids : null;
   const { rows: entryRows } = await pool.query(
     `SELECT e.id, e.locked, e.current_version,
             v.content
@@ -144,8 +154,9 @@ export async function loadLogbookForExport(
       WHERE e.pilot_id = $1 AND e.voided = false
         AND v.content->'columns'->>'date' >= COALESCE($2, '0000-01-01')
         AND v.content->'columns'->>'date' <= COALESCE($3, '9999-12-31')
+        AND ($4::uuid[] IS NULL OR e.id = ANY($4::uuid[]))
       ORDER BY v.content->'columns'->>'date' ASC, e.created_at ASC`,
-    [pilotId, range.from ?? null, range.to ?? null],
+    [pilotId, range.from ?? null, range.to ?? null, filterIds],
   );
   if (entryRows.length === 0) return [];
 
