@@ -97,6 +97,37 @@ const DEMO: AttrItem = {
   input: { kind: "text", field: "demoFlightComment", placeholder: "Comment" },
 };
 
+// Checks, training and operational attributes required by FOCA 2.2.3. These are
+// stored and countersigned exactly like the other attributes; several of the
+// checks require a sign-off (src/domain/attributes.ts).
+const OPC: AttrItem = { key: "operator_proficiency_check", label: "Operator proficiency check", note: "Operator proficiency check (Part-ORO)." };
+const OLC: AttrItem = { key: "operator_line_check", label: "Operator line check", note: "Line check under Part-ORO." };
+const REFRESHER_TRAINING: AttrItem = { key: "refresher_training", label: "Refresher training" };
+const TRAINING_FLIGHT: AttrItem = { key: "training_flight", label: "Training flight" };
+const FAMILIARIZATION: AttrItem = { key: "familiarization", label: "Familiarisation" };
+const DIFFERENCE_TRAINING: AttrItem = { key: "difference_training", label: "Difference training" };
+const ZFTT: AttrItem = { key: "zftt", label: "ZFTT", note: "Zero flight-time training." };
+const COURSE_COMPLETED: AttrItem = { key: "course_completed", label: "Course completed" };
+const INSTRUCTION_TRAINING_COURSE: AttrItem = { key: "instruction_training_course", label: "Instruction training course" };
+const DEMO_INSTRUCT: AttrItem = { key: "demonstration_of_ability_to_instruct", label: "Demo of ability to instruct" };
+const AEROBATIC: AttrItem = { key: "aerobatic_privilege", label: "Aerobatic" };
+const TOWING: AttrItem = { key: "towing", label: "Towing", note: "Towing a glider or a banner." };
+const SEA_LANDING: AttrItem = { key: "sea_landings", label: "Sea landing", note: "Landing on water (seaplane / floatplane)." };
+const LOW_VIS_LANDING: AttrItem = {
+  key: "low_visibility_landing",
+  label: "Low-visibility landing",
+  note: "A landing in low-visibility conditions; record the approach category.",
+  input: {
+    kind: "segment",
+    field: "lowVisibilityLandingType",
+    options: [
+      { value: "CAT II", label: "CAT II" },
+      { value: "CAT IIIA", label: "CAT IIIA" },
+      { value: "CAT IIIB", label: "CAT IIIB" },
+    ],
+  },
+};
+
 export const ATTR_SPEC: Record<AttrCategory, AttrCategorySpec> = {
   HELICOPTER: {
     category: "HELICOPTER",
@@ -198,15 +229,21 @@ export const ATTR_SPEC: Record<AttrCategory, AttrCategorySpec> = {
             note: "Landing in mountainous terrain. Pick the gear used.",
             input: { kind: "segment", field: "mountainLandingGear", options: [{ value: "SKI", label: "Skis" }, { value: "WHEELS", label: "Wheels" }] },
           },
+          SEA_LANDING,
+          LOW_VIS_LANDING,
           { key: "go_around", label: "Go-around", note: "A discontinued approach with a return to climb.", input: { kind: "count", field: "goArounds", unit: "go-arounds" } },
           { key: "touch_and_go", label: "Touch and go", note: "Repeated landing-then-takeoff without coming to a stop.", input: { kind: "count", field: "touchAndGo", unit: "cycles" } },
         ],
       },
-      { title: "Flights", items: [SOLO, CROSS_COUNTRY, SERIES_OF_FLIGHTS] },
+      { title: "Flights", items: [SOLO, CROSS_COUNTRY, SERIES_OF_FLIGHTS, TOWING, AEROBATIC] },
       {
-        title: "Additional checks",
+        title: "Training",
+        items: [TRAINING_FLIGHT, DIFFERENCE_TRAINING, REFRESHER_TRAINING, FAMILIARIZATION, ZFTT, COURSE_COMPLETED, INSTRUCTION_TRAINING_COURSE, DEMO_INSTRUCT],
+      },
+      {
+        title: "Checks",
         note: "Add a comment that describes the test or check. The entry is only creditable once countersigned.",
-        items: [SKILL_TEST, PC, LPC, LANG],
+        items: [SKILL_TEST, PC, LPC, LANG, OPC, OLC],
       },
     ],
   },
