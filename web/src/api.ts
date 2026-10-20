@@ -604,6 +604,11 @@ export function adminSeedSimulators(): Promise<{ seeded: number }> {
   return request("/admin/seed-simulators", { method: "POST" });
 }
 
+/** Recompute the tamper-evident audit-ledger hash chain (admin only). */
+export function adminVerifyAudit(): Promise<{ records: number; valid: boolean; brokenAtSeq?: number; reason?: string }> {
+  return request("/audit/verify", { method: "GET" });
+}
+
 export function adminApplyBalloonGroups(csv: string): Promise<{ updated: number }> {
   return request("/admin/apply-balloon-groups", { method: "POST", body: JSON.stringify({ csv }) });
 }
