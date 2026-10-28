@@ -170,6 +170,7 @@ function remarksText(e: LogbookEntryForPdf): string {
   if (e.arrivalPlaceName) parts.push(`(to: ${e.arrivalPlaceName})`);
   if (e.operatingRole) parts.push(e.operatingRole === "PILOT_FLYING" ? "(PF)" : "(PM)");
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
+  if (e.attributes.includes("yz_flight")) parts.push("(IFR/VFR changed in flight)");
   if (e.balloonFlightType) parts.push(e.balloonFlightType === "TETHERED" ? "(tethered)" : "(free flight)");
   if (e.inflations) parts.push(`(${e.inflations} inflation${e.inflations === 1 ? "" : "s"})`);
   if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
@@ -180,9 +181,12 @@ function remarksText(e: LogbookEntryForPdf): string {
   return parts.join(" ");
 }
 
-/** True if the entry has any structured attribute that warrants an appendix block. */
+/** True if the entry has any structured attribute that warrants an appendix block.
+ * NVIS and the Y/Z (IFR/VFR changed in flight) flag stay inline in the remarks
+ * cell - the IFR portion is already shown in the IFR column - so they do not on
+ * their own pull an entry into the appendix. */
 function hasAppendixAttributes(e: LogbookEntryForPdf): boolean {
-  return e.attributes.some((a) => a !== "nvis");
+  return e.attributes.some((a) => a !== "nvis" && a !== "yz_flight");
 }
 
 const MARGIN = 28;
