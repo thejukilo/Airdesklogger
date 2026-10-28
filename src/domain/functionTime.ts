@@ -27,11 +27,15 @@ export interface FunctionMinutes {
   instructor: number;
 }
 
+/** Function capacities that are logged in the co-pilot column. A cruise-relief
+ * co-pilot (AMC1 FCL.050(4)) logs co-pilot time. */
+const COPILOT_FUNCTIONS: ReadonlySet<PilotFunction> = new Set(["CO_PILOT", "CRUISE_RELIEF"]);
+
 /** Split the total block time across the function sub-columns (column 11). */
 export function functionMinutes(fn: FunctionTime, totalMinutes: number): FunctionMinutes {
   return {
     pic: PIC_FUNCTIONS.has(fn.primary) ? totalMinutes : 0,
-    coPilot: fn.primary === "CO_PILOT" ? totalMinutes : 0,
+    coPilot: COPILOT_FUNCTIONS.has(fn.primary) ? totalMinutes : 0,
     dual: fn.primary === "DUAL" ? totalMinutes : 0,
     instructor: fn.instructor,
   };
@@ -71,5 +75,6 @@ export function countersignRequirement(fn: FunctionTime): CountersignRequirement
 export function functionRemark(fn: FunctionTime): string | null {
   if (fn.primary === "PICUS") return "PICUS";
   if (fn.primary === "SPIC") return "SPIC";
+  if (fn.primary === "CRUISE_RELIEF") return "Cruise-relief co-pilot";
   return null;
 }

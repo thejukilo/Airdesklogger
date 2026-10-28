@@ -242,4 +242,19 @@ describe("entry validation & column derivation", () => {
     expect(r.valid).toBe(false);
     expect(r.issues.some((i) => i.field === "flightTimeMinutes")).toBe(true);
   });
+
+  it("logs a cruise-relief co-pilot in the co-pilot column (AMC1 FCL.050)", () => {
+    const r = validateEntry(baseEntry({ function: { primary: "CRUISE_RELIEF", instructor: 0 } }));
+    expect(r.valid).toBe(true);
+    expect(r.derived!.coPilot).toBe(r.derived!.total);
+    expect(r.derived!.pic).toBe(0);
+  });
+
+  it("logs only the IFR portion of a Y/Z flight that changed rules in flight", () => {
+    // 90-minute block; 40 minutes flown under IFR, marked as a Y/Z flight.
+    const r = validateEntry(baseEntry({ attributes: ["yz_flight"], conditions: { night: 0, ifr: 40 } }));
+    expect(r.valid).toBe(true);
+    expect(r.derived!.ifr).toBe(40);
+    expect(r.derived!.total).toBe(90);
+  });
 });

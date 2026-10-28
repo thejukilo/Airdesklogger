@@ -51,7 +51,7 @@ const EntryShape = z.object({
     ifr: z.number().int().nonnegative(),
   }),
   function: z.object({
-    primary: z.enum(["PIC", "PICUS", "SPIC", "CO_PILOT", "DUAL", "SAFETY_PILOT"]),
+    primary: z.enum(["PIC", "PICUS", "SPIC", "CO_PILOT", "CRUISE_RELIEF", "DUAL", "SAFETY_PILOT"]),
     instructor: z.number().int().nonnegative(),
     instructorPosition: z.enum(["PILOT_SEAT", "JUMP_SEAT", "SUPERVISING", "EXAMINER"]).optional(),
     tookControl: z.boolean().optional(),

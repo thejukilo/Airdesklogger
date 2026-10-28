@@ -549,7 +549,7 @@ function resolveAirport(code: string, setName: (n: string | null) => void): () =
 type FnOption = {
   key: string;
   label: string;
-  primary: "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL" | "SAFETY_PILOT";
+  primary: "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "CRUISE_RELIEF" | "DUAL" | "SAFETY_PILOT";
   instructorPosition?: "PILOT_SEAT" | "JUMP_SEAT" | "SUPERVISING" | "EXAMINER";
 };
 
@@ -558,6 +558,7 @@ const POWERED_FUNCTIONS: FnOption[] = [
   { key: "PICUS", label: "PICUS (PIC under supervision)", primary: "PICUS" },
   { key: "SPIC", label: "SPIC (student PIC)", primary: "SPIC" },
   { key: "CO_PILOT", label: "Co-pilot (COPI)", primary: "CO_PILOT" },
+  { key: "CRUISE_RELIEF", label: "Cruise-relief co-pilot", primary: "CRUISE_RELIEF" },
   { key: "DUAL", label: "Dual", primary: "DUAL" },
   { key: "FI_PILOT_SEAT", label: "Instructor (pilot seat)", primary: "PIC", instructorPosition: "PILOT_SEAT" },
   { key: "FI_JUMP_SEAT", label: "Instructor (jump seat)", primary: "CO_PILOT", instructorPosition: "JUMP_SEAT" },
@@ -617,6 +618,7 @@ const empty = {
   tookControl: false,
   operatingRole: "",
   flightRules: "VFR",
+  ifrTime: "",
   launchMethod: "",
   balloonFlightType: "",
   balloonGroup: "",
@@ -655,7 +657,10 @@ function fromContent(c: api.EntryContent): typeof empty {
     pilotFunction: functionKey(c.function?.primary, c.columns?.instructorPosition),
     tookControl: c.function?.tookControl ?? false,
     operatingRole: cols?.operatingRole ?? "",
-    flightRules: (cols?.ifr ?? 0) > 0 ? "IFR" : "VFR",
+    flightRules: (cols?.attributes ?? []).includes("yz_flight")
+      ? "MIXED"
+      : (cols?.ifr ?? 0) > 0 ? "IFR" : "VFR",
+    ifrTime: cols?.ifr ? fmtHHMM(cols.ifr) : "",
     launchMethod: cols?.launchMethod ?? "",
     balloonFlightType: cols?.balloonFlightType ?? "",
     balloonGroup: c.aircraft?.balloonGroup ?? "",
@@ -772,6 +777,16 @@ export function NewEntry() {
   // series of flights (which may only be logged with a reduced time).
   const computedBlock = f.blockStart && f.blockEnd ? blockMinutes(f.date || "1970-01-01", f.blockStart, f.blockEnd) : 0;
 
+  // The automatically calculated loggable time: the block time with the
+  // augmented-crew share (2/3 for three pilots, 1/2 for four) applied. This is
+  // the ceiling the pilot may reduce below, either for a series of flights or an
+  // augmented-crew operation (FOCA 2.3.5).
+  const crewShareLogged =
+    f.crewSize === 3 ? Math.round((computedBlock * 2) / 3)
+    : f.crewSize === 4 ? Math.round(computedBlock / 2)
+    : computedBlock;
+  const canReduceTime = isSeries || f.crewSize > 2;
+
   // Civil-twilight detection: if the flight starts during the day and lands at
   // night (or vice versa) at the arrival aerodrome, the landings field splits
   // into day and night inputs so the pilot can record intermediate landings
@@ -836,12 +851,12 @@ export function NewEntry() {
   // The entered series time, in minutes; extending beyond the calculated block
   // time is not allowed and is flagged rather than silently clamped.
   const seriesMinutes = parseHHMM(f.seriesTime);
-  const seriesExceeds = isSeries && computedBlock > 0 && seriesMinutes > computedBlock;
-  // Prefill the editable series time (HH:MM) with the calculated time when it is
-  // empty; the pilot may then reduce it.
+  const seriesExceeds = canReduceTime && crewShareLogged > 0 && seriesMinutes > crewShareLogged;
+  // Prefill the editable logged time (HH:MM) with the calculated time when it is
+  // empty; the pilot may then reduce it (series of flights, or augmented crew).
   useEffect(() => {
-    if (isSeries && computedBlock > 0 && parseHHMM(f.seriesTime) === 0) set("seriesTime", fmtHHMM(computedBlock));
-  }, [isSeries, computedBlock]);
+    if (canReduceTime && crewShareLogged > 0 && parseHHMM(f.seriesTime) === 0) set("seriesTime", fmtHHMM(crewShareLogged));
+  }, [canReduceTime, crewShareLogged]);
 
   // Only the attributes that apply to the chosen category. Sailplanes use a
   // strict whitelist; other categories use the per-attribute restrictions
@@ -1037,13 +1052,20 @@ export function NewEntry() {
       return;
     }
     if (seriesExceeds) {
-      setError(`The flight time of a series can only be reduced, not extended beyond the calculated ${fmtHHMM(computedBlock)}.`);
+      setError(`The logged flight time can only be reduced, not raised above the calculated ${fmtHHMM(crewShareLogged)}.`);
       return;
     }
     setBusy(true);
     try {
       const arrivalDate = f.blockEnd > f.blockStart ? f.date : nextDay(f.date);
-      const ifr = isPowered && f.flightRules === "IFR" ? blockMinutes(f.date, f.blockStart, f.blockEnd) : 0;
+      const submitBlock = blockMinutes(f.date, f.blockStart, f.blockEnd);
+      const ifr = !isPowered
+        ? 0
+        : f.flightRules === "IFR"
+          ? submitBlock
+          : f.flightRules === "MIXED"
+            ? Math.min(parseHHMM(f.ifrTime), submitBlock)
+            : 0;
       const payload = {
         timeZone: timeMode === "local" ? "LOCAL" : "UTC",
         aircraft: {
@@ -1086,7 +1108,10 @@ export function NewEntry() {
         ...(isBalloon ? { inflations: Number(f.inflations) } : {}),
         // Only send the reduced time when the pilot has lowered it below the
         // calculated block time for a series of flights.
-        ...(isSeries && seriesMinutes > 0 && seriesMinutes < computedBlock
+        // Reduced logged time (FOCA 2.3.5): sent only when the pilot lowered it
+        // below the calculated value, for a series of flights or an augmented
+        // crew. The server treats it as the final logged total.
+        ...(canReduceTime && seriesMinutes > 0 && seriesMinutes < crewShareLogged
           ? { flightTimeMinutes: seriesMinutes }
           : {}),
         // Augmented operation: send the crew size only when more than the
@@ -1306,6 +1331,19 @@ export function NewEntry() {
                   : "--:--"}
               </span>
             </div>
+            {isPowered && f.crewSize > 2 && !isSeries && (
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">Logged flight time</span>
+                  <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
+                </div>
+                <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
+                  {seriesExceeds
+                    ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
+                    : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
+                </p>
+              </div>
+            )}
             <p className="mt-1 text-xs text-slate-500">
               Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
             </p>
@@ -1346,10 +1384,42 @@ export function NewEntry() {
               </Select>
             )}
             {isPowered && (
-              <Select label="Flight rules" value={f.flightRules} onChange={(e) => set("flightRules", e.target.value)}>
+              <Select
+                label="Flight rules"
+                value={f.flightRules}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // A changed-in-flight (Y/Z) flight is marked with the yz_flight
+                  // attribute so the record and export show only the IFR portion.
+                  setF((prev) => ({
+                    ...prev,
+                    flightRules: v,
+                    attributes:
+                      v === "MIXED"
+                        ? prev.attributes.includes("yz_flight")
+                          ? prev.attributes
+                          : [...prev.attributes, "yz_flight"]
+                        : prev.attributes.filter((a) => a !== "yz_flight"),
+                  }));
+                }}
+              >
                 <option value="VFR">VFR</option>
                 <option value="IFR">IFR</option>
+                <option value="MIXED">Part IFR, part VFR (changed in flight)</option>
               </Select>
+            )}
+            {isPowered && f.flightRules === "MIXED" && (
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">Time flown under IFR</span>
+                  <AttrTimeInput value={f.ifrTime} onChange={(v) => set("ifrTime", v)} />
+                </div>
+                <p className={`mt-1 text-xs ${parseHHMM(f.ifrTime) > computedBlock ? "text-rose-600" : "text-slate-500"}`}>
+                  {parseHHMM(f.ifrTime) > computedBlock
+                    ? `Cannot exceed the flight time ${fmtHHMM(computedBlock)}.`
+                    : `The part of the flight flown under IFR; the rest counts as VFR (max ${fmtHHMM(computedBlock) || "—"}).`}
+                </p>
+              </div>
             )}
             {isSailplane && (
               <Select label="Launch method" value={f.launchMethod} onChange={(e) => set("launchMethod", e.target.value)}>
@@ -1413,7 +1483,7 @@ export function NewEntry() {
           balloonFlightType={f.balloonFlightType}
           seriesTimeHHMM={f.seriesTime}
           seriesExceeds={seriesExceeds}
-          computedBlockMinutes={computedBlock}
+          computedBlockMinutes={crewShareLogged}
           onToggleAttr={toggleAttr}
           onSetDetail={setDetail}
           onSetSeries={(v) => set("seriesTime", v)}

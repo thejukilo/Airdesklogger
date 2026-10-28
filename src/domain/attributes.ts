@@ -33,6 +33,9 @@ export const ENTRY_ATTRIBUTES = [
   "solo",
   "cross_country",
   "series_of_flights",
+  // Flight that changed between IFR and VFR in flight (ICAO Y/Z flight plan);
+  // marks an entry whose IFR time is only the portion flown under IFR.
+  "yz_flight",
   "towing",
   "low_visibility_landing",
   "sea_landings",

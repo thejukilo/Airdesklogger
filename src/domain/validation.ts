@@ -220,25 +220,41 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const attributes = validateAttributes(input.attributes, issues, category);
   const attributeDetails = cleanAttributeDetails(input.attributeDetails, issues);
 
-  // A series of flights may be recorded as one entry with a reduced total: the
-  // pilot may lower the calculated block time but never raise it, and only when
-  // the entry is marked as a series of flights.
-  let effectiveBlock = blockTime;
+  const safeCrew = crewSize as 2 | 3 | 4;
+
+  // The automatically calculated loggable time for the whole flight, with the
+  // augmented-crew share already applied (FOCA 2.3.4). This is the ceiling the
+  // pilot may reduce below, but never exceed.
+  const autoTotal = loggedMinutes(blockTime, safeCrew);
+
+  // FOCA 2.3.5: an automatically calculated time may be reduced (never raised)
+  // when the entry qualifies - a series of flights logged as one entry, or an
+  // augmented-crew operation (for example a relief pilot who operated less than
+  // their share). The reduced figure is the final logged time.
+  const augmentedCrew = safeCrew > 2;
+  const reductionAllowed = attributes.includes("series_of_flights") || augmentedCrew;
+  let loggedTotal = autoTotal;
   if (input.flightTimeMinutes !== undefined) {
-    if (!attributes.includes("series_of_flights")) {
-      issues.push({ field: "flightTimeMinutes", message: "A reduced flight time can only be entered for a series of flights." });
+    if (!reductionAllowed) {
+      issues.push({ field: "flightTimeMinutes", message: "A reduced flight time can only be entered for a series of flights or an augmented-crew operation." });
     } else if (!isNonNegInt(input.flightTimeMinutes) || input.flightTimeMinutes < 1) {
-      issues.push({ field: "flightTimeMinutes", message: "Flight time must be a positive whole number of minutes." });
-    } else if (input.flightTimeMinutes > blockTime) {
-      issues.push({ field: "flightTimeMinutes", message: "The flight time of a series may only be reduced, not raised above the calculated time." });
+      issues.push({ field: "flightTimeMinutes", message: "Logged flight time must be a positive whole number of minutes." });
+    } else if (input.flightTimeMinutes > autoTotal) {
+      issues.push({ field: "flightTimeMinutes", message: "Logged flight time may only be reduced below the calculated time, not raised above it." });
     } else {
-      effectiveBlock = input.flightTimeMinutes;
+      loggedTotal = input.flightTimeMinutes;
     }
   }
 
+  // FOCA 2.3.5: a flight that changed between IFR and VFR in flight (an ICAO Y or
+  // Z flight) logs only the portion flown under IFR, which the form captures as a
+  // partial IFR time and marks with the `yz_flight` attribute. IFR is capped at
+  // the block time below; the form is where a partial value is gated to Y/Z.
+  const ifrInput = input.conditions.ifr;
+
   // NVIS minutes record the portion of the flight flown on night-vision goggles
-  // and so can never exceed the flight's effective total time.
-  if (attributeDetails?.nvisMinutes !== undefined && attributeDetails.nvisMinutes > effectiveBlock) {
+  // and so can never exceed the logged total time.
+  if (attributeDetails?.nvisMinutes !== undefined && attributeDetails.nvisMinutes > loggedTotal) {
     issues.push({
       field: "attributeDetails.nvisMinutes",
       message: "NVIS time cannot exceed the total flight time.",
@@ -246,10 +262,6 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   }
 
   if (issues.length > 0) return { valid: false, issues };
-
-  // Apply the crew share to every category of time (FOCA 2.3.4). Landings are
-  // counts, not time, and are never scaled.
-  const safeCrew = crewSize as 2 | 3 | 4;
 
   // A safety pilot logs flight time only if they took control (FOCA 2.3.5), and
   // that time is logged in command. Otherwise the flight is recorded with no
@@ -262,7 +274,9 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
       : "SAFETY_PILOT"
     : input.function.primary;
 
-  const total = safetyNoControl ? 0 : loggedMinutes(effectiveBlock, safeCrew);
+  // The final logged total: the crew share applied, then reduced where the pilot
+  // lowered it. Landings are counts, not time, and are never scaled.
+  const total = safetyNoControl ? 0 : loggedTotal;
 
   // Columns 5 & 6: single-pilot SE/ME vs multi-pilot, exhaustively from the
   // logged total. These aeroplane/helicopter columns are left blank for balloons
@@ -274,20 +288,19 @@ export function validateEntry(input: FlightEntryInput): ValidationResult {
   const multiEngine =
     poweredAircraft && !input.aircraft.multiPilot && input.aircraft.engineClass === "ME" ? total : 0;
 
-  // Night, IFR and instructor time are portions of the flight, so a reduced
-  // series total caps them too (they are computed against the full block).
-  const night = safetyNoControl ? 0 : loggedMinutes(Math.min(input.conditions.night, effectiveBlock), safeCrew);
-  const ifr = safetyNoControl ? 0 : loggedMinutes(Math.min(input.conditions.ifr, effectiveBlock), safeCrew);
+  // Night and IFR carry the crew share and are then capped at the logged total,
+  // so a reduced entry never shows a portion larger than the time logged.
+  const night = safetyNoControl ? 0 : Math.min(loggedMinutes(Math.min(input.conditions.night, blockTime), safeCrew), total);
+  const ifr = safetyNoControl ? 0 : Math.min(loggedMinutes(Math.min(ifrInput, blockTime), safeCrew), total);
 
   // Column 11. Instructor time is logged only when the instructor is the pilot
   // flying: the instructor-on-the-pilot-seat, supervising and examiner functions
   // credit the whole flight as instruction (and also as PIC). The jump seat
-  // credits neither. It is derived from the function, not entered by hand.
+  // credits neither. It carries the crew share and is capped at the logged total.
   const pos = input.function.instructorPosition;
   const instructsAsPilot = pos === "PILOT_SEAT" || pos === "SUPERVISING" || pos === "EXAMINER";
-  const instructorMinutes = instructsAsPilot ? effectiveBlock : 0;
-  const fm = functionMinutes({ primary: effectivePrimary, instructor: instructorMinutes }, total);
-  const instructor = safetyNoControl ? 0 : loggedMinutes(instructorMinutes, safeCrew);
+  const instructor = safetyNoControl ? 0 : Math.min(loggedMinutes(instructsAsPilot ? blockTime : 0, safeCrew), total);
+  const fm = functionMinutes({ primary: effectivePrimary, instructor }, total);
 
   // Balloon time splits: a gas balloon goes into its own column, otherwise the
   // hot-air time goes into the envelope-volume group (A/B/C/D) the balloon

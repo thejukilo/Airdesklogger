@@ -10,8 +10,17 @@ import type { EntryAttribute } from "./attributes.js";
 /** A logbook record is either a flown flight or a synthetic training session. */
 export type EntryKind = "FLIGHT" | "FSTD";
 
-/** EASA primary pilot capacity. Mutually exclusive, and it covers the whole flight. */
-export type PilotFunction = "PIC" | "PICUS" | "SPIC" | "CO_PILOT" | "DUAL" | "SAFETY_PILOT";
+/** EASA primary pilot capacity. Mutually exclusive, and it covers the whole flight.
+ * CRUISE_RELIEF is the cruise-relief co-pilot named in AMC1 FCL.050(4); its time
+ * is logged in the co-pilot column. */
+export type PilotFunction =
+  | "PIC"
+  | "PICUS"
+  | "SPIC"
+  | "CO_PILOT"
+  | "CRUISE_RELIEF"
+  | "DUAL"
+  | "SAFETY_PILOT";
 
 /** Operating role within the flight, independent of the logged function time. */
 export type OperatingRole = "PILOT_FLYING" | "PILOT_MONITORING";

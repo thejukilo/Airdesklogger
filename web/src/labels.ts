@@ -137,6 +137,7 @@ const NEW_ATTRIBUTE_LABELS: Record<string, string> = {
   licence_proficiency_check: "LPC (licence prof. check)",
   aoc: "AOC (assessment of competence)",
   demo_flight: "Demo flight",
+  yz_flight: "IFR/VFR changed in flight (Y/Z)",
 };
 
 export const ATTRIBUTE_LABELS: Record<string, string> = {
@@ -147,6 +148,7 @@ export const ATTRIBUTE_LABELS: Record<string, string> = {
 export const FUNCTION_LABELS: Record<string, string> = {
   PIC: "PIC",
   CO_PILOT: "Co-pilot",
+  CRUISE_RELIEF: "Cruise-relief co-pilot",
   DUAL: "Dual",
   PICUS: "PICUS",
   SPIC: "SPIC",

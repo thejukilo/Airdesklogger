@@ -45,7 +45,7 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 ### 2.2 Format of the record and supported values
 - [x] 2.2.1 Data tracked in a digitally processable way (structured JSONB columns)
 - [x] 2.2.2 At least the Part-FCL columns and fields
-- [x] 2.2.4 Pilot functions incl. instructor on pilot seat / jump seat / supervising / as examiner (`InstructorPosition`)
+- [x] 2.2.4 Pilot functions incl. instructor on pilot seat / jump seat / supervising / as examiner (`InstructorPosition`), and the cruise-relief co-pilot named in AMC1 FCL.050(4) (logged in the co-pilot column).
 - [x] 2.2.5 Sailplane launch method, selectable on the form for a sailplane (`LaunchMethod`). Balloons record a free/tethered flight type (BFCL.050). For balloons and sailplanes the SE/ME and multi-pilot columns are left blank, the pilot functions are limited to PIC and dual, and there is no IFR.
 - [x] 2.2.6 TMG and powered gliders loggable as aeroplane or sailplane (category is selectable)
 - [x] 2.2.7 Local-time entry possible with UTC default. A local time is converted to UTC against the aerodrome's own timezone and shown with a Z; when the aerodrome has no position on file the time cannot be converted, so it is kept as local and shown with an L (on the export, the detail view and the list), which is the clear indication of a local-time entry that 2.2.7 asks for.
@@ -57,7 +57,7 @@ Status key: `[x]` done, `[ ] PARTIAL` present but incomplete, `[ ] OPEN` not sta
 - [ ] PARTIAL: 2.3.2 Aircraft from a common database. All fields present incl. `balloonGroup` and `validFrom`; depends on the full reference dataset being loaded operationally.
 - [x] 2.3.3 Airports from a common database, valid ICAO or no-location indicator. ICAO table and ZZZZ supported; a free-text aerodrome name is captured and required for the ZZZZ case.
 - [x] 2.3.4 All time values calculated automatically. SE/ME, single/multi-pilot, function split, augmented-crew fractions and night are auto-derived; IFR follows the flight rules. Night is computed from civil twilight. The operating crew size (2/3/4) is selectable on the flight form when the operation is multi-pilot, so the 2/3 (three pilots) and 1/2 (four pilots) shares apply from the UI, not only on import.
-- [x] 2.3.5 Auto-calculated values not user-editable, reduce-only after the window. The columns are computed, not typed; the augmented-crew and series exceptions are auto-applied; and after the 48-hour window an edit may not increase the flight time.
+- [x] 2.3.5 Auto-calculated values not user-editable except for the Part-FCL reduce-only exceptions, which are gated by the matching entry marker and may only lower the calculated value. The pilot may reduce the logged flight time for a **series of flights** or an **augmented-crew operation** (e.g. a relief pilot who rested), and may log only the IFR portion of a **Y/Z flight** that changed between IFR and VFR in flight (`yz_flight` marker). After the 48-hour window an edit may not increase the flight time.
 - [ ] PARTIAL: 2.3.6 Rigorous validation on entry, import and save, including at the data store. Strong app-layer validation; DB-level enforcement is limited to immutability triggers and a few CHECK constraints.
 
 ### 2.4 Entry signatures

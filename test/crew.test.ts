@@ -81,4 +81,26 @@ describe("augmented crew through validation", () => {
     expect(r.valid).toBe(false);
     expect(r.issues.some((i) => i.field === "crewSize")).toBe(true);
   });
+
+  it("lets an augmented-crew pilot reduce below the calculated share (FOCA 2.3.5)", () => {
+    // 180-min block, crew of 3 -> calculated 120; the pilot logs 90.
+    const r = validateEntry(mpFlight({ crewSize: 3, flightTimeMinutes: 90 }));
+    expect(r.valid).toBe(true);
+    expect(r.derived!.total).toBe(90);
+    // IFR (180) carries the share and is capped at the reduced total.
+    expect(r.derived!.ifr).toBe(90);
+  });
+
+  it("rejects a logged time above the augmented-crew share", () => {
+    // crew of 3 -> calculated 120; 150 would raise it, which is not allowed.
+    const r = validateEntry(mpFlight({ crewSize: 3, flightTimeMinutes: 150 }));
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.field === "flightTimeMinutes")).toBe(true);
+  });
+
+  it("rejects a reduced time on a normal two-pilot flight with no series attribute", () => {
+    const r = validateEntry(mpFlight({ crewSize: 2, flightTimeMinutes: 120 }));
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((i) => i.field === "flightTimeMinutes")).toBe(true);
+  });
 });

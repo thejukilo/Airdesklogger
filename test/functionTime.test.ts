@@ -20,6 +20,13 @@ describe("pilot function time", () => {
     expect(functionMinutes({ primary: "DUAL", instructor: 0 }, 90).dual).toBe(90);
   });
 
+  it("credits a cruise-relief co-pilot in the co-pilot column (AMC1 FCL.050)", () => {
+    const fm = functionMinutes({ primary: "CRUISE_RELIEF", instructor: 0 }, 120);
+    expect(fm.coPilot).toBe(120);
+    expect(fm.pic).toBe(0);
+    expect(fm.dual).toBe(0);
+  });
+
   it("treats instructor time as an independent annotation", () => {
     const fm = functionMinutes({ primary: "PIC", instructor: 120 }, 120);
     expect(fm.pic).toBe(120);
@@ -42,9 +49,10 @@ describe("pilot function time", () => {
     expect(countersignRequirement({ primary: "PIC", instructor: 0 }).required).toBe(false);
   });
 
-  it("annotates the remarks column for PICUS/SPIC", () => {
+  it("annotates the remarks column for PICUS/SPIC and cruise relief", () => {
     expect(functionRemark({ primary: "PICUS", instructor: 0 })).toBe("PICUS");
     expect(functionRemark({ primary: "SPIC", instructor: 0 })).toBe("SPIC");
+    expect(functionRemark({ primary: "CRUISE_RELIEF", instructor: 0 })).toBe("Cruise-relief co-pilot");
     expect(functionRemark({ primary: "PIC", instructor: 0 })).toBeNull();
   });
 });
