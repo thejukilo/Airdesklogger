@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import * as api from "../api";
 import { useAuth } from "../auth";
 import { Button, Card } from "../components/ui";
 
@@ -18,6 +19,12 @@ export function BillingSuccess() {
     let cancelled = false;
     let tries = 0;
     async function poll() {
+      // On the first pass, reconcile straight from Stripe so the account
+      // activates even if the webhook is delayed or not yet configured. The
+      // webhook (when set up) and this call are both idempotent.
+      if (tries === 0) {
+        try { await api.syncSubscription(); } catch { /* fall back to polling */ }
+      }
       await refreshProfile();
       tries += 1;
       setPolled(tries);

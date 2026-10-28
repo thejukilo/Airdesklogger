@@ -454,6 +454,16 @@ export function openBillingPortal(): Promise<{ url: string }> {
   return request("/billing/portal", { method: "POST" });
 }
 
+/**
+ * Reconcile the subscription state directly from Stripe, independent of the
+ * webhook. Returns the state Stripe reports (null when the account has no
+ * Stripe customer yet). Call refreshProfile() afterwards to pull the updated
+ * snapshot into the UI.
+ */
+export function syncSubscription(): Promise<{ state: SubscriptionState | null; synced: boolean }> {
+  return request("/billing/sync", { method: "POST" });
+}
+
 export function getProfile(): Promise<Profile> {
   return request("/account", { method: "GET" });
 }

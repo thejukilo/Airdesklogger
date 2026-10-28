@@ -682,9 +682,9 @@ function ImportTokensCard() {
  * see a one-button Subscribe CTA that opens Stripe Checkout.
  */
 function SubscriptionCard() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const sub = profile?.subscription;
-  const [busy, setBusy] = useState<"checkout" | "portal" | null>(null);
+  const [busy, setBusy] = useState<"checkout" | "portal" | "sync" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!sub) return null;
@@ -709,6 +709,22 @@ function SubscriptionCard() {
       window.location.href = url;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open billing portal.");
+      setBusy(null);
+    }
+  }
+
+  // Pull the current state straight from Stripe, independent of the webhook.
+  // Covers a payment that went through while the webhook was delayed or not
+  // yet configured.
+  async function refreshFromStripe() {
+    setError(null);
+    setBusy("sync");
+    try {
+      await api.syncSubscription();
+      await refreshProfile();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not refresh subscription status.");
+    } finally {
       setBusy(null);
     }
   }
@@ -769,6 +785,14 @@ function SubscriptionCard() {
             {busy === "portal" ? "Opening portal..." : "Manage payment / cancel"}
           </button>
         )}
+        <button
+          type="button"
+          onClick={refreshFromStripe}
+          disabled={busy !== null}
+          className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-60"
+        >
+          {busy === "sync" ? "Refreshing..." : "Refresh status"}
+        </button>
       </div>
     </Card>
   );
