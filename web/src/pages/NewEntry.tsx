@@ -608,6 +608,7 @@ const empty = {
   engineClass: "SE",
   category: "AEROPLANE",
   multiPilot: false,
+  crewSize: 2,
   departurePlace: "",
   arrivalPlace: "",
   departurePlaceName: "",
@@ -646,6 +647,7 @@ function fromContent(c: api.EntryContent): typeof empty {
     engineClass: c.aircraft?.engineClass ?? ((cols?.multiEngine ?? 0) > 0 ? "ME" : "SE"),
     category: c.aircraft?.category ?? cols?.category ?? "AEROPLANE",
     multiPilot: c.aircraft?.multiPilot ?? ((cols?.multiPilot ?? 0) > 0),
+    crewSize: cols?.crewSize ?? 2,
     departurePlace: cols?.departurePlace ?? "",
     arrivalPlace: cols?.arrivalPlace ?? "",
     departurePlaceName: cols?.departurePlaceName ?? "",
@@ -1087,6 +1089,10 @@ export function NewEntry() {
         ...(isSeries && seriesMinutes > 0 && seriesMinutes < computedBlock
           ? { flightTimeMinutes: seriesMinutes }
           : {}),
+        // Augmented operation: send the crew size only when more than the
+        // minimum crew of two flew, so the server applies the FOCA 2.3.4 share
+        // (2/3 for three pilots, 1/2 for four). Landings are never scaled.
+        ...(isPowered && f.multiPilot && f.crewSize > 2 ? { crewSize: Number(f.crewSize) } : {}),
         ...(f.attributes.length ? { attributes: f.attributes } : {}),
         ...(buildAttributeDetails() ? { attributeDetails: buildAttributeDetails() } : {}),
         remarks: f.remarks,
@@ -1225,9 +1231,30 @@ export function NewEntry() {
             )}
             {isPowered && (
               <label className="flex items-end gap-2 pb-2 text-sm">
-                <input type="checkbox" checked={f.multiPilot} onChange={(e) => set("multiPilot", e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={f.multiPilot}
+                  onChange={(e) =>
+                    setF((prev) => ({
+                      ...prev,
+                      multiPilot: e.target.checked,
+                      crewSize: e.target.checked ? prev.crewSize : 2,
+                    }))
+                  }
+                />
                 Multi-pilot operation
               </label>
+            )}
+            {isPowered && f.multiPilot && (
+              <Select
+                label="Operating crew"
+                value={String(f.crewSize)}
+                onChange={(e) => set("crewSize", Number(e.target.value))}
+              >
+                <option value="2">2 pilots (standard — full time)</option>
+                <option value="3">3 pilots (augmented — each logs ⅔)</option>
+                <option value="4">4 pilots (augmented — each logs ½)</option>
+              </Select>
             )}
           </div>
         </Section>
