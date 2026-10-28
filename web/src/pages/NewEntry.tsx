@@ -1259,13 +1259,22 @@ export function NewEntry() {
                 <input
                   type="checkbox"
                   checked={f.multiPilot}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    // Back to a crew of two when multi-pilot is cleared; the
+                    // logged time returns to the full block for a series, else
+                    // it is hidden and reset.
                     setF((prev) => ({
                       ...prev,
-                      multiPilot: e.target.checked,
-                      crewSize: e.target.checked ? prev.crewSize : 2,
-                    }))
-                  }
+                      multiPilot: checked,
+                      crewSize: checked ? prev.crewSize : 2,
+                      seriesTime: checked
+                        ? prev.seriesTime
+                        : prev.attributes.includes("series_of_flights") && computedBlock > 0
+                          ? fmtHHMM(computedBlock)
+                          : "",
+                    }));
+                  }}
                 />
                 Multi-pilot operation
               </label>
@@ -1274,7 +1283,16 @@ export function NewEntry() {
               <Select
                 label="Operating crew"
                 value={String(f.crewSize)}
-                onChange={(e) => set("crewSize", Number(e.target.value))}
+                onChange={(e) => {
+                  // Recompute the logged time to the new crew share so the field
+                  // tracks the selected crew (it is pre-filled, not left stale).
+                  const crew = Number(e.target.value);
+                  const share =
+                    crew === 3 ? Math.round((computedBlock * 2) / 3)
+                    : crew === 4 ? Math.round(computedBlock / 2)
+                    : computedBlock;
+                  setF((prev) => ({ ...prev, crewSize: crew, seriesTime: computedBlock > 0 ? fmtHHMM(share) : "" }));
+                }}
               >
                 <option value="2">2 pilots (standard — full time)</option>
                 <option value="3">3 pilots (augmented — each logs ⅔)</option>
