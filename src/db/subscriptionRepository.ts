@@ -182,13 +182,27 @@ export async function applyStripeSubscription(
     cancel_at_period_end: boolean;
     current_period_start: number | null;
     current_period_end: number | null;
-    items: { data: Array<{ price: { id: string } }> };
+    items: {
+      data: Array<{
+        price: { id: string };
+        current_period_start?: number | null;
+        current_period_end?: number | null;
+      }>;
+    };
   },
 ): Promise<SubscriptionState> {
   const state = stripeStatusToState(sub.status, Boolean(sub.cancel_at_period_end));
-  const start = sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null;
-  const end = sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null;
-  const priceId = sub.items.data[0]?.price.id ?? null;
+  // Stripe moved current_period_start/end off the subscription and onto each
+  // subscription item in the 2025-03 "Basil" API version. Read the top-level
+  // fields when they are present (2025-02 "acacia" and earlier) and fall back
+  // to the first item, so the period end is captured whichever API version the
+  // webhook endpoint is pinned to.
+  const item = sub.items.data[0];
+  const startEpoch = sub.current_period_start ?? item?.current_period_start ?? null;
+  const endEpoch = sub.current_period_end ?? item?.current_period_end ?? null;
+  const start = startEpoch ? new Date(startEpoch * 1000).toISOString() : null;
+  const end = endEpoch ? new Date(endEpoch * 1000).toISOString() : null;
+  const priceId = item?.price.id ?? null;
   await getPool().query(
     `UPDATE pilots
         SET subscription_state = $2,
