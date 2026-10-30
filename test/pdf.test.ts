@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { generateLogbookPdf, type LogbookEntryForPdf } from "../src/pdf/logbook.js";
+import { generateLogbookPdf, remarksText, type LogbookEntryForPdf } from "../src/pdf/logbook.js";
 import { validateEntry, validateFstdSession } from "../src/domain/validation.js";
 import type { FlightEntryInput } from "../src/domain/types.js";
 
@@ -40,6 +40,17 @@ describe("PDF logbook generation", () => {
 
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBe(3); // 7 rows / 3 per page = 3 pages
+  });
+
+  it("names the cruise-relief co-pilot and the Y/Z flag in the remarks (FOCA)", () => {
+    const base = toPdfRow(sampleInput(0));
+    // AMC1 FCL.050: cruise-relief co-pilot is named in remarks; time stays co-pilot.
+    expect(remarksText({ ...base, pilotFunction: "CRUISE_RELIEF" })).toContain("(cruise-relief co-pilot)");
+    // A Y/Z flight shows the flag inline (the IFR portion is in the IFR column).
+    const yz = toPdfRow({ ...sampleInput(0), attributes: ["yz_flight"] });
+    expect(remarksText(yz)).toContain("(IFR/VFR changed in flight)");
+    // A plain co-pilot flight carries neither flag.
+    expect(remarksText({ ...base, pilotFunction: "CO_PILOT" })).not.toContain("cruise-relief");
   });
 
   it("produces a single page for an empty logbook", async () => {

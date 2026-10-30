@@ -78,6 +78,7 @@ function toRow(
   // stored UTC instant back to local wall-clock when the holder originally
   // entered the time in local civil time. ZZZZ legs have no tz.
   const tz = airportTzByIcao.get(String(columns.departurePlace ?? "").toUpperCase());
+  const primaryFunction = (content.function as { primary?: string } | undefined)?.primary;
   return {
     ...columns,
     entryId,
@@ -85,6 +86,7 @@ function toRow(
     aircraftReg: registration,
     picName: (content.picName as string) ?? "",
     remarks: (content.remarks as string) ?? "",
+    ...(primaryFunction ? { pilotFunction: primaryFunction } : {}),
     signed,
     ...(tz ? { airportTz: tz } : {}),
     signatureMissing,

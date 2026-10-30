@@ -163,7 +163,7 @@ function fmtIsoDate(iso: string): string {
  * appendix at the back; the row gets a click-through "attributes" tag drawn
  * separately by drawGrid. NVIS time stays in the remarks cell because pilots
  * are used to reading it there. */
-function remarksText(e: LogbookEntryForPdf): string {
+export function remarksText(e: LogbookEntryForPdf): string {
   const parts: string[] = [];
   if (e.remarks) parts.push(e.remarks);
   if (e.departurePlaceName) parts.push(`(from: ${e.departurePlaceName})`);
@@ -171,6 +171,9 @@ function remarksText(e: LogbookEntryForPdf): string {
   if (e.operatingRole) parts.push(e.operatingRole === "PILOT_FLYING" ? "(PF)" : "(PM)");
   if (e.crewSize > 2) parts.push(`(augmented crew of ${e.crewSize})`);
   if (e.attributes.includes("yz_flight")) parts.push("(IFR/VFR changed in flight)");
+  // A cruise-relief co-pilot logs co-pilot time; AMC1 FCL.050 is satisfied by
+  // naming the function in the remarks (the time stays in the Co-pilot column).
+  if (e.pilotFunction === "CRUISE_RELIEF") parts.push("(cruise-relief co-pilot)");
   if (e.balloonFlightType) parts.push(e.balloonFlightType === "TETHERED" ? "(tethered)" : "(free flight)");
   if (e.inflations) parts.push(`(${e.inflations} inflation${e.inflations === 1 ? "" : "s"})`);
   if (e.instructorPosition && e.instructorPosition !== "PILOT_SEAT") parts.push(`(${e.instructorPosition})`);
@@ -253,6 +256,9 @@ export interface LogbookEntryForPdf extends DerivedColumns {
   edited?: boolean;
   /** IANA timezone of the departure aerodrome, used to project stored UTC back to local wall-clock for the L suffix. */
   airportTz?: string;
+  /** Primary pilot function, carried so the remarks cell can name the ones that
+   * are not a distinct logbook column (e.g. the cruise-relief co-pilot). */
+  pilotFunction?: string;
 }
 
 export interface PdfOptions {
