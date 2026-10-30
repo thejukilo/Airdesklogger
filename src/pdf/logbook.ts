@@ -398,7 +398,12 @@ export async function generateLogbookPdf(
     drawPage(doc, font, bold, emptyPage(), 1, resolved, [], "", linkCtx);
   } else {
     for (const group of groups) {
-      const pages = paginate(group.entries, rowsPerPage).pages;
+      const groupRemarksW = columnsForCategory(group.label).find((c) => c.group === "REMARKS")?.width ?? 150;
+      const pages = paginate(
+        group.entries,
+        rowsPerPage,
+        (e) => entryUnits(remarkLines(e as LogbookEntryForPdf, groupRemarksW, font).length),
+      ).pages;
       const list = pages.length > 0 ? pages : [emptyPage()];
       for (const page of list) {
         drawPage(doc, font, bold, page, list.length, resolved, group.entries, group.label, linkCtx);
@@ -1066,6 +1071,138 @@ function clip(text: string, maxW: number, size: number, font: PDFFont): string {
   return s + "...";
 }
 
+// Remarks wrapping. The remarks cell is the one free-text column that can
+// overflow, so it wraps onto as many lines as it needs rather than clipping -
+// a logbook must never drop information. Two wrapped lines fit in one ROW_H
+// unit; an entry that needs more lines grows in whole units (see paginate).
+const REMARK_SIZE = 6.5;
+const REMARK_LINE_H = 8;
+const REMARK_LINES_PER_UNIT = 2;
+
+/** Width reserved at the right of the remarks cell for the signed / attributes
+ * / EDITED tags, so wrapped text never runs under them. */
+function remarksTagWidth(e: LogbookEntryForPdf): number {
+  const signTagW = e.signed ? 36 : e.signatureMissing ? 56 : 0;
+  const attrTagW = hasAppendixAttributes(e) ? 38 : 0;
+  const editTagW = e.edited ? 36 : 0;
+  return signTagW + attrTagW + editTagW;
+}
+
+/** Word-wrap a remarks string to `maxW`. An over-long single word (rare in
+ * remarks, e.g. a URL) is hard-broken so nothing is ever clipped. */
+export function wrapRemark(text: string, font: PDFFont, size: number, maxW: number): string[] {
+  const clean = winAnsi(text).trim();
+  if (!clean) return [];
+  const w = Math.max(8, maxW);
+  const fits = (s: string) => font.widthOfTextAtSize(s, size) <= w;
+  const breakLong = (word: string, lines: string[]): string => {
+    let rest = word;
+    while (!fits(rest) && rest.length > 1) {
+      let n = rest.length;
+      while (n > 1 && !fits(rest.slice(0, n))) n--;
+      lines.push(rest.slice(0, n));
+      rest = rest.slice(n);
+    }
+    return rest;
+  };
+  const lines: string[] = [];
+  let cur = "";
+  for (const word of clean.split(/\s+/)) {
+    const candidate = cur ? `${cur} ${word}` : word;
+    if (!cur) {
+      cur = breakLong(word, lines);
+    } else if (fits(candidate)) {
+      cur = candidate;
+    } else {
+      lines.push(cur);
+      cur = breakLong(word, lines);
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/** The wrapped remark lines for an entry, given the remarks column width. */
+function remarkLines(e: LogbookEntryForPdf, remarksWidth: number, font: PDFFont): string[] {
+  return wrapRemark(remarksText(e), font, REMARK_SIZE, remarksWidth - remarksTagWidth(e) - 4);
+}
+
+/** How many ROW_H units an entry occupies, from its wrapped remark line count. */
+function entryUnits(lineCount: number): number {
+  return Math.max(1, Math.ceil(lineCount / REMARK_LINES_PER_UNIT));
+}
+
+/** Draw the remarks cell: the wrapped free text on the left and the signed /
+ * sign-off-req. / attributes / EDITED tags on the right of the first line. */
+function drawRemarksCell(
+  p: PDFPage,
+  font: PDFFont,
+  bold: PDFFont,
+  e: LogbookEntryForPdf,
+  x: number,
+  width: number,
+  entryTop: number,
+  stdY: number,
+  lines: string[],
+  linkCtx?: SignedLinkContext,
+  toPdfRect?: (x: number, y: number, w: number, h: number) => [number, number, number, number],
+): void {
+  const LINK = rgb(0.13, 0.32, 0.78);
+  const MISSING = rgb(0.70, 0.12, 0.12);
+
+  // One line sits on the standard baseline (aligned with the other cells);
+  // several lines stack downward from the top of the (taller) entry.
+  if (lines.length <= 1) {
+    if (lines[0]) p.drawText(lines[0], { x: x + 2, y: stdY, size: REMARK_SIZE, font, color: BLACK });
+  } else {
+    lines.forEach((ln, i) => {
+      p.drawText(ln, { x: x + 2, y: entryTop - REMARK_LINE_H * (i + 1) + 1, size: REMARK_SIZE, font, color: BLACK });
+    });
+  }
+
+  const hasAttrs = hasAppendixAttributes(e);
+  const signTagW = e.signed ? 36 : e.signatureMissing ? 56 : 0;
+  const attrTagW = hasAttrs ? 38 : 0;
+  const editTagW = e.edited ? 36 : 0;
+  const y = stdY;
+  let rightCursor = x + width;
+  if (e.edited) {
+    const label = "EDITED";
+    const lw = bold.widthOfTextAtSize(label, 6);
+    const chipW = lw + 6;
+    const chipX = rightCursor - editTagW + (editTagW - chipW) / 2;
+    p.drawRectangle({ x: chipX, y: y - 1, width: chipW, height: 10, color: EDIT_CHIP_BG });
+    p.drawText(label, { x: chipX + 3, y: y + 1, size: 6, font: bold, color: EDIT_CHIP_FG });
+    rightCursor -= editTagW;
+  }
+  if (e.signed) {
+    const label = "signed";
+    const lw = bold.widthOfTextAtSize(label, 6.5);
+    const lx = rightCursor - signTagW + 2;
+    p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: LINK });
+    p.drawLine({ start: { x: lx, y: y - 1 }, end: { x: lx + lw, y: y - 1 }, color: LINK, thickness: 0.4 });
+    if (linkCtx && toPdfRect && e.entryId) {
+      linkCtx.rowRects.set(e.entryId, { page: p, rect: toPdfRect(lx - 1, y - 2, lw + 2, 9) });
+    }
+    rightCursor -= signTagW;
+  } else if (e.signatureMissing) {
+    const label = "sign-off req.";
+    const lx = rightCursor - signTagW + 2;
+    p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: MISSING });
+    rightCursor -= signTagW;
+  }
+  if (hasAttrs) {
+    const label = "attributes";
+    const lw = bold.widthOfTextAtSize(label, 6.5);
+    const lx = rightCursor - attrTagW + 2;
+    p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: LINK });
+    p.drawLine({ start: { x: lx, y: y - 1 }, end: { x: lx + lw, y: y - 1 }, color: LINK, thickness: 0.4 });
+    if (linkCtx && toPdfRect && e.entryId) {
+      linkCtx.attrRowRects.set(e.entryId, { page: p, rect: toPdfRect(lx - 1, y - 2, lw + 2, 9) });
+    }
+  }
+}
+
 function hline(p: PDFPage, x1: number, x2: number, y: number, color = BLACK, thickness = 0.5): void {
   p.drawLine({ start: { x: x1, y }, end: { x: x2, y }, color, thickness });
 }
@@ -1121,28 +1258,45 @@ function drawGrid(
   // Mid-header divider (between group row and sub-header row).
   hline(p, MARGIN, MARGIN + gridW, midDivider);
 
-  // Horizontal lines: top, header bottom, each row, totals.
+  // Lay each entry out first: wrap its remarks and size it in whole ROW_H units,
+  // so the horizontal rules fall on entry boundaries and never cut through a
+  // wrapped remark.
+  const remarksW = cols.find((c) => c.group === "REMARKS")?.width ?? 150;
+  const layout = page.rows.map((row) => {
+    const e = row as LogbookEntryForPdf;
+    const lines = remarkLines(e, remarksW, font);
+    return { e, lines, units: entryUnits(lines.length) };
+  });
+
+  // Horizontal lines: top, header bottom, a rule after each entry, then a rule
+  // after each empty padding row down to the body bottom.
   hline(p, MARGIN, MARGIN + gridW, gridTop);
   hline(p, MARGIN, MARGIN + gridW, bodyTop);
-  for (let r = 0; r <= rowsPerPage; r++) hline(p, MARGIN, MARGIN + gridW, bodyTop - r * ROW_H);
+  const ruleUnits = new Set<number>();
+  let usedUnits = 0;
+  for (const { units } of layout) {
+    usedUnits = Math.min(usedUnits + units, rowsPerPage);
+    ruleUnits.add(usedUnits);
+  }
+  for (let u = usedUnits; u <= rowsPerPage; u++) ruleUnits.add(u);
+  for (const u of ruleUnits) hline(p, MARGIN, MARGIN + gridW, bodyTop - u * ROW_H);
 
   // Entry rows. Flight rows only; FSTD sessions are listed in their own table.
-  const LINK = rgb(0.13, 0.32, 0.78); // approximate Tailwind sky-700, for the "signed" link.
-  // Rose, for the "sign-off req." tag on entries that require a signature
-  // (a check/test attribute, DUAL/PICUS/SPIC, etc.) but do not have a valid
-  // one. FOCA GM/INFO 2.4.6 requires such entries to be clearly indicated on
-  // the export, so this tag is a compliance element, not decoration.
-  const MISSING = rgb(0.70, 0.12, 0.12);
-  page.rows.forEach((row, r) => {
-    const y = bodyTop - (r + 1) * ROW_H + 5;
-    const e = row as LogbookEntryForPdf;
+  // Each entry is drawn at its (possibly multi-unit) height; the remarks cell
+  // wraps its free text rather than clipping it (drawRemarksCell).
+  let cursorUnits = 0;
+  layout.forEach(({ e, lines, units }) => {
+    const entryTop = bodyTop - cursorUnits * ROW_H;
+    const stdY = entryTop - ROW_H + 5; // baseline of the single-line cells (top unit)
     cols.forEach((c, idx) => {
       const x = colX(cols, idx);
+      if (c.group === "REMARKS") {
+        drawRemarksCell(p, font, bold, e, x, c.width, entryTop, stdY, lines, linkCtx, toPdfRect);
+        return;
+      }
       let text = "";
       if (c.group === "DATE") {
         text = formatLogbookDate(e.departureTime);
-      } else if (c.group === "REMARKS") {
-        text = remarksText(e);
       } else if (c.group === "AIRCRAFT" && c.sub === "Type") {
         text = e.aircraftType ?? "";
       } else if (c.group === "AIRCRAFT" && c.sub === "Reg") {
@@ -1154,72 +1308,14 @@ function drawGrid(
       } else if (c.group === "NAME PIC") {
         text = e.picName ?? "";
       } else {
-        text = c.value(row);
+        text = c.value(e);
       }
       const leftAligned =
-        c.group === "REMARKS" || c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "BALLOON" || c.group === "DATE";
-      if (c.group === "REMARKS") {
-        // Reserve a small strip at the right of the remarks cell for the
-        // "attributes" link, "signed" tag, and the amber EDITED
-        // chip. The free-text part is drawn clipped to fit the remainder.
-        const hasAttrs = hasAppendixAttributes(e);
-        const signTagW = e.signed ? 36 : e.signatureMissing ? 56 : 0;
-        const attrTagW = hasAttrs ? 38 : 0;
-        const editTagW = e.edited ? 36 : 0;
-        const TAG_W = signTagW + attrTagW + editTagW;
-        leftText(p, text, x, c.width - TAG_W, y, 6.5, font);
-        let rightCursor = x + c.width;
-        if (e.edited) {
-          // Filled amber chip so the eye lands on it and matches the
-          // change-log entry for the same record.
-          const label = "EDITED";
-          const lw = bold.widthOfTextAtSize(label, 6);
-          const chipW = lw + 6;
-          const chipX = rightCursor - editTagW + (editTagW - chipW) / 2;
-          p.drawRectangle({ x: chipX, y: y - 1, width: chipW, height: 10, color: EDIT_CHIP_BG });
-          p.drawText(label, { x: chipX + 3, y: y + 1, size: 6, font: bold, color: EDIT_CHIP_FG });
-          rightCursor -= editTagW;
-        }
-        if (e.signed) {
-          const label = "signed";
-          const lw = bold.widthOfTextAtSize(label, 6.5);
-          const lx = rightCursor - signTagW + 2;
-          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: LINK });
-          p.drawLine({ start: { x: lx, y: y - 1 }, end: { x: lx + lw, y: y - 1 }, color: LINK, thickness: 0.4 });
-          if (linkCtx && toPdfRect && e.entryId) {
-            linkCtx.rowRects.set(e.entryId, {
-              page: p,
-              rect: toPdfRect(lx - 1, y - 2, lw + 2, 9),
-            });
-          }
-          rightCursor -= signTagW;
-        } else if (e.signatureMissing) {
-          // FOCA GM/INFO 2.4.6: an entry that requires a signature but has
-          // none is flagged here so the reviewer sees it on the print-out.
-          const label = "sign-off req.";
-          const lx = rightCursor - signTagW + 2;
-          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: MISSING });
-          rightCursor -= signTagW;
-        }
-        if (hasAttrs) {
-          const label = "attributes";
-          const lw = bold.widthOfTextAtSize(label, 6.5);
-          const lx = rightCursor - attrTagW + 2;
-          p.drawText(label, { x: lx, y, size: 6.5, font: bold, color: LINK });
-          p.drawLine({ start: { x: lx, y: y - 1 }, end: { x: lx + lw, y: y - 1 }, color: LINK, thickness: 0.4 });
-          if (linkCtx && toPdfRect && e.entryId) {
-            linkCtx.attrRowRects.set(e.entryId, {
-              page: p,
-              rect: toPdfRect(lx - 1, y - 2, lw + 2, 9),
-            });
-          }
-        }
-      } else if (leftAligned) {
-        leftText(p, text, x, c.width, y, 6.5, font);
-      } else {
-        centeredText(p, text, x, c.width, y, 6.5, font);
-      }
+        c.group === "NAME PIC" || c.group === "AIRCRAFT" || c.group === "BALLOON" || c.group === "DATE";
+      if (leftAligned) leftText(p, text, x, c.width, stdY, 6.5, font);
+      else centeredText(p, text, x, c.width, stdY, 6.5, font);
     });
+    cursorUnits += units;
   });
 
   // Totals block.

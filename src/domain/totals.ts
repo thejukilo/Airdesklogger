@@ -60,18 +60,40 @@ export interface PaginatedLogbook {
   grandTotal: ColumnTotals;
 }
 
-/** Split entries into pages of `rowsPerPage` and compute carry-over totals. */
+/**
+ * Split entries into pages and compute carry-over totals. Each entry occupies a
+ * whole number of row "units" (`unitsOf`, default 1); an entry whose remarks
+ * wrap onto extra lines takes more than one unit, and entries are packed so the
+ * units on a page never exceed `rowsPerPage`. With the default this is the plain
+ * fixed `rowsPerPage` split.
+ */
 export function paginate(
   entries: readonly DerivedColumns[],
   rowsPerPage: number,
+  unitsOf?: (e: DerivedColumns) => number,
 ): PaginatedLogbook {
   if (rowsPerPage < 1) throw new Error("rowsPerPage must be >= 1");
+  // One entry can never take more units than a page holds, so a very long
+  // remark still lands (it fills its page rather than vanishing).
+  const unitsFor = (e: DerivedColumns) =>
+    Math.max(1, Math.min(rowsPerPage, Math.floor(unitsOf ? unitsOf(e) : 1)));
 
   const pages: LogbookPage[] = [];
   let broughtForward = zeroTotals();
 
-  for (let i = 0, page = 1; i < Math.max(entries.length, 0); i += rowsPerPage, page++) {
-    const rows = entries.slice(i, i + rowsPerPage);
+  let i = 0;
+  let page = 1;
+  while (i < entries.length) {
+    const rows: DerivedColumns[] = [];
+    let used = 0;
+    while (i < entries.length) {
+      const u = unitsFor(entries[i]!);
+      if (used > 0 && used + u > rowsPerPage) break;
+      rows.push(entries[i]!);
+      used += u;
+      i++;
+    }
+
     const thisPage = zeroTotals();
     for (const e of rows) addInto(thisPage, rowValues(e));
 
@@ -81,12 +103,13 @@ export function paginate(
 
     pages.push({
       pageNumber: page,
-      rows: [...rows],
+      rows,
       thisPage,
       broughtForward: { ...broughtForward },
       carriedForward,
     });
     broughtForward = { ...carriedForward };
+    page++;
   }
 
   return { pages, grandTotal: broughtForward };

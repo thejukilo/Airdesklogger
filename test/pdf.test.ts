@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { generateLogbookPdf, remarksText, type LogbookEntryForPdf } from "../src/pdf/logbook.js";
+import { StandardFonts } from "pdf-lib";
+import { generateLogbookPdf, remarksText, wrapRemark, type LogbookEntryForPdf } from "../src/pdf/logbook.js";
 import { validateEntry, validateFstdSession } from "../src/domain/validation.js";
 import type { FlightEntryInput } from "../src/domain/types.js";
 
@@ -51,6 +52,31 @@ describe("PDF logbook generation", () => {
     expect(remarksText(yz)).toContain("(IFR/VFR changed in flight)");
     // A plain co-pilot flight carries neither flag.
     expect(remarksText({ ...base, pilotFunction: "CO_PILOT" })).not.toContain("cruise-relief");
+  });
+
+  it("wraps long remarks onto multiple lines without ever truncating them", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const size = 6.5;
+    const width = 110;
+    const text =
+      "This is a deliberately very long remark (augmented crew of 4) (IFR/VFR changed in flight) (cruise-relief co-pilot) that must wrap";
+    const lines = wrapRemark(text, font, size, width);
+
+    expect(lines.length).toBeGreaterThan(1);
+    // No line is ever an ellipsis-truncated fragment, and none overflows.
+    for (const ln of lines) {
+      expect(ln).not.toContain("...");
+      expect(font.widthOfTextAtSize(ln, size)).toBeLessThanOrEqual(width);
+    }
+    // Every word survives the wrap (nothing is dropped).
+    const original = text.split(/\s+/).join(" ");
+    expect(lines.join(" ").replace(/\s+/g, " ")).toBe(original);
+
+    // A single word wider than the cell is hard-broken, never clipped.
+    const broken = wrapRemark("Supercalifragilisticexpialidocious", font, size, 20);
+    expect(broken.length).toBeGreaterThan(1);
+    expect(broken.join("")).toBe("Supercalifragilisticexpialidocious");
   });
 
   it("produces a single page for an empty logbook", async () => {

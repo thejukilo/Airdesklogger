@@ -67,4 +67,22 @@ describe("page-by-page totals with carry-over", () => {
     expect(pages).toEqual([]);
     expect(grandTotal.total).toBe(0);
   });
+
+  it("packs by row units when an entry's remarks make it taller", () => {
+    // Row index 1 takes 2 units (wrapped remarks); page holds 3 units.
+    const unitsOf = (_e: DerivedColumns, i: number) => (i === 1 ? 2 : 1);
+    const withIndex = entries.map((e, i) => ({ e, u: unitsOf(e, i) }));
+    const { pages } = paginate(entries, 3, (e) => withIndex.find((w) => w.e === e)!.u);
+    // Page 1: rows 0 (1u) + 1 (2u) = 3 units. Page 2: rows 2,3,4 (3u).
+    expect(pages.map((p) => p.rows.length)).toEqual([2, 3]);
+    // Totals still thread through correctly across the height-based split.
+    expect(pages[0]!.thisPage.total).toBe(150);
+    expect(pages[1]!.carriedForward.total).toBe(345);
+  });
+
+  it("still fits a single entry taller than a page onto one page", () => {
+    const { pages } = paginate([row(60, 60)], 2, () => 5);
+    expect(pages.length).toBe(1);
+    expect(pages[0]!.rows.length).toBe(1);
+  });
 });
