@@ -1577,7 +1577,7 @@ export function NewEntry() {
               Route &amp; times
             </SubHead>
 
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-1.5">
               <div className="min-w-0 flex-1">
                 {isBalloon ? (
                   <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
@@ -1592,15 +1592,20 @@ export function NewEntry() {
                 )}
               </div>
               {!isBalloon && (
-                <button
-                  type="button"
-                  onClick={swapPlaces}
-                  aria-label="Swap departure and arrival"
-                  title="Swap departure and arrival"
-                  className="mt-[1.65rem] shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
-                >
-                  ⇄
-                </button>
+                <div className="shrink-0">
+                  {/* Invisible label-height spacer keeps the button top level with the
+                      input boxes, so the icon centres on the route pair. */}
+                  <span aria-hidden="true" className="mb-1 block text-[11px] opacity-0">{" "}</span>
+                  <button
+                    type="button"
+                    onClick={swapPlaces}
+                    aria-label="Swap departure and arrival"
+                    title="Swap departure and arrival"
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                  >
+                    ⇄
+                  </button>
+                </div>
               )}
               <div className="min-w-0 flex-1">
                 {isBalloon ? (
