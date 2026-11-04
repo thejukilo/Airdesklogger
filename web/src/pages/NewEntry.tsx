@@ -5,7 +5,7 @@ import { Button, Field, Select } from "../components/ui";
 import { SEVERE_SKEW_MS, useClockSkew } from "../lib/clockSkew";
 import { spansTwilight, zonedWallClockToUtc } from "../lib/twilight";
 import { CATEGORY_LABELS } from "../labels";
-import { ATTR_SPEC, type AttrCategory, type AttrGroup, type AttrItem, type AttrSubGroup } from "../lib/attributesSpec";
+import { ATTR_SPEC, type AttrCategory, type AttrGroup, type AttrItem } from "../lib/attributesSpec";
 import { SimulatorSession } from "./SimulatorSession";
 
 // The new-entry category chooser: the four flight categories plus the simulator
@@ -25,13 +25,57 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** Outer titled panel: a single header bar with an optional right-aligned note,
+ * then a flush body. Used for the main record, endorsements and recent entries. */
+function Panel({ title, badge, right, children }: { title: string; badge?: ReactNode; right?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex min-h-[2.5rem] flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-50 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-600">{title}</span>
+          {badge}
+        </div>
+        {right != null && <span className="text-[11px] text-slate-400">{right}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Lightweight inline subheading inside a panel column (not a full header bar). */
+function SubHead({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{children}</span>
+      {right}
+    </div>
+  );
+}
+
+/** Small pill badge, e.g. the green "Matched in fleet" / "Cross-country" markers. */
+function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: "slate" | "green" | "blue" }) {
+  const styles =
+    tone === "green" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : tone === "blue" ? "border-brand-200 bg-brand-50 text-brand-700"
+    : "border-slate-200 bg-slate-100 text-slate-600";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${styles}`}>
+      {children}
+    </span>
+  );
+}
+
 /** 24-hour HH:MM clock-time input (no native AM/PM picker). Four typed digits
  * get an automatic colon; the stored value stays the plain "HH:MM" string. */
-function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function TimeField({ label, value, onChange, action }: { label: string; value: string; onChange: (v: string) => void; action?: ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 block font-mono text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</span>
+    <div>
+      <div className="mb-1 flex h-4 items-center justify-between gap-2">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</span>
+        {action}
+      </div>
       <input
+        aria-label={label}
         inputMode="numeric"
         maxLength={5}
         placeholder="HH:MM"
@@ -43,7 +87,16 @@ function TimeField({ label, value, onChange }: { label: string; value: string; o
         }}
         className="block min-h-[2.25rem] w-full rounded-md border border-slate-200 bg-white px-2.5 text-center text-sm font-mono tracking-wider outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
       />
-    </label>
+    </div>
+  );
+}
+
+/** A small uppercase quick-action link, e.g. NOW / +1h on a time field. */
+function MiniLink({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="text-[10px] font-bold uppercase tracking-wide text-brand-600 hover:underline">
+      {children}
+    </button>
   );
 }
 
@@ -121,7 +174,7 @@ function AttrStepper({ value, onChange, max }: { value: number; onChange: (v: nu
 function NumberStepperField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      {label && <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>}
       <span className="inline-flex h-[2.25rem] items-stretch overflow-hidden rounded-md border border-slate-200 bg-white">
         <button type="button" aria-label={`${label}: decrease`} onClick={() => onChange(Math.max(0, value - 1))} className="w-8 border-r border-slate-200 bg-slate-50 text-lg font-semibold leading-none text-slate-600 hover:bg-slate-100">−</button>
         <input
@@ -183,70 +236,6 @@ function AttrTextInput({ value, onChange, placeholder }: { value: string; onChan
   );
 }
 
-interface SelectionLine {
-  key: string;
-  label: string;
-  value?: string;
-}
-
-function attrItemValue(
-  item: AttrItem,
-  details: api.AttributeDetails,
-  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string },
-): string | undefined {
-  const input = item.input;
-  if (!input) return undefined;
-  if (input.kind === "count") {
-    const n = (details as Record<string, unknown>)[input.field] as number | undefined;
-    return n && n > 0 ? `× ${n}` : undefined;
-  }
-  if (input.kind === "time") {
-    if (input.entryField) {
-      // seriesTimeHHMM is the user-edited HH:MM string
-      return ctx.seriesTimeHHMM || undefined;
-    }
-    const n = (details as Record<string, unknown>)[input.field] as number | undefined;
-    return n && n > 0 ? fmtHHMM(n) : undefined;
-  }
-  if (input.kind === "segment") {
-    if (input.entryField) {
-      const v = input.field === "launchMethod" ? ctx.launchMethod : "";
-      return input.options.find((o) => o.value === v)?.label;
-    }
-    const v = (details as Record<string, unknown>)[input.field] as string | undefined;
-    return v ? input.options.find((o) => o.value === v)?.label : undefined;
-  }
-  if (input.kind === "text") {
-    const v = (details as Record<string, unknown>)[input.field] as string | undefined;
-    return v && v.trim() ? `— ${v.trim()}` : undefined;
-  }
-  return undefined;
-}
-
-function selectionForCategory(
-  category: string,
-  attributes: string[],
-  details: api.AttributeDetails,
-  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string },
-): SelectionLine[] {
-  const out: SelectionLine[] = [];
-  const isOn = (item: AttrItem) => {
-    if (item.entryToggle) {
-      const v = item.entryToggle.field === "balloonFlightType" ? ctx.balloonFlightType : "";
-      return v === item.entryToggle.whenValue;
-    }
-    return attributes.includes(item.key);
-  };
-  for (const g of specForCategory(category)) {
-    for (const it of specGroupItems(g)) {
-      if (!isOn(it)) continue;
-      const val = attrItemValue(it, details, ctx);
-      out.push({ key: it.key, label: it.label, ...(val !== undefined ? { value: val } : {}) });
-    }
-  }
-  return out;
-}
-
 interface AttributesSectionProps {
   category: string;
   attributes: string[];
@@ -267,7 +256,6 @@ function AttributesSection(p: AttributesSectionProps) {
   const groups = specForCategory(p.category);
   if (groups.length === 0) return null;
   const ctx = { launchMethod: p.launchMethod, balloonFlightType: p.balloonFlightType, seriesTimeHHMM: p.seriesTimeHHMM };
-  const lines = selectionForCategory(p.category, p.attributes, p.details, ctx);
 
   const isOn = (item: AttrItem) => {
     if (item.entryToggle) {
@@ -276,7 +264,6 @@ function AttributesSection(p: AttributesSectionProps) {
     }
     return p.attributes.includes(item.key);
   };
-
   const toggle = (item: AttrItem) => {
     if (item.entryToggle && item.entryToggle.field === "balloonFlightType") {
       p.onSetBalloonType(isOn(item) ? "FREE" : item.entryToggle.whenValue);
@@ -285,41 +272,43 @@ function AttributesSection(p: AttributesSectionProps) {
     p.onToggleAttr(item.key);
   };
 
-  return (
-    <div className="space-y-3">
-      <h2 className="text-base font-semibold text-slate-800">Attributes &amp; endorsements</h2>
+  // Flatten the category spec into labelled rows: one per top-level group, or
+  // one per sub-group when a group is subdivided.
+  const rows = groups.flatMap((g) =>
+    g.subs ? g.subs.map((s) => ({ label: s.title, items: s.items })) : [{ label: g.title, items: g.items ?? [] }],
+  );
+  const active = rows.flatMap((r) => r.items).filter(isOn);
 
-      {/* One flat panel of chip clusters — no accordion cards, no empty selection banner. */}
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="flex h-9 items-center justify-between border-b border-slate-200 bg-slate-50 px-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Endorsements &amp; attributes</span>
-          <span className="text-[11px] text-slate-400">{lines.length > 0 ? `${lines.length} selected` : "none selected"}</span>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {groups.map((g, gi) => (
-            <div key={g.title} className="px-3 py-3">
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{gi + 1}. {g.title}</div>
-              {g.note && <p className="mb-2 text-xs text-slate-500">{g.note}</p>}
-              {g.subs ? (
-                g.subs.map((sub, si) => (
-                  <SubGroupBlock
-                    key={sub.title}
-                    sub={sub}
-                    first={si === 0}
-                    isOn={isOn}
-                    toggle={toggle}
-                    ctx={ctx}
-                    details={p.details}
-                    computedBlockMinutes={p.computedBlockMinutes}
-                    seriesExceeds={p.seriesExceeds}
-                    onSetDetail={p.onSetDetail}
-                    onSetSeries={p.onSetSeries}
-                    onSetLaunch={p.onSetLaunch}
-                  />
-                ))
-              ) : (
-                <ItemsGrid
-                  items={g.items ?? []}
+  return (
+    <Panel
+      title="Attributes & endorsements"
+      badge={<Pill tone={active.length > 0 ? "blue" : "slate"}>{active.length} active</Pill>}
+      right="Click to tag · sub-tallies display inline"
+    >
+      <div className="space-y-3 p-4">
+        {active.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {active.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => toggle(item)}
+                title="Remove"
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 py-1 pl-3 pr-2 text-xs font-medium text-brand-700 hover:bg-brand-100"
+              >
+                {item.label}
+                <span aria-hidden="true" className="text-brand-400">×</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="divide-y divide-slate-100 rounded-md border border-slate-200">
+          {rows.map((row) => (
+            <div key={row.label} className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-start sm:gap-3">
+              <div className="shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:w-40">{row.label}</div>
+              <div className="min-w-0 flex-1">
+                <ChipRow
+                  items={row.items}
                   isOn={isOn}
                   toggle={toggle}
                   details={p.details}
@@ -330,50 +319,16 @@ function AttributesSection(p: AttributesSectionProps) {
                   onSetSeries={p.onSetSeries}
                   onSetLaunch={p.onSetLaunch}
                 />
-              )}
+              </div>
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </Panel>
   );
 }
 
-function SubGroupBlock({
-  sub, first, isOn, toggle, ctx, details, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch,
-}: {
-  sub: AttrSubGroup;
-  first: boolean;
-  isOn: (it: AttrItem) => boolean;
-  toggle: (it: AttrItem) => void;
-  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string };
-  details: api.AttributeDetails;
-  computedBlockMinutes: number;
-  seriesExceeds: boolean;
-  onSetDetail: <K extends keyof api.AttributeDetails>(field: K, value: api.AttributeDetails[K]) => void;
-  onSetSeries: (v: string) => void;
-  onSetLaunch: (v: string) => void;
-}) {
-  return (
-    <div className={first ? "" : "mt-3 border-t border-slate-200 pt-3"}>
-      <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-sky-700">{sub.title}</div>
-      <ItemsGrid
-        items={sub.items}
-        isOn={isOn}
-        toggle={toggle}
-        details={details}
-        ctx={ctx}
-        computedBlockMinutes={computedBlockMinutes}
-        seriesExceeds={seriesExceeds}
-        onSetDetail={onSetDetail}
-        onSetSeries={onSetSeries}
-        onSetLaunch={onSetLaunch}
-      />
-    </div>
-  );
-}
-
-function ItemsGrid({
+function ChipRow({
   items, isOn, toggle, details, ctx, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch,
 }: {
   items: AttrItem[];
@@ -390,7 +345,7 @@ function ItemsGrid({
   const activeWithInput = items.filter((it) => isOn(it) && it.input);
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {items.map((item) => {
           const on = isOn(item);
           return (
@@ -400,10 +355,10 @@ function ItemsGrid({
               onClick={() => toggle(item)}
               aria-pressed={on}
               title={item.note}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                 on
                   ? "border-brand-600 bg-brand-600 text-white"
-                  : "border-slate-300 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50"
               }`}
             >
               <span aria-hidden="true" className={on ? "text-white/70" : "text-slate-400"}>{on ? "✓" : "+"}</span>
@@ -413,7 +368,7 @@ function ItemsGrid({
         })}
       </div>
       {activeWithInput.length > 0 && (
-        <div className="mt-2.5 space-y-1.5 border-l-2 border-brand-200 pl-3">
+        <div className="mt-2 space-y-1.5 border-l-2 border-brand-200 pl-3">
           {activeWithInput.map((item) => (
             <div key={item.key} className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-xs font-medium text-slate-500">{item.label}:</span>
@@ -741,6 +696,79 @@ function migrateLegacyDetails(attrs: string[], d?: api.AttributeDetails): api.At
   return out;
 }
 
+/** A compact ledger of the pilot's most recent entries, shown under the form. */
+function RecentEntries({ entries }: { entries: api.EntryRow[] }) {
+  const usable = entries.filter((e) => !e.voided && e.content.columns);
+  const rows = usable
+    .map((e) => {
+      const c = e.content.columns!;
+      const landings = (c.dayLandings ?? 0) + (c.nightLandings ?? 0);
+      const fn =
+        c.pic > 0 ? "PIC"
+        : c.dual > 0 ? "DUAL"
+        : c.coPilot > 0 ? "CO-PILOT"
+        : c.instructor > 0 ? "INSTRUCTOR"
+        : "—";
+      const rules = c.ifr > 0 ? (c.ifr >= c.total ? "IFR" : "Y/Z") : "VFR";
+      return {
+        id: e.id,
+        date: c.date,
+        reg: e.content.aircraft?.registration ?? "—",
+        model: e.content.aircraft?.makeModelVariant ?? "—",
+        route: `${c.departurePlace || "—"} → ${c.arrivalPlace || "—"}`,
+        rules,
+        fn,
+        landings,
+        block: fmtHHMM(c.total) || "00:00",
+        dec: (c.total / 60).toFixed(2),
+      };
+    })
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, 5);
+  if (rows.length === 0) return null;
+  const totalMin = usable.reduce((s, e) => s + (e.content.columns!.total ?? 0), 0);
+  return (
+    <Panel
+      title="Recent logbook entries"
+      badge={<Pill>{rows.length} {rows.length === 1 ? "record" : "records"}</Pill>}
+      right={<span>Total logged: <span className="font-mono font-semibold text-brand-700">{(totalMin / 60).toFixed(2)} hrs</span></span>}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+              <th className="px-4 py-2 font-semibold">Date</th>
+              <th className="px-3 py-2 font-semibold">Reg</th>
+              <th className="px-3 py-2 font-semibold">Model</th>
+              <th className="px-3 py-2 font-semibold">Route</th>
+              <th className="px-3 py-2 font-semibold">Rules</th>
+              <th className="px-3 py-2 font-semibold">Function</th>
+              <th className="px-3 py-2 text-right font-semibold">Landings</th>
+              <th className="px-3 py-2 text-right font-semibold">Block time</th>
+              <th className="px-4 py-2 text-right font-semibold">Dec. hrs</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((r) => (
+              <tr key={r.id} className="text-slate-700">
+                <td className="whitespace-nowrap px-4 py-2 font-mono text-xs">{r.date}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs font-semibold text-brand-700">{r.reg}</td>
+                <td className="whitespace-nowrap px-3 py-2">{r.model}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{r.route}</td>
+                <td className="px-3 py-2"><span className="inline-flex rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">{r.rules}</span></td>
+                <td className="whitespace-nowrap px-3 py-2 text-xs">{r.fn}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums">{r.landings}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums">{r.block}</td>
+                <td className="px-4 py-2 text-right font-mono font-semibold tabular-nums text-brand-700">{r.dec}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
 export function NewEntry() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -767,8 +795,20 @@ export function NewEntry() {
   const [regAllowed, setRegAllowed] = useState<string[]>([]);
   const [depName, setDepName] = useState<string | null>(null);
   const [arrName, setArrName] = useState<string | null>(null);
-  // Attributes are optional, so the section is collapsed by default to stay out
-  // of the way; it opens when the pilot has one to add.
+  // The pilot's most recent entries, shown as a ledger strip under the form.
+  const [recent, setRecent] = useState<api.EntryRow[]>([]);
+  // Set true by the "Save & Next" button just before submit, so a successful
+  // save re-opens a fresh form (carrying the aircraft and pilot) instead of
+  // navigating away.
+  const saveNext = useRef(false);
+
+  function loadRecent() {
+    api.listEntries().then((r) => setRecent(r.entries ?? [])).catch(() => {});
+  }
+  useEffect(() => {
+    if (editing || simulator) return;
+    loadRecent();
+  }, [editing, simulator]);
 
   useEffect(() => {
     if (!editId) return;
@@ -793,6 +833,30 @@ export function NewEntry() {
         ? prev.attributes.filter((a) => a !== key)
         : [...prev.attributes, key],
     }));
+  }
+
+  // Swap departure and arrival (place and resolved name) in one tap.
+  function swapPlaces() {
+    setF((prev) => ({
+      ...prev,
+      departurePlace: prev.arrivalPlace,
+      arrivalPlace: prev.departurePlace,
+      departurePlaceName: prev.arrivalPlaceName,
+      arrivalPlaceName: prev.departurePlaceName,
+    }));
+  }
+  // Fill block-off with the current clock time (UTC or local, matching the mode).
+  function blockOffNow() {
+    const d = new Date();
+    const local = timeMode === "local";
+    const hh = String(local ? d.getHours() : d.getUTCHours()).padStart(2, "0");
+    const mm = String(local ? d.getMinutes() : d.getUTCMinutes()).padStart(2, "0");
+    set("blockStart", `${hh}:${mm}`);
+  }
+  // Set block-on to block-off plus a whole number of hours (quick estimate).
+  function blockOnPlus(hours: number) {
+    if (!f.blockStart) return;
+    set("blockEnd", fmtHHMM((parseHHMM(f.blockStart) + hours * 60) % (24 * 60)));
   }
 
   const has = (key: string) => f.attributes.includes(key);
@@ -1153,7 +1217,27 @@ export function NewEntry() {
         navigate(`/entry/${editId}`);
       } else {
         await api.createEntry(payload as never);
-        navigate("/");
+        if (saveNext.current) {
+          // Save & Next: keep the aircraft, date and pilot; start the next leg
+          // from this flight's arrival. Everything else resets.
+          setF((prev) => ({
+            ...empty,
+            date: prev.date,
+            registration: prev.registration,
+            makeModelVariant: prev.makeModelVariant,
+            engineClass: prev.engineClass,
+            category: prev.category,
+            multiPilot: prev.multiPilot,
+            crewSize: prev.crewSize,
+            picName: prev.picName,
+            pilotFunction: prev.pilotFunction,
+            departurePlace: prev.arrivalPlace,
+          }));
+          loadRecent();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          navigate("/");
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the entry.");
@@ -1168,10 +1252,16 @@ export function NewEntry() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">
-          {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
-        </h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold">
+              {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
+            </h1>
+            {!simulator && <Pill tone="blue">EASA Part-FCL</Pill>}
+          </div>
+          <p className="mt-0.5 text-sm text-slate-500">Continuous electronic pilot ledger — single record workflow</p>
+        </div>
         {!simulator && (
           <div className="hidden items-center gap-2 sm:flex">
             <Button
@@ -1181,9 +1271,22 @@ export function NewEntry() {
             >
               Discard
             </Button>
+            {!editing && (
+              <Button
+                type="submit"
+                form="entry-form"
+                variant="ghost"
+                onClick={() => { saveNext.current = true; }}
+                disabled={busy || clockBlocked}
+                className="border-brand-300 text-brand-700 hover:bg-brand-50"
+              >
+                Save &amp; Next
+              </Button>
+            )}
             <Button
               type="submit"
               form="entry-form"
+              onClick={() => { saveNext.current = false; }}
               disabled={busy || clockBlocked}
               title={clockBlocked ? "Your computer's clock is off by more than 30 minutes. Fix it before saving." : undefined}
             >
@@ -1193,26 +1296,33 @@ export function NewEntry() {
         )}
       </div>
 
-      <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
-        {ENTRY_CATEGORIES.map((c) => (
-          <CategoryTab
-            key={c}
-            active={!simulator && f.category === c}
-            disabled={regAllowed.length > 0 && !regAllowed.includes(c)}
-            label={CATEGORY_LABELS[c]!}
-            onClick={() => {
-              setSimulator(false);
-              set("category", c);
-            }}
-          />
-        ))}
-        {!editing && (
-          <CategoryTab
-            active={simulator}
-            disabled={regAllowed.length > 0}
-            label="Simulator session"
-            onClick={() => setSimulator(true)}
-          />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
+          {ENTRY_CATEGORIES.map((c) => (
+            <CategoryTab
+              key={c}
+              active={!simulator && f.category === c}
+              disabled={regAllowed.length > 0 && !regAllowed.includes(c)}
+              label={CATEGORY_LABELS[c]!}
+              onClick={() => {
+                setSimulator(false);
+                set("category", c);
+              }}
+            />
+          ))}
+          {!editing && (
+            <CategoryTab
+              active={simulator}
+              disabled={regAllowed.length > 0}
+              label="Simulator"
+              onClick={() => setSimulator(true)}
+            />
+          )}
+        </div>
+        {!simulator && (
+          <span className="hidden font-mono text-[11px] uppercase tracking-wider text-slate-400 sm:inline">
+            Auto-adaptive terminology
+          </span>
         )}
       </div>
 
@@ -1267,292 +1377,340 @@ export function NewEntry() {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-slate-200">
-        <div className="divide-y divide-slate-200 lg:col-span-5">
-        <Section title="Aircraft and date">
-          <div className="sm:max-w-[14rem]">
-            <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} mono required />
-          </div>
+        <Panel
+          title="Operational flight record"
+          right={<span className="font-mono tracking-wide">All timestamps recorded in {timeMode === "local" ? "LOCAL" : "UTC"}</span>}
+        >
+        <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200">
+        {/* ── Left column: aircraft identity + crew station ── */}
+        <div className="space-y-5 p-4">
           <div>
-            <Field
-              label="Aircraft registration"
-              mono
-              value={f.registration}
-              onChange={(e) => set("registration", e.target.value)}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-              required
-            />
-            {!simulator && !categoryMismatch && aircraftMsg ? (
-              <span
-                className={`mt-1.5 inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium ${
-                  aircraftNotFound
-                    ? "border-amber-200 bg-amber-50 text-amber-700"
-                    : "border-slate-200 bg-slate-100 text-slate-600"
-                }`}
-              >
-                {aircraftMsg}
-              </span>
-            ) : (
-              <span className="mt-1 block text-xs text-slate-500">The type fills in automatically from the registration.</span>
-            )}
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
-            {isPowered && (
-              <Select label="Engine" value={f.engineClass} onChange={(e) => set("engineClass", e.target.value)}>
-                <option value="SE">Single-engine</option>
-                <option value="ME">Multi-engine</option>
-              </Select>
-            )}
-            {isPowered && (
-              <label className="flex items-end gap-2 pb-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={f.multiPilot}
+            <SubHead right={!simulator && !categoryMismatch && aircraftMsg && !aircraftNotFound ? <Pill tone="green">Matched in fleet</Pill> : undefined}>
+              Aircraft &amp; date
+            </SubHead>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} mono required />
+              <div>
+                <Field label="Aircraft registration" mono value={f.registration} onChange={(e) => set("registration", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                {!simulator && !categoryMismatch && aircraftNotFound && (
+                  <p className="mt-1 text-xs text-amber-600">{aircraftMsg}</p>
+                )}
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Make / model / variant</span>
+                {f.makeModelVariant && <span className="truncate text-xs font-medium text-brand-700">{f.makeModelVariant} ({CATEGORY_LABELS[f.category]})</span>}
+              </div>
+              <input
+                aria-label="Make / model / variant"
+                value={f.makeModelVariant}
+                onChange={(e) => set("makeModelVariant", e.target.value)}
+                required
+                className="block min-h-[2.25rem] w-full appearance-none rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+              />
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {isPowered && (
+                <Select label="Engine class" value={f.engineClass} onChange={(e) => set("engineClass", e.target.value)}>
+                  <option value="SE">Single-engine</option>
+                  <option value="ME">Multi-engine</option>
+                </Select>
+              )}
+              {isPowered && (
+                <label className="flex items-end gap-2 pb-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={f.multiPilot}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      // Back to a crew of two when multi-pilot is cleared; the
+                      // logged time returns to the full block for a series, else
+                      // it is hidden and reset.
+                      setF((prev) => ({
+                        ...prev,
+                        multiPilot: checked,
+                        crewSize: checked ? prev.crewSize : 2,
+                        seriesTime: checked
+                          ? prev.seriesTime
+                          : prev.attributes.includes("series_of_flights") && computedBlock > 0
+                            ? fmtHHMM(computedBlock)
+                            : "",
+                      }));
+                    }}
+                  />
+                  Multi-pilot operation
+                </label>
+              )}
+              {isPowered && f.multiPilot && (
+                <Select
+                  label="Operating crew"
+                  value={String(f.crewSize)}
                   onChange={(e) => {
-                    const checked = e.target.checked;
-                    // Back to a crew of two when multi-pilot is cleared; the
-                    // logged time returns to the full block for a series, else
-                    // it is hidden and reset.
-                    setF((prev) => ({
-                      ...prev,
-                      multiPilot: checked,
-                      crewSize: checked ? prev.crewSize : 2,
-                      seriesTime: checked
-                        ? prev.seriesTime
-                        : prev.attributes.includes("series_of_flights") && computedBlock > 0
-                          ? fmtHHMM(computedBlock)
-                          : "",
-                    }));
+                    // Recompute the logged time to the new crew share so the field
+                    // tracks the selected crew (it is pre-filled, not left stale).
+                    const crew = Number(e.target.value);
+                    const share =
+                      crew === 3 ? Math.round((computedBlock * 2) / 3)
+                      : crew === 4 ? Math.round(computedBlock / 2)
+                      : computedBlock;
+                    setF((prev) => ({ ...prev, crewSize: crew, seriesTime: computedBlock > 0 ? fmtHHMM(share) : "" }));
                   }}
-                />
-                Multi-pilot operation
+                >
+                  <option value="2">2 pilots (standard — full time)</option>
+                  <option value="3">3 pilots (augmented — each logs ⅔)</option>
+                  <option value="4">4 pilots (augmented — each logs ½)</option>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <SubHead>Crew station &amp; flight rules</SubHead>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field
+                label={isDual ? "Name of PIC (flight instructor)" : "Name of PIC"}
+                mono
+                value={f.picName}
+                onChange={(e) => set("picName", e.target.value)}
+                hint={isDual ? "On a dual flight enter the instructor's name, not SELF." : undefined}
+                required
+              />
+              <Select label="Pilot function" value={f.pilotFunction} onChange={(e) => set("pilotFunction", e.target.value)}>
+                {functionOptions.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            {isSafety && (
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={f.tookControl} onChange={(e) => set("tookControl", e.target.checked)} />
+                I took control (a safety pilot logs time only if they took control)
               </label>
             )}
-            {isPowered && f.multiPilot && (
-              <Select
-                label="Operating crew"
-                value={String(f.crewSize)}
-                onChange={(e) => {
-                  // Recompute the logged time to the new crew share so the field
-                  // tracks the selected crew (it is pre-filled, not left stale).
-                  const crew = Number(e.target.value);
-                  const share =
-                    crew === 3 ? Math.round((computedBlock * 2) / 3)
-                    : crew === 4 ? Math.round(computedBlock / 2)
-                    : computedBlock;
-                  setF((prev) => ({ ...prev, crewSize: crew, seriesTime: computedBlock > 0 ? fmtHHMM(share) : "" }));
-                }}
-              >
-                <option value="2">2 pilots (standard — full time)</option>
-                <option value="3">3 pilots (augmented — each logs ⅔)</option>
-                <option value="4">4 pilots (augmented — each logs ½)</option>
-              </Select>
-            )}
-          </div>
-        </Section>
 
-        <Section title="Function">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field
-              label={isDual ? "Name of PIC (flight instructor)" : "Name of PIC"}
-              mono
-              value={f.picName}
-              onChange={(e) => set("picName", e.target.value)}
-              hint={isDual ? "On a dual flight enter the instructor's name, not SELF." : undefined}
-              required
-            />
-            <Select label="Pilot function" value={f.pilotFunction} onChange={(e) => set("pilotFunction", e.target.value)}>
-              {functionOptions.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          {isSafety && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={f.tookControl} onChange={(e) => set("tookControl", e.target.checked)} />
-              I took control (a safety pilot logs time only if they took control)
-            </label>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {isPowered && (
-              <Select label="Operating role (optional)" value={f.operatingRole} onChange={(e) => set("operatingRole", e.target.value)}>
-                <option value="">Not recorded</option>
-                <option value="PILOT_FLYING">Pilot flying</option>
-                <option value="PILOT_MONITORING">Pilot monitoring</option>
-              </Select>
-            )}
-            {isPowered && (
-              <Select
-                label="Flight rules"
-                value={f.flightRules}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  // A changed-in-flight (Y/Z) flight is marked with the yz_flight
-                  // attribute so the record and export show only the IFR portion.
-                  setF((prev) => ({
-                    ...prev,
-                    flightRules: v,
-                    attributes:
-                      v === "MIXED"
-                        ? prev.attributes.includes("yz_flight")
-                          ? prev.attributes
-                          : [...prev.attributes, "yz_flight"]
-                        : prev.attributes.filter((a) => a !== "yz_flight"),
-                  }));
-                }}
-              >
-                <option value="VFR">VFR</option>
-                <option value="IFR">IFR</option>
-                <option value="MIXED">Part IFR, part VFR (changed in flight)</option>
-              </Select>
-            )}
-            {isPowered && f.flightRules === "MIXED" && (
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700">Time flown under IFR</span>
-                  <AttrTimeInput value={f.ifrTime} onChange={(v) => set("ifrTime", v)} />
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {isPowered && (
+                <Select label="Operating role" value={f.operatingRole} onChange={(e) => set("operatingRole", e.target.value)}>
+                  <option value="">Not recorded (single pilot)</option>
+                  <option value="PILOT_FLYING">Pilot flying</option>
+                  <option value="PILOT_MONITORING">Pilot monitoring</option>
+                </Select>
+              )}
+              {isPowered && (
+                <Select
+                  label="Flight rules"
+                  value={f.flightRules}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // A changed-in-flight (Y/Z) flight is marked with the yz_flight
+                    // attribute so the record and export show only the IFR portion.
+                    setF((prev) => ({
+                      ...prev,
+                      flightRules: v,
+                      attributes:
+                        v === "MIXED"
+                          ? prev.attributes.includes("yz_flight")
+                            ? prev.attributes
+                            : [...prev.attributes, "yz_flight"]
+                          : prev.attributes.filter((a) => a !== "yz_flight"),
+                    }));
+                  }}
+                >
+                  <option value="VFR">VFR</option>
+                  <option value="IFR">IFR</option>
+                  <option value="MIXED">Part IFR, part VFR (changed in flight)</option>
+                </Select>
+              )}
+              {isPowered && f.flightRules === "MIXED" && (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-700">Time flown under IFR</span>
+                    <AttrTimeInput value={f.ifrTime} onChange={(v) => set("ifrTime", v)} />
+                  </div>
+                  <p className={`mt-1 text-xs ${parseHHMM(f.ifrTime) > computedBlock ? "text-rose-600" : "text-slate-500"}`}>
+                    {parseHHMM(f.ifrTime) > computedBlock
+                      ? `Cannot exceed the flight time ${fmtHHMM(computedBlock)}.`
+                      : `The part of the flight flown under IFR; the rest counts as VFR (max ${fmtHHMM(computedBlock) || "—"}).`}
+                  </p>
                 </div>
-                <p className={`mt-1 text-xs ${parseHHMM(f.ifrTime) > computedBlock ? "text-rose-600" : "text-slate-500"}`}>
-                  {parseHHMM(f.ifrTime) > computedBlock
-                    ? `Cannot exceed the flight time ${fmtHHMM(computedBlock)}.`
-                    : `The part of the flight flown under IFR; the rest counts as VFR (max ${fmtHHMM(computedBlock) || "—"}).`}
+              )}
+              {isSailplane && (
+                <Select label="Launch method" value={f.launchMethod} onChange={(e) => set("launchMethod", e.target.value)}>
+                  <option value="">Not recorded</option>
+                  <option value="WINCH">Winch</option>
+                  <option value="AEROTOW">Aerotow</option>
+                  <option value="SELF_LAUNCH">Self-launch</option>
+                  <option value="BUNGEE">Bungee</option>
+                  <option value="CAR_TOW">Car tow</option>
+                </Select>
+              )}
+              {isBalloon && (
+                <Select label="Flight type" value={f.balloonFlightType} onChange={(e) => set("balloonFlightType", e.target.value)}>
+                  <option value="">Not recorded</option>
+                  <option value="FREE">Free flight</option>
+                  <option value="TETHERED">Tethered flight</option>
+                </Select>
+              )}
+              {isBalloon && (
+                <Select
+                  label="Balloon group"
+                  value={f.balloonGroup}
+                  onChange={(e) => set("balloonGroup", e.target.value)}
+                >
+                  <option value="">Unknown</option>
+                  <option value="A">Group A (up to 3,400 m³)</option>
+                  <option value="B">Group B (3,401 - 6,000 m³)</option>
+                  <option value="C">Group C (6,001 - 10,500 m³)</option>
+                  <option value="D">Group D (over 10,500 m³)</option>
+                </Select>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* ── Right column: route + times ── */}
+        <div className="space-y-5 p-4">
+          <div>
+            <SubHead
+              right={
+                <span className="flex items-center gap-1.5 normal-case tracking-normal">
+                  <span className="uppercase tracking-wide">Format</span>
+                  <select value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-xs">
+                    <option value="utc">UTC</option>
+                    {!isBalloon && <option value="local">Local</option>}
+                  </select>
+                </span>
+              }
+            >
+              Route &amp; times
+            </SubHead>
+
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                {isBalloon ? (
+                  <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
+                ) : (
+                  <>
+                    <Field label="Departure (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                    <p className={`mt-1 text-xs ${depName ? "font-medium text-brand-700" : "text-slate-400"}`}>{depName || "Use ZZZZ for no ICAO code."}</p>
+                    {dep === "ZZZZ" && (
+                      <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
+                    )}
+                  </>
+                )}
+              </div>
+              {!isBalloon && (
+                <button
+                  type="button"
+                  onClick={swapPlaces}
+                  aria-label="Swap departure and arrival"
+                  title="Swap departure and arrival"
+                  className="mt-[1.65rem] shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-slate-500 hover:bg-slate-50"
+                >
+                  ⇄
+                </button>
+              )}
+              <div className="min-w-0 flex-1">
+                {isBalloon ? (
+                  <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
+                ) : (
+                  <>
+                    <Field label="Arrival (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                    <p className={`mt-1 text-xs ${arrName ? "font-medium text-brand-700" : "text-slate-400"}`}>{arrName || "Use ZZZZ for no ICAO code."}</p>
+                    {arr === "ZZZZ" && (
+                      <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-4">
+              <div className="w-32">
+                <TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} action={<MiniLink onClick={blockOffNow}>Now</MiniLink>} />
+              </div>
+              <div className="w-32">
+                <TimeField
+                  label={timeLabels.on}
+                  value={f.blockEnd}
+                  onChange={(v) => set("blockEnd", v)}
+                  action={
+                    <span className="flex gap-1.5">
+                      <MiniLink onClick={() => blockOnPlus(1)}>+1h</MiniLink>
+                      <MiniLink onClick={() => blockOnPlus(2)}>+2h</MiniLink>
+                    </span>
+                  }
+                />
+              </div>
+            </div>
+
+            {isPowered && f.crewSize > 2 && !isSeries && (
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">Logged flight time</span>
+                  <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
+                </div>
+                <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
+                  {seriesExceeds
+                    ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
+                    : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
                 </p>
               </div>
             )}
-            {isSailplane && (
-              <Select label="Launch method" value={f.launchMethod} onChange={(e) => set("launchMethod", e.target.value)}>
-                <option value="">Not recorded</option>
-                <option value="WINCH">Winch</option>
-                <option value="AEROTOW">Aerotow</option>
-                <option value="SELF_LAUNCH">Self-launch</option>
-                <option value="BUNGEE">Bungee</option>
-                <option value="CAR_TOW">Car tow</option>
-              </Select>
-            )}
-            {isBalloon && (
-              <Select label="Flight type" value={f.balloonFlightType} onChange={(e) => set("balloonFlightType", e.target.value)}>
-                <option value="">Not recorded</option>
-                <option value="FREE">Free flight</option>
-                <option value="TETHERED">Tethered flight</option>
-              </Select>
-            )}
-            {isBalloon && (
-              <Select
-                label="Balloon group"
-                value={f.balloonGroup}
-                onChange={(e) => set("balloonGroup", e.target.value)}
-              >
-                <option value="">Unknown</option>
-                <option value="A">Group A (up to 3,400 m³)</option>
-                <option value="B">Group B (3,401 - 6,000 m³)</option>
-                <option value="C">Group C (6,001 - 10,500 m³)</option>
-                <option value="D">Group D (over 10,500 m³)</option>
-              </Select>
-            )}
-          </div>
-        </Section>
 
-        <Section title="Remarks">
-          <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} hint="Any note for this entry — it appears in the logbook export." />
-        </Section>
-        </div>
-        <div className="divide-y divide-slate-200 lg:col-span-7">
-        <Section title="Route and times">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              {isBalloon ? (
-                <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
-              ) : (
-                <>
-                  <Field label="Departure (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                  <p className={`mt-1 text-xs ${depName ? "font-medium text-slate-600" : "text-slate-400"}`}>{depName || "Use ZZZZ for a place with no ICAO code."}</p>
-                  {dep === "ZZZZ" && (
-                    <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
-                  )}
-                </>
-              )}
-            </div>
-            <div>
-              {isBalloon ? (
-                <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
-              ) : (
-                <>
-                  <Field label="Arrival (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                  <p className={`mt-1 text-xs ${arrName ? "font-medium text-slate-600" : "text-slate-400"}`}>{arrName || "Use ZZZZ for a place with no ICAO code."}</p>
-                  {arr === "ZZZZ" && (
-                    <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
-            <option value="utc">UTC</option>
-            {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
-          </Select>
-          <div className="flex flex-wrap gap-3">
-            <div className="w-28"><TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} /></div>
-            <div className="w-28"><TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} /></div>
-          </div>
-          {isPowered && f.crewSize > 2 && !isSeries && (
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-700">Logged flight time</span>
-                <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
+            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{isBalloon ? "Landings & inflations" : "Total landings"}</div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  {splitLandings ? "Day / night entered separately (crosses twilight)" : "Day / night calculated automatically"}
+                </div>
               </div>
-              <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
-                {seriesExceeds
-                  ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
-                  : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
-              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                {splitLandings ? (
+                  <>
+                    <NumberStepperField label="Day" value={f.dayLandings} onChange={(v) => set("dayLandings", v)} />
+                    <NumberStepperField label="Night" value={f.nightLandings} onChange={(v) => set("nightLandings", v)} />
+                  </>
+                ) : (
+                  <NumberStepperField label="" value={f.landings} onChange={(v) => set("landings", v)} />
+                )}
+                {isBalloon && (
+                  <NumberStepperField label="Inflations" value={f.inflations} onChange={(v) => set("inflations", v)} />
+                )}
+              </div>
             </div>
-          )}
-          <p className="text-xs text-slate-500">
-            Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
-          </p>
-          {/* Calculated total as a flat full-width readout bar at the bottom of the card. */}
-          <div className="-mx-3 -mb-3 mt-1 flex items-center justify-between bg-slate-800 px-4 py-3">
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-slate-300">{timeLabels.total}</span>
-            <span className="font-mono text-2xl font-bold tabular-nums text-white">
-              {computedBlock > 0
-                ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
-                : "--:--"}
-            </span>
-          </div>
-        </Section>
 
-        <Section title="Landings and time">
-          <div className="flex flex-wrap gap-4">
-            {splitLandings ? (
-              <>
-                <NumberStepperField label="Landings (day)" value={f.dayLandings} onChange={(v) => set("dayLandings", v)} />
-                <NumberStepperField label="Landings (night)" value={f.nightLandings} onChange={(v) => set("nightLandings", v)} />
-              </>
-            ) : (
-              <NumberStepperField label="Landings" value={f.landings} onChange={(v) => set("landings", v)} />
+            {timeMode === "local" && (
+              <p className="mt-2 text-xs text-slate-500">
+                Local times are read at the aerodromes and converted to UTC for storage; the export notes the entry was made in local time.
+              </p>
             )}
-            {isBalloon && (
-              <NumberStepperField label="Inflations" value={f.inflations} onChange={(v) => set("inflations", v)} />
-            )}
+
+            {/* Total block time: a flat light summary card. */}
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{timeLabels.total}</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-2xl font-bold tabular-nums text-slate-800">
+                    {computedBlock > 0
+                      ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
+                      : "--:--"}
+                  </span>
+                  {computedBlock > 0 && <span className="text-sm text-slate-500">({(computedBlock / 60).toFixed(2)} hrs)</span>}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-right">
+                {has("cross_country") && <Pill tone="green">Cross-country (XC)</Pill>}
+                {!isBalloon && (dep || arr) && <span className="font-mono text-[11px] text-slate-400">{dep || "—"} → {arr || "—"}</span>}
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-slate-500">
-            {splitLandings
-              ? "This flight crosses civil twilight at the arrival aerodrome, so day and night landings are entered separately."
-              : "Night time, and whether the landings count as day or night, are worked out automatically from the aerodrome positions and the block times."}
-          </p>
-        </Section>
         </div>
         </div>
-        </div>
+        </Panel>
 
         <AttributesSection
           category={f.category}
@@ -1569,6 +1727,19 @@ export function NewEntry() {
           onSetLaunch={(v) => set("launchMethod", v)}
           onSetBalloonType={(v) => set("balloonFlightType", v)}
         />
+
+        <Panel title="Remarks & navigation notes">
+          <div className="p-4">
+            <input
+              value={f.remarks}
+              onChange={(e) => set("remarks", e.target.value)}
+              placeholder="Any note for this entry — it appears in the logbook export."
+              className="block min-h-[2.25rem] w-full appearance-none rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+            />
+          </div>
+        </Panel>
+
+        {!editing && <RecentEntries entries={recent} />}
 
         {/* Sticky action bar on mobile so Save is always within reach. The extra
             bottom padding clears the iOS home indicator / browser bar. */}
