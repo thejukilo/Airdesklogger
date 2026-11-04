@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
-import { Button, Card, Field, Select } from "../components/ui";
+import { Button, Field, Select } from "../components/ui";
 import { SEVERE_SKEW_MS, useClockSkew } from "../lib/clockSkew";
 import { spansTwilight, zonedWallClockToUtc } from "../lib/twilight";
 import { CATEGORY_LABELS } from "../labels";
@@ -12,13 +12,16 @@ import { SimulatorSession } from "./SimulatorSession";
 // session, which has its own form.
 const ENTRY_CATEGORIES = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"] as const;
 
-/** A titled card that groups related fields, so the form reads as sections. */
+/** A titled card that groups related fields, so the form reads as sections.
+ * A light header bar carries the section name; the body holds the fields. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Card>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
-      <div className="space-y-4">{children}</div>
-    </Card>
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
+      <div className="flex h-10 items-center border-b border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+        {title}
+      </div>
+      <div className="space-y-4 p-4">{children}</div>
+    </div>
   );
 }
 
@@ -43,12 +46,12 @@ function CategoryTab({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
-      className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+      className={`rounded-md border px-3.5 py-1.5 text-sm font-medium transition ${
         disabled
           ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
           : active
-            ? "border-brand-600 bg-brand-600 text-white"
-            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
       }`}
     >
       {label}
@@ -1232,11 +1235,12 @@ export function NewEntry() {
 
         <Section title="Aircraft and date">
           <div className="sm:max-w-[14rem]">
-            <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} required />
+            <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} mono required />
           </div>
           <div>
             <Field
               label="Aircraft registration"
+              mono
               value={f.registration}
               onChange={(e) => set("registration", e.target.value)}
               hint="The type fills in automatically from the registration."
@@ -1309,7 +1313,7 @@ export function NewEntry() {
                 <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
               ) : (
                 <>
-                  <Field label="Departure (ICAO)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  <Field label="Departure (ICAO)" mono value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
                   {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
                   {dep === "ZZZZ" && (
                     <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
@@ -1322,7 +1326,7 @@ export function NewEntry() {
                 <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
               ) : (
                 <>
-                  <Field label="Arrival (ICAO)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  <Field label="Arrival (ICAO)" mono value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
                   {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
                   {arr === "ZZZZ" && (
                     <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
@@ -1338,12 +1342,12 @@ export function NewEntry() {
               {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
             </Select>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} required />
-              <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} required />
+              <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} mono required />
+              <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} mono required />
             </div>
-            <div className="mt-3 flex items-baseline justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
-              <span className="text-sm font-medium text-slate-700">{timeLabels.total}</span>
-              <span className="font-mono text-base font-semibold tabular-nums text-slate-900">
+            <div className="mt-3 flex items-baseline justify-between rounded-md border border-brand-100 bg-slate-50 px-3 py-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{timeLabels.total}</span>
+              <span className="font-mono text-xl font-semibold tabular-nums text-brand-700">
                 {computedBlock > 0
                   ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
                   : "--:--"}
@@ -1372,6 +1376,7 @@ export function NewEntry() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
               label={isDual ? "Name of PIC (flight instructor)" : "Name of PIC"}
+              mono
               value={f.picName}
               onChange={(e) => set("picName", e.target.value)}
               hint={isDual ? "On a dual flight enter the instructor's name, not SELF." : undefined}

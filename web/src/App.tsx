@@ -127,7 +127,7 @@ function NavTabs() {
 function Shell({ children }: { children: ReactNode }) {
   const isNative = Capacitor.isNativePlatform();
   return (
-    <div className="min-h-screen bg-gradient-to-b from-brand-50 via-slate-50 to-slate-100 text-ink">
+    <div className="min-h-screen bg-slate-100 text-ink">
       <header className="safe-top sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-2.5">
           <div className="flex items-center gap-6 min-w-0">
