@@ -30,7 +30,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="mb-1 block font-mono text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</span>
       <input
         inputMode="numeric"
         maxLength={5}
@@ -96,22 +96,6 @@ function visibleKeysForCategory(category: string): Set<string> {
   const out = new Set<string>();
   for (const g of specForCategory(category)) for (const it of specGroupItems(g)) out.add(it.key);
   return out;
-}
-
-/** A label that shows its explanatory note on hover (no separate icon needed). */
-function HoverLabel({ children, note }: { children: ReactNode; note?: string }) {
-  if (!note) return <span>{children}</span>;
-  return (
-    <span className="group relative inline-flex cursor-help items-center">
-      <span className="underline decoration-dotted decoration-slate-400 underline-offset-2">{children}</span>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-72 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-left text-[12px] font-normal normal-case leading-snug tracking-normal text-slate-100 shadow-lg group-hover:block group-focus-within:block"
-      >
-        {note}
-      </span>
-    </span>
-  );
 }
 
 function AttrStepper({ value, onChange, max }: { value: number; onChange: (v: number) => void; max?: number }) {
@@ -305,73 +289,51 @@ function AttributesSection(p: AttributesSectionProps) {
     <div className="space-y-3">
       <h2 className="text-base font-semibold text-slate-800">Attributes &amp; endorsements</h2>
 
-      {/* Your selection panel */}
+      {/* One flat panel of chip clusters — no accordion cards, no empty selection banner. */}
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="flex items-baseline justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Your selection</span>
-          <span className="text-[11px] text-slate-400">{lines.length === 1 ? "1 item" : `${lines.length} items`}</span>
+        <div className="flex h-9 items-center justify-between border-b border-slate-200 bg-slate-50 px-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Endorsements &amp; attributes</span>
+          <span className="text-[11px] text-slate-400">{lines.length > 0 ? `${lines.length} selected` : "none selected"}</span>
         </div>
-        <div className="px-3.5 py-2.5 text-sm">
-          {lines.length === 0 ? (
-            <span className="italic text-slate-400">Nothing added yet. Tick from the categories below.</span>
-          ) : (
-            <ul className="flex flex-wrap gap-x-3 gap-y-1">
-              {lines.map((l, i) => (
-                <li key={l.key} className="inline-flex items-baseline gap-1">
-                  {i > 0 && <span className="text-slate-300">·</span>}
-                  <span className="font-semibold text-brand-700">{l.label}</span>
-                  {l.value && <span className="text-slate-700">{l.value}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      {/* Group accordions — masonry columns so short groups pack up and leave no dead space */}
-      <div className="gap-3 lg:columns-2 xl:columns-3">
-      {groups.map((g, gi) => (
-        <details key={g.title} open className="group/cat mb-3 block break-inside-avoid overflow-hidden rounded-md border border-slate-200 bg-white">
-          <summary className="flex cursor-pointer list-none items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
-            <span className="inline-block h-[9px] w-[9px] -translate-y-[1px] rotate-[-45deg] border-b-2 border-r-2 border-slate-400 transition-transform group-open/cat:translate-y-0 group-open/cat:rotate-45" aria-hidden="true" />
-            <span className="text-[12px] font-semibold uppercase tracking-wide">{gi + 1}. {g.title}</span>
-          </summary>
-          <div className="px-3.5 pb-3 pt-2">
-            {g.note && <p className="mb-2 text-xs text-slate-600">{g.note}</p>}
-            {g.subs ? (
-              g.subs.map((sub, si) => (
-                <SubGroupBlock
-                  key={sub.title}
-                  sub={sub}
-                  first={si === 0}
+        <div className="divide-y divide-slate-100">
+          {groups.map((g, gi) => (
+            <div key={g.title} className="px-3 py-3">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{gi + 1}. {g.title}</div>
+              {g.note && <p className="mb-2 text-xs text-slate-500">{g.note}</p>}
+              {g.subs ? (
+                g.subs.map((sub, si) => (
+                  <SubGroupBlock
+                    key={sub.title}
+                    sub={sub}
+                    first={si === 0}
+                    isOn={isOn}
+                    toggle={toggle}
+                    ctx={ctx}
+                    details={p.details}
+                    computedBlockMinutes={p.computedBlockMinutes}
+                    seriesExceeds={p.seriesExceeds}
+                    onSetDetail={p.onSetDetail}
+                    onSetSeries={p.onSetSeries}
+                    onSetLaunch={p.onSetLaunch}
+                  />
+                ))
+              ) : (
+                <ItemsGrid
+                  items={g.items ?? []}
                   isOn={isOn}
                   toggle={toggle}
-                  ctx={ctx}
                   details={p.details}
+                  ctx={ctx}
                   computedBlockMinutes={p.computedBlockMinutes}
                   seriesExceeds={p.seriesExceeds}
                   onSetDetail={p.onSetDetail}
                   onSetSeries={p.onSetSeries}
                   onSetLaunch={p.onSetLaunch}
                 />
-              ))
-            ) : (
-              <ItemsGrid
-                items={g.items ?? []}
-                isOn={isOn}
-                toggle={toggle}
-                details={p.details}
-                ctx={ctx}
-                computedBlockMinutes={p.computedBlockMinutes}
-                seriesExceeds={p.seriesExceeds}
-                onSetDetail={p.onSetDetail}
-                onSetSeries={p.onSetSeries}
-                onSetLaunch={p.onSetLaunch}
-              />
-            )}
-          </div>
-        </details>
-      ))}
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -425,26 +387,41 @@ function ItemsGrid({
   onSetSeries: (v: string) => void;
   onSetLaunch: (v: string) => void;
 }) {
+  const activeWithInput = items.filter((it) => isOn(it) && it.input);
   return (
-    <div className="grid grid-cols-1 gap-x-6 gap-y-0.5">
-      {items.map((item) => (
-        <div key={item.key} className="py-1">
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={isOn(item)}
-              onChange={() => toggle(item)}
-              className="h-3.5 w-3.5 accent-sky-700"
-            />
-            <HoverLabel note={item.note}>{item.label}</HoverLabel>
-          </label>
-          {isOn(item) && item.input && (
-            <div className="ml-[22px] mt-1.5 flex flex-wrap items-center gap-2 text-sm">
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => {
+          const on = isOn(item);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => toggle(item)}
+              aria-pressed={on}
+              title={item.note}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                on
+                  ? "border-brand-600 bg-brand-600 text-white"
+                  : "border-slate-300 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50"
+              }`}
+            >
+              <span aria-hidden="true" className={on ? "text-white/70" : "text-slate-400"}>{on ? "✓" : "+"}</span>
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+      {activeWithInput.length > 0 && (
+        <div className="mt-2.5 space-y-1.5 border-l-2 border-brand-200 pl-3">
+          {activeWithInput.map((item) => (
+            <div key={item.key} className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-xs font-medium text-slate-500">{item.label}:</span>
               {renderInput(item, details, ctx, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch)}
             </div>
-          )}
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -1043,7 +1020,7 @@ export function NewEntry() {
         ? { off: "Departure time", on: "Arrival time", total: "Total flight time" }
         : f.category === "SAILPLANE"
           ? { off: "Flight start", on: "Flight end", total: "Total flight time" }
-          : { off: "Block off (start)", on: "Block on (end)", total: "Total block time" };
+          : { off: "Block off", on: "Block on", total: "Total block time" };
 
   // Show the airport name for entered ICAO codes.
   const dep = f.departurePlace.trim().toUpperCase();
@@ -1482,6 +1459,10 @@ export function NewEntry() {
             )}
           </div>
         </Section>
+
+        <Section title="Remarks">
+          <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} hint="Any note for this entry — it appears in the logbook export." />
+        </Section>
         </div>
         <div className="divide-y divide-slate-200 lg:col-span-7">
         <Section title="Route and times">
@@ -1491,8 +1472,8 @@ export function NewEntry() {
                 <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
               ) : (
                 <>
-                  <Field label="Departure (ICAO)" mono value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                  {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
+                  <Field label="Departure (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  <p className={`mt-1 text-xs ${depName ? "font-medium text-slate-600" : "text-slate-400"}`}>{depName || "Use ZZZZ for a place with no ICAO code."}</p>
                   {dep === "ZZZZ" && (
                     <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
                   )}
@@ -1504,8 +1485,8 @@ export function NewEntry() {
                 <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
               ) : (
                 <>
-                  <Field label="Arrival (ICAO)" mono value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                  {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
+                  <Field label="Arrival (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  <p className={`mt-1 text-xs ${arrName ? "font-medium text-slate-600" : "text-slate-400"}`}>{arrName || "Use ZZZZ for a place with no ICAO code."}</p>
                   {arr === "ZZZZ" && (
                     <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
                   )}
@@ -1514,39 +1495,38 @@ export function NewEntry() {
             </div>
           </div>
 
-          <div className="rounded-md bg-slate-50 p-3">
-            <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
-              <option value="utc">UTC</option>
-              {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
-            </Select>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <div className="w-28"><TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} /></div>
-              <div className="w-28"><TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} /></div>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between rounded-md border border-brand-100 bg-slate-50 px-3 py-2.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{timeLabels.total}</span>
-              <span className="font-mono text-xl font-semibold tabular-nums text-brand-700">
-                {computedBlock > 0
-                  ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
-                  : "--:--"}
-              </span>
-            </div>
-            {isPowered && f.crewSize > 2 && !isSeries && (
-              <div className="mt-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700">Logged flight time</span>
-                  <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
-                </div>
-                <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
-                  {seriesExceeds
-                    ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
-                    : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
-                </p>
+          <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
+            <option value="utc">UTC</option>
+            {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
+          </Select>
+          <div className="flex flex-wrap gap-3">
+            <div className="w-28"><TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} /></div>
+            <div className="w-28"><TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} /></div>
+          </div>
+          {isPowered && f.crewSize > 2 && !isSeries && (
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-700">Logged flight time</span>
+                <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
               </div>
-            )}
-            <p className="mt-1 text-xs text-slate-500">
-              Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
-            </p>
+              <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
+                {seriesExceeds
+                  ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
+                  : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
+              </p>
+            </div>
+          )}
+          <p className="text-xs text-slate-500">
+            Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
+          </p>
+          {/* Calculated total as a flat full-width readout bar at the bottom of the card. */}
+          <div className="-mx-3 -mb-3 mt-1 flex items-center justify-between bg-slate-800 px-4 py-3">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-slate-300">{timeLabels.total}</span>
+            <span className="font-mono text-2xl font-bold tabular-nums text-white">
+              {computedBlock > 0
+                ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
+                : "--:--"}
+            </span>
           </div>
         </Section>
 
@@ -1589,12 +1569,6 @@ export function NewEntry() {
           onSetLaunch={(v) => set("launchMethod", v)}
           onSetBalloonType={(v) => set("balloonFlightType", v)}
         />
-
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <Section title="Remarks">
-            <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />
-          </Section>
-        </div>
 
         {/* Sticky action bar on mobile so Save is always within reach. The extra
             bottom padding clears the iOS home indicator / browser bar. */}

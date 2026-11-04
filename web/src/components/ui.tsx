@@ -37,7 +37,7 @@ export function Field({
 }: { label: string; hint?: string; mono?: boolean } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className={`mb-1 block text-[11px] font-semibold uppercase text-slate-500 ${mono ? "font-mono tracking-wider" : "tracking-wide"}`}>{label}</span>
       <input
         {...props}
         // min-height keeps empty native date/time inputs from collapsing on iOS.
@@ -58,7 +58,7 @@ export function Select({
 }: { label: string; children: ReactNode; mono?: boolean } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className={`mb-1 block text-[11px] font-semibold uppercase text-slate-500 ${mono ? "font-mono tracking-wider" : "tracking-wide"}`}>{label}</span>
       <select
         {...props}
         className={`min-h-[2.25rem] w-full rounded-md border border-slate-200 bg-white px-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 ${
