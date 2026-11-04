@@ -283,7 +283,7 @@ function AttributesSection(p: AttributesSectionProps) {
     <Panel
       title="Attributes & endorsements"
       badge={<Pill tone={active.length > 0 ? "blue" : "slate"}>{active.length} active</Pill>}
-      right="Click to tag · sub-tallies display inline"
+      right="Click to tag"
     >
       <div className="space-y-3 p-4">
         {active.length > 0 && (
@@ -1253,15 +1253,9 @@ export function NewEntry() {
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">
-              {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
-            </h1>
-            {!simulator && <Pill tone="blue">EASA Part-FCL</Pill>}
-          </div>
-          <p className="mt-0.5 text-sm text-slate-500">Continuous electronic pilot ledger — single record workflow</p>
-        </div>
+        <h1 className="text-xl font-semibold">
+          {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
+        </h1>
         {!simulator && (
           <div className="hidden items-center gap-2 sm:flex">
             <Button
@@ -1319,11 +1313,6 @@ export function NewEntry() {
             />
           )}
         </div>
-        {!simulator && (
-          <span className="hidden font-mono text-[11px] uppercase tracking-wider text-slate-400 sm:inline">
-            Auto-adaptive terminology
-          </span>
-        )}
       </div>
 
       {!simulator && categoryMismatch && (
