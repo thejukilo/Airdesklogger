@@ -16,12 +16,34 @@ const ENTRY_CATEGORIES = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"] as 
  * A light header bar carries the section name; the body holds the fields. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card">
-      <div className="flex h-10 items-center border-b border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex h-9 items-center border-b border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
         {title}
       </div>
-      <div className="space-y-4 p-4">{children}</div>
+      <div className="space-y-3 p-3">{children}</div>
     </div>
+  );
+}
+
+/** 24-hour HH:MM clock-time input (no native AM/PM picker). Four typed digits
+ * get an automatic colon; the stored value stays the plain "HH:MM" string. */
+function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <input
+        inputMode="numeric"
+        maxLength={5}
+        placeholder="HH:MM"
+        value={value}
+        onChange={(e) => {
+          let c = e.target.value.replace(/[^0-9:]/g, "");
+          if (c.length === 4 && !c.includes(":")) c = `${c.slice(0, 2)}:${c.slice(2)}`;
+          onChange(c);
+        }}
+        className="block min-h-[2.25rem] w-full rounded-md border border-slate-200 bg-white px-2.5 text-center text-sm font-mono tracking-wider outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+      />
+    </label>
   );
 }
 
@@ -46,12 +68,12 @@ function CategoryTab({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
-      className={`rounded-md border px-3.5 py-1.5 text-sm font-medium transition ${
+      className={`rounded px-3.5 py-1.5 text-sm font-medium transition ${
         disabled
-          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+          ? "cursor-not-allowed text-slate-400"
           : active
-            ? "border-brand-600 bg-brand-600 text-white shadow-sm"
-            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            ? "bg-brand-600 text-white shadow-sm"
+            : "text-slate-600 hover:bg-white hover:text-slate-900"
       }`}
     >
       {label}
@@ -121,7 +143,7 @@ function AttrSeg<T extends string>({ value, onChange, options }: { value: T | un
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value as T)}
-            className={`px-2.5 text-xs font-semibold ${i > 0 ? "border-l border-slate-400" : ""} ${active ? "bg-sky-700 text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
+            className={`px-2.5 text-xs font-semibold ${i > 0 ? "border-l border-slate-300" : ""} ${active ? "bg-brand-600 text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
           >
             {opt.label}
           </button>
@@ -263,10 +285,10 @@ function AttributesSection(p: AttributesSectionProps) {
       <h2 className="text-base font-semibold text-slate-800">Attributes &amp; endorsements</h2>
 
       {/* Your selection panel */}
-      <div className="border border-slate-300 bg-white">
-        <div className="flex items-baseline justify-between bg-sky-700 px-3.5 py-2 text-white">
-          <span className="text-xs font-bold uppercase tracking-wider">Your selection</span>
-          <span className="text-[11px] opacity-90">{lines.length === 1 ? "1 item" : `${lines.length} items`}</span>
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="flex items-baseline justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Your selection</span>
+          <span className="text-[11px] text-slate-400">{lines.length === 1 ? "1 item" : `${lines.length} items`}</span>
         </div>
         <div className="px-3.5 py-2.5 text-sm">
           {lines.length === 0 ? (
@@ -276,7 +298,7 @@ function AttributesSection(p: AttributesSectionProps) {
               {lines.map((l, i) => (
                 <li key={l.key} className="inline-flex items-baseline gap-1">
                   {i > 0 && <span className="text-slate-300">·</span>}
-                  <span className="font-semibold text-sky-700">{l.label}</span>
+                  <span className="font-semibold text-brand-700">{l.label}</span>
                   {l.value && <span className="text-slate-700">{l.value}</span>}
                 </li>
               ))}
@@ -287,10 +309,10 @@ function AttributesSection(p: AttributesSectionProps) {
 
       {/* Group accordions */}
       {groups.map((g, gi) => (
-        <details key={g.title} open className="group/cat border border-slate-300 bg-white">
-          <summary className="flex cursor-pointer list-none items-center gap-2 bg-sky-700 px-3.5 py-2 text-white">
-            <span className="inline-block h-[9px] w-[9px] -translate-y-[1px] rotate-[-45deg] border-b-2 border-r-2 border-white transition-transform group-open/cat:translate-y-0 group-open/cat:rotate-45" aria-hidden="true" />
-            <span className="text-[13px] font-bold uppercase tracking-wider">{gi + 1}. {g.title}</span>
+        <details key={g.title} open className="group/cat overflow-hidden rounded-md border border-slate-200 bg-white">
+          <summary className="flex cursor-pointer list-none items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+            <span className="inline-block h-[9px] w-[9px] -translate-y-[1px] rotate-[-45deg] border-b-2 border-r-2 border-slate-400 transition-transform group-open/cat:translate-y-0 group-open/cat:rotate-45" aria-hidden="true" />
+            <span className="text-[12px] font-semibold uppercase tracking-wide">{gi + 1}. {g.title}</span>
           </summary>
           <div className="px-3.5 pb-3 pt-2">
             {g.note && <p className="mb-2 text-xs text-slate-600">{g.note}</p>}
@@ -1145,12 +1167,12 @@ export function NewEntry() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4">
       <h1 className="text-xl font-semibold">
         {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
       </h1>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
         {ENTRY_CATEGORIES.map((c) => (
           <CategoryTab
             key={c}
@@ -1233,6 +1255,8 @@ export function NewEntry() {
           </Section>
         )}
 
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
+        <div className="space-y-4 lg:col-span-5">
         <Section title="Aircraft and date">
           <div className="sm:max-w-[14rem]">
             <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} mono required />
@@ -1303,72 +1327,6 @@ export function NewEntry() {
                 <option value="4">4 pilots (augmented — each logs ½)</option>
               </Select>
             )}
-          </div>
-        </Section>
-
-        <Section title="Route and times">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              {isBalloon ? (
-                <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
-              ) : (
-                <>
-                  <Field label="Departure (ICAO)" mono value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                  {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
-                  {dep === "ZZZZ" && (
-                    <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
-                  )}
-                </>
-              )}
-            </div>
-            <div>
-              {isBalloon ? (
-                <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
-              ) : (
-                <>
-                  <Field label="Arrival (ICAO)" mono value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                  {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
-                  {arr === "ZZZZ" && (
-                    <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-md bg-slate-50 p-3">
-            <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
-              <option value="utc">UTC</option>
-              {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
-            </Select>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={timeLabels.off} type="time" value={f.blockStart} onChange={(e) => set("blockStart", e.target.value)} mono required />
-              <Field label={timeLabels.on} type="time" value={f.blockEnd} onChange={(e) => set("blockEnd", e.target.value)} mono required />
-            </div>
-            <div className="mt-3 flex items-baseline justify-between rounded-md border border-brand-100 bg-slate-50 px-3 py-2.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{timeLabels.total}</span>
-              <span className="font-mono text-xl font-semibold tabular-nums text-brand-700">
-                {computedBlock > 0
-                  ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
-                  : "--:--"}
-              </span>
-            </div>
-            {isPowered && f.crewSize > 2 && !isSeries && (
-              <div className="mt-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700">Logged flight time</span>
-                  <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
-                </div>
-                <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
-                  {seriesExceeds
-                    ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
-                    : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
-                </p>
-              </div>
-            )}
-            <p className="mt-1 text-xs text-slate-500">
-              Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
-            </p>
           </div>
         </Section>
 
@@ -1476,6 +1434,73 @@ export function NewEntry() {
             )}
           </div>
         </Section>
+        </div>
+        <div className="space-y-4 lg:col-span-7">
+        <Section title="Route and times">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              {isBalloon ? (
+                <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
+              ) : (
+                <>
+                  <Field label="Departure (ICAO)" mono value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  {depName && <p className="mt-1 text-xs text-slate-500">{depName}</p>}
+                  {dep === "ZZZZ" && (
+                    <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
+                  )}
+                </>
+              )}
+            </div>
+            <div>
+              {isBalloon ? (
+                <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
+              ) : (
+                <>
+                  <Field label="Arrival (ICAO)" mono value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} hint="Use ZZZZ for a place with no ICAO code." autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                  {arrName && <p className="mt-1 text-xs text-slate-500">{arrName}</p>}
+                  {arr === "ZZZZ" && (
+                    <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-md bg-slate-50 p-3">
+            <Select label="Times are entered in" value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)}>
+              <option value="utc">UTC</option>
+              {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
+            </Select>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} />
+              <TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} />
+            </div>
+            <div className="mt-3 flex items-baseline justify-between rounded-md border border-brand-100 bg-slate-50 px-3 py-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{timeLabels.total}</span>
+              <span className="font-mono text-xl font-semibold tabular-nums text-brand-700">
+                {computedBlock > 0
+                  ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
+                  : "--:--"}
+              </span>
+            </div>
+            {isPowered && f.crewSize > 2 && !isSeries && (
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">Logged flight time</span>
+                  <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
+                </div>
+                <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
+                  {seriesExceeds
+                    ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
+                    : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
+                </p>
+              </div>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              Local times are read at the departure and arrival aerodromes and converted to UTC for storage; the export notes that the entry was made in local time.
+            </p>
+          </div>
+        </Section>
 
         <Section title="Landings and time">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -1497,6 +1522,8 @@ export function NewEntry() {
               : "Night time, and whether the landings count as day or night, are worked out automatically from the aerodrome positions and the block times."}
           </p>
         </Section>
+        </div>
+        </div>
 
         <AttributesSection
           category={f.category}
