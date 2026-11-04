@@ -51,15 +51,6 @@ function TimeField({ label, value, onChange, action }: { label: string; value: s
   );
 }
 
-/** A small uppercase quick-action link, e.g. NOW / +1h on a time field. */
-function MiniLink({ onClick, children }: { onClick: () => void; children: ReactNode }) {
-  return (
-    <button type="button" onClick={onClick} className="text-[10px] font-bold uppercase tracking-wide text-brand-600 hover:underline">
-      {children}
-    </button>
-  );
-}
-
 /** "a"/"an" for a category label, so the prominent messages read correctly. */
 const indefinite = (label: string) => (/^[aeiou]/i.test(label) ? "an" : "a");
 
@@ -783,19 +774,6 @@ export function NewEntry() {
       departurePlaceName: prev.arrivalPlaceName,
       arrivalPlaceName: prev.departurePlaceName,
     }));
-  }
-  // Fill block-off with the current clock time (UTC or local, matching the mode).
-  function blockOffNow() {
-    const d = new Date();
-    const local = timeMode === "local";
-    const hh = String(local ? d.getHours() : d.getUTCHours()).padStart(2, "0");
-    const mm = String(local ? d.getMinutes() : d.getUTCMinutes()).padStart(2, "0");
-    set("blockStart", `${hh}:${mm}`);
-  }
-  // Set block-on to block-off plus a whole number of hours (quick estimate).
-  function blockOnPlus(hours: number) {
-    if (!f.blockStart) return;
-    set("blockEnd", fmtHHMM((parseHHMM(f.blockStart) + hours * 60) % (24 * 60)));
   }
 
   const has = (key: string) => f.attributes.includes(key);
@@ -1563,20 +1541,10 @@ export function NewEntry() {
 
             <div className="mt-3 flex flex-wrap gap-4">
               <div className="w-32">
-                <TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} action={<MiniLink onClick={blockOffNow}>Now</MiniLink>} />
+                <TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} />
               </div>
               <div className="w-32">
-                <TimeField
-                  label={timeLabels.on}
-                  value={f.blockEnd}
-                  onChange={(v) => set("blockEnd", v)}
-                  action={
-                    <span className="flex gap-1.5">
-                      <MiniLink onClick={() => blockOnPlus(1)}>+1h</MiniLink>
-                      <MiniLink onClick={() => blockOnPlus(2)}>+2h</MiniLink>
-                    </span>
-                  }
-                />
+                <TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} />
               </div>
             </div>
 
