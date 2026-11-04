@@ -44,7 +44,7 @@ function TopBar() {
         <Link to="/landing" className="flex items-center gap-2.5">
           <BrandMark />
           <span className="text-lg font-semibold tracking-tight">
-            Airdeck<span className="font-normal text-slate-500"> Logger</span>
+            Airdeck<span className="font-normal text-slate-500"> Log</span>
           </span>
         </Link>
         <nav className="flex items-center gap-2">
