@@ -16,12 +16,12 @@ const ENTRY_CATEGORIES = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"] as 
  * A light header bar carries the section name; the body holds the fields. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+    <section>
       <div className="flex h-9 items-center border-b border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
         {title}
       </div>
       <div className="space-y-3 p-3">{children}</div>
-    </div>
+    </section>
   );
 }
 
@@ -130,6 +130,27 @@ function AttrStepper({ value, onChange, max }: { value: number; onChange: (v: nu
       />
       <button type="button" onClick={() => onChange((max !== undefined ? Math.min(max, value + 1) : value + 1))} className="w-7 border-l border-slate-400 bg-slate-100 text-base font-bold text-slate-700 hover:bg-slate-200">+</button>
     </span>
+  );
+}
+
+// Compact labelled stepper for small counts (landings, inflations): [−][ n ][+].
+function NumberStepperField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="inline-flex h-[2.25rem] items-stretch overflow-hidden rounded-md border border-slate-200 bg-white">
+        <button type="button" aria-label={`${label}: decrease`} onClick={() => onChange(Math.max(0, value - 1))} className="w-8 border-r border-slate-200 bg-slate-50 text-lg font-semibold leading-none text-slate-600 hover:bg-slate-100">−</button>
+        <input
+          type="number"
+          min={0}
+          inputMode="numeric"
+          value={value || ""}
+          onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+          className="w-10 border-0 bg-transparent text-center font-mono text-sm font-semibold outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <button type="button" aria-label={`${label}: increase`} onClick={() => onChange(value + 1)} className="w-8 border-l border-slate-200 bg-slate-50 text-lg font-semibold leading-none text-slate-600 hover:bg-slate-100">+</button>
+      </span>
+    </label>
   );
 }
 
@@ -307,9 +328,10 @@ function AttributesSection(p: AttributesSectionProps) {
         </div>
       </div>
 
-      {/* Group accordions */}
+      {/* Group accordions — masonry columns so short groups pack up and leave no dead space */}
+      <div className="gap-3 lg:columns-2 xl:columns-3">
       {groups.map((g, gi) => (
-        <details key={g.title} open className="group/cat overflow-hidden rounded-md border border-slate-200 bg-white">
+        <details key={g.title} open className="group/cat mb-3 block break-inside-avoid overflow-hidden rounded-md border border-slate-200 bg-white">
           <summary className="flex cursor-pointer list-none items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
             <span className="inline-block h-[9px] w-[9px] -translate-y-[1px] rotate-[-45deg] border-b-2 border-r-2 border-slate-400 transition-transform group-open/cat:translate-y-0 group-open/cat:rotate-45" aria-hidden="true" />
             <span className="text-[12px] font-semibold uppercase tracking-wide">{gi + 1}. {g.title}</span>
@@ -350,6 +372,7 @@ function AttributesSection(p: AttributesSectionProps) {
           </div>
         </details>
       ))}
+      </div>
     </div>
   );
 }
@@ -403,9 +426,9 @@ function ItemsGrid({
   onSetLaunch: (v: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-x-6 gap-y-0.5">
       {items.map((item) => (
-        <div key={item.key} className="py-1.5">
+        <div key={item.key} className="py-1">
           <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -1168,9 +1191,30 @@ export function NewEntry() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <h1 className="text-xl font-semibold">
-        {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
-      </h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">
+          {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
+        </h1>
+        {!simulator && (
+          <div className="hidden items-center gap-2 sm:flex">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => navigate(editing && editId ? `/entry/${editId}` : "/")}
+            >
+              Discard
+            </Button>
+            <Button
+              type="submit"
+              form="entry-form"
+              disabled={busy || clockBlocked}
+              title={clockBlocked ? "Your computer's clock is off by more than 30 minutes. Fix it before saving." : undefined}
+            >
+              {busy ? "Saving..." : editing ? "Save changes" : "Save entry"}
+            </Button>
+          </div>
+        )}
+      </div>
 
       <div className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
         {ENTRY_CATEGORIES.map((c) => (
@@ -1200,17 +1244,6 @@ export function NewEntry() {
           {reg} must be logged as {indefinite(CATEGORY_LABELS[regAllowed[0]!]!)}{" "}
           {regAllowed.map((c) => CATEGORY_LABELS[c]).join(" or ")}, not {indefinite(CATEGORY_LABELS[f.category]!)}{" "}
           {CATEGORY_LABELS[f.category]}. Choose the highlighted category above.
-        </div>
-      )}
-      {!simulator && !categoryMismatch && aircraftMsg && (
-        <div
-          className={`rounded-md border px-4 py-3 text-sm font-medium ${
-            aircraftNotFound
-              ? "border-amber-300 bg-amber-50 text-amber-800"
-              : "border-sky-300 bg-sky-50 text-sky-800"
-          }`}
-        >
-          {aircraftMsg}
         </div>
       )}
 
@@ -1243,20 +1276,23 @@ export function NewEntry() {
       {simulator ? (
         <SimulatorSession />
       ) : (
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form id="entry-form" onSubmit={onSubmit} className="space-y-4">
         {editing && (
-          <Section title="Change">
-            <Field
-              label="Reason for change (optional)"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              hint="Changes more than 48 hours after the entry are recorded in the change history."
-            />
-          </Section>
+          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+            <Section title="Change">
+              <Field
+                label="Reason for change (optional)"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                hint="Changes more than 48 hours after the entry are recorded in the change history."
+              />
+            </Section>
+          </div>
         )}
 
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
-        <div className="space-y-4 lg:col-span-5">
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-slate-200">
+        <div className="divide-y divide-slate-200 lg:col-span-5">
         <Section title="Aircraft and date">
           <div className="sm:max-w-[14rem]">
             <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} mono required />
@@ -1267,12 +1303,24 @@ export function NewEntry() {
               mono
               value={f.registration}
               onChange={(e) => set("registration", e.target.value)}
-              hint="The type fills in automatically from the registration."
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
               required
             />
+            {!simulator && !categoryMismatch && aircraftMsg ? (
+              <span
+                className={`mt-1.5 inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium ${
+                  aircraftNotFound
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-slate-200 bg-slate-100 text-slate-600"
+                }`}
+              >
+                {aircraftMsg}
+              </span>
+            ) : (
+              <span className="mt-1 block text-xs text-slate-500">The type fills in automatically from the registration.</span>
+            )}
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Make / model / variant" value={f.makeModelVariant} onChange={(e) => set("makeModelVariant", e.target.value)} required />
@@ -1435,7 +1483,7 @@ export function NewEntry() {
           </div>
         </Section>
         </div>
-        <div className="space-y-4 lg:col-span-7">
+        <div className="divide-y divide-slate-200 lg:col-span-7">
         <Section title="Route and times">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
@@ -1471,9 +1519,9 @@ export function NewEntry() {
               <option value="utc">UTC</option>
               {!isBalloon && <option value="local">Local time (at the aerodrome)</option>}
             </Select>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} />
-              <TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} />
+            <div className="mt-3 flex flex-wrap gap-3">
+              <div className="w-28"><TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} /></div>
+              <div className="w-28"><TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} /></div>
             </div>
             <div className="mt-3 flex items-baseline justify-between rounded-md border border-brand-100 bg-slate-50 px-3 py-2.5">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{timeLabels.total}</span>
@@ -1503,17 +1551,17 @@ export function NewEntry() {
         </Section>
 
         <Section title="Landings and time">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div className="flex flex-wrap gap-4">
             {splitLandings ? (
               <>
-                <Field label="Landings (day)" type="number" min={0} inputMode="numeric" value={f.dayLandings} onChange={(e) => set("dayLandings", Number(e.target.value))} />
-                <Field label="Landings (night)" type="number" min={0} inputMode="numeric" value={f.nightLandings} onChange={(e) => set("nightLandings", Number(e.target.value))} />
+                <NumberStepperField label="Landings (day)" value={f.dayLandings} onChange={(v) => set("dayLandings", v)} />
+                <NumberStepperField label="Landings (night)" value={f.nightLandings} onChange={(v) => set("nightLandings", v)} />
               </>
             ) : (
-              <Field label="Landings" type="number" min={0} inputMode="numeric" value={f.landings} onChange={(e) => set("landings", Number(e.target.value))} />
+              <NumberStepperField label="Landings" value={f.landings} onChange={(v) => set("landings", v)} />
             )}
             {isBalloon && (
-              <Field label="Inflations" type="number" min={0} inputMode="numeric" value={f.inflations} onChange={(e) => set("inflations", Number(e.target.value))} />
+              <NumberStepperField label="Inflations" value={f.inflations} onChange={(v) => set("inflations", v)} />
             )}
           </div>
           <p className="text-xs text-slate-500">
@@ -1522,6 +1570,7 @@ export function NewEntry() {
               : "Night time, and whether the landings count as day or night, are worked out automatically from the aerodrome positions and the block times."}
           </p>
         </Section>
+        </div>
         </div>
         </div>
 
@@ -1541,13 +1590,15 @@ export function NewEntry() {
           onSetBalloonType={(v) => set("balloonFlightType", v)}
         />
 
-        <Section title="Remarks">
-          <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />
-        </Section>
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <Section title="Remarks">
+            <Field label="Remarks" value={f.remarks} onChange={(e) => set("remarks", e.target.value)} />
+          </Section>
+        </div>
 
         {/* Sticky action bar on mobile so Save is always within reach. The extra
             bottom padding clears the iOS home indicator / browser bar. */}
-        <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none">
+        <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">
           <Button
             type="submit"
             disabled={busy || clockBlocked}
