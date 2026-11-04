@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api";
 import { useAuth } from "../auth";
-import { Alert, Card } from "../components/ui";
+import { Alert, Panel, Pill } from "../components/ui";
 
 /**
  * Pilot's home screen. Three things, in this order: a glance at what they've
- * logged (total time, landings, flights, last-90-days time), three big quick
+ * logged (total time, landings, flights, last-90-days time), three quick
  * actions (log a flight, generate the PDF, jump to the logbook), and a
  * five-row recent-flights preview. Everything is derived client-side from the
  * same listEntries call the logbook uses, so the dashboard has no extra
@@ -45,9 +45,18 @@ export function Dashboard() {
 
   const firstName = (user?.name ?? "").split(" ")[0] ?? "";
 
+  // The four at-a-glance figures, grouped into one strip. Border classes give a
+  // clean 2×2 grid on mobile and a single divided row on desktop.
+  const cells = [
+    { label: "Total flight time", value: hhmm(stats.totalMinutes), sub: `across ${stats.totalFlights} flight${stats.totalFlights === 1 ? "" : "s"}`, cls: "" },
+    { label: "Landings", value: String(stats.totalLandings), sub: `${stats.dayLandings} day · ${stats.nightLandings} night`, cls: "border-l border-slate-200" },
+    { label: "Last 90 days", value: hhmm(stats.last90Minutes), sub: `${stats.last90Flights} flight${stats.last90Flights === 1 ? "" : "s"}`, cls: "border-t border-slate-200 md:border-l md:border-t-0" },
+    { label: "PIC time", value: hhmm(stats.picMinutes), sub: stats.instructorMinutes > 0 ? `${hhmm(stats.instructorMinutes)} instructor` : "all-time", cls: "border-l border-t border-slate-200 md:border-t-0" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-5">
+      <div className="border-b border-slate-200 pb-4">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">
           {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
         </h1>
@@ -58,86 +67,113 @@ export function Dashboard() {
 
       {error && <Alert>{error}</Alert>}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Total flight time" value={hhmm(stats.totalMinutes)} sublabel={`across ${stats.totalFlights} flight${stats.totalFlights === 1 ? "" : "s"}`} />
-        <StatCard label="Landings" value={String(stats.totalLandings)} sublabel={`${stats.dayLandings} day · ${stats.nightLandings} night`} />
-        <StatCard label="Last 90 days" value={hhmm(stats.last90Minutes)} sublabel={`${stats.last90Flights} flight${stats.last90Flights === 1 ? "" : "s"}`} />
-        <StatCard label="PIC time" value={hhmm(stats.picMinutes)} sublabel={stats.instructorMinutes > 0 ? `${hhmm(stats.instructorMinutes)} instructor` : "all-time"} />
+      {/* Grouped status strip: one panel, internal dividers. */}
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="grid grid-cols-2 md:grid-cols-4">
+          {cells.map((c) => (
+            <div key={c.label} className={`px-5 py-4 ${c.cls}`}>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{c.label}</div>
+              <div className="mt-1 font-mono text-[28px] font-bold leading-tight tabular-nums text-slate-900">{c.value}</div>
+              <div className="mt-1 text-xs text-slate-500">{c.sub}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
+      {/* Quick actions: soft utility cards, not loud banners. */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <ActionTile
+        <ActionCard
           onClick={() => navigate("/new")}
           icon={<PencilIcon />}
           title="Log a flight"
           subtitle="Record a new entry in your logbook"
-          accent="brand"
+          tone="brand"
         />
-        <ActionTile
+        <ActionCard
           onClick={exportPdf}
           icon={<DocumentIcon />}
           title={exporting ? "Generating..." : "Generate logbook PDF"}
           subtitle="FOCA-format export with audit appendix"
           disabled={exporting || loading}
-          accent="emerald"
+          tone="emerald"
         />
-        <ActionTile
+        <ActionCard
           onClick={() => navigate("/logbook")}
           icon={<TableIcon />}
           title="Open logbook"
           subtitle="Search, filter, sign off, edit"
-          accent="slate"
+          tone="slate"
         />
       </div>
 
-      <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-medium">Recent flights</h2>
-          <Link to="/logbook" className="text-sm text-brand-700 hover:underline">View all →</Link>
-        </div>
+      <Panel
+        title="Recent flights"
+        badge={recent.length > 0 ? <Pill>{recent.length} shown</Pill> : undefined}
+        right={<Link to="/logbook" className="text-xs font-medium normal-case tracking-normal text-brand-600 hover:underline">View all →</Link>}
+      >
         {loading ? (
-          <p className="text-sm text-slate-500">Loading...</p>
+          <p className="p-4 text-sm text-slate-500">Loading...</p>
         ) : recent.length === 0 ? (
-          <p className="text-sm italic text-slate-400">
-            No flights yet. <Link to="/new" className="text-brand-700 hover:underline">Log your first flight</Link>.
+          <p className="p-4 text-sm italic text-slate-400">
+            No flights yet. <Link to="/new" className="not-italic text-brand-600 hover:underline">Log your first flight</Link>.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {recent.map((e) => {
-              const c = e.content.columns;
-              const isFstd = Boolean(c?.fstd);
-              return (
-                <li key={e.id}>
-                  <Link
-                    to={`/entry/${e.id}`}
-                    className="flex items-center justify-between gap-4 py-2.5 hover:bg-slate-50 -mx-2 px-2 rounded"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="hidden text-sm text-slate-500 tabular-nums sm:inline">{c?.date}</span>
-                      <span className="truncate text-sm font-medium text-slate-700">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+                  <th className="px-4 py-2 font-semibold">Date</th>
+                  <th className="px-3 py-2 font-semibold">Registration</th>
+                  <th className="px-3 py-2 font-semibold">Route</th>
+                  <th className="px-3 py-2 font-semibold">Status</th>
+                  <th className="px-4 py-2 text-right font-semibold">Duration</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recent.map((e) => {
+                  const c = e.content.columns;
+                  const isFstd = Boolean(c?.fstd);
+                  const sigMissing = !e.locked && c?.signatureRequired;
+                  const go = () => navigate(`/entry/${e.id}`);
+                  return (
+                    <tr
+                      key={e.id}
+                      onClick={go}
+                      onKeyDown={(ev) => { if (ev.key === "Enter") go(); }}
+                      tabIndex={0}
+                      role="link"
+                      className={`cursor-pointer outline-none focus-visible:bg-slate-50 ${sigMissing ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-slate-50"}`}
+                    >
+                      <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500">{c?.date}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-700">
                         {isFstd ? `FSTD ${c?.fstd?.deviceType}` : e.content.aircraft?.registration}
-                      </span>
-                      <span className="hidden truncate text-sm text-slate-500 md:inline">
-                        {c?.departurePlace} → {c?.arrivalPlace}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 flex-none">
-                      <span className="text-sm tabular-nums text-slate-700">
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-500">
+                        {isFstd ? "Simulator" : `${c?.departurePlace} → ${c?.arrivalPlace}`}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {e.locked ? (
+                          <Pill tone="green">Signed</Pill>
+                        ) : sigMissing ? (
+                          <span className="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
+                            Sig missing
+                          </span>
+                        ) : (
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-300" aria-hidden="true" title="OK" />
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-slate-700">
                         {hhmm(isFstd ? c?.fstd?.totalMinutes : c?.total)}
-                      </span>
-                      {e.locked ? (
-                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Signed</span>
-                      ) : c?.signatureRequired ? (
-                        <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">Sig missing</span>
-                      ) : null}
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </Card>
+      </Panel>
     </div>
   );
 }
@@ -188,51 +224,42 @@ function hhmm(m: unknown): string {
   return `${Math.floor(n / 60)}:${String(Math.round(n) % 60).padStart(2, "0")}`;
 }
 
-function StatCard({ label, value, sublabel }: { label: string; value: string; sublabel?: string }) {
-  return (
-    <Card>
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-ink">{value}</div>
-      {sublabel && <div className="mt-0.5 text-xs text-slate-500">{sublabel}</div>}
-    </Card>
-  );
-}
-
-const ACCENT: Record<string, string> = {
-  brand: "bg-brand-600 hover:bg-brand-700 text-white",
-  emerald: "bg-emerald-600 hover:bg-emerald-700 text-white",
-  slate: "bg-slate-700 hover:bg-slate-800 text-white",
-};
-
-function ActionTile({
+function ActionCard({
   onClick,
   icon,
   title,
   subtitle,
-  accent,
+  tone,
   disabled,
 }: {
   onClick: () => void;
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   subtitle: string;
-  accent: keyof typeof ACCENT;
+  tone: "brand" | "emerald" | "slate";
   disabled?: boolean;
 }) {
+  const badge =
+    tone === "brand" ? "bg-brand-600 text-white"
+    : tone === "emerald" ? "bg-emerald-50 text-emerald-600"
+    : "bg-slate-100 text-slate-600";
+  const card =
+    tone === "brand"
+      ? "border-brand-100 bg-gradient-to-br from-brand-50 to-white hover:border-brand-300"
+      : "border-slate-200 bg-gradient-to-br from-white to-slate-50 hover:border-slate-300";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`group flex items-center gap-3 rounded-lg p-4 text-left shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed ${ACCENT[accent]}`}
+      className={`group flex items-start gap-3 rounded-md border p-4 text-left transition hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${card}`}
     >
-      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-white/20">
-        {icon}
+      <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-lg ${badge}`}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-slate-800">{title}</span>
+        <span className="mt-0.5 block text-xs text-slate-500">{subtitle}</span>
       </span>
-      <span className="min-w-0">
-        <span className="block font-medium">{title}</span>
-        <span className="block text-xs opacity-90">{subtitle}</span>
-      </span>
+      <span className="mt-0.5 flex-none text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-400" aria-hidden="true">›</span>
     </button>
   );
 }
