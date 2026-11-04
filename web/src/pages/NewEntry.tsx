@@ -1081,7 +1081,7 @@ export function NewEntry() {
     f.category === "HELICOPTER"
       ? { off: "Rotor start", on: "Rotor stop", total: "Total rotor time" }
       : f.category === "BALLOON"
-        ? { off: "Departure time", on: "Arrival time", total: "Total flight time" }
+        ? { off: "Departure", on: "Arrival", total: "Total flight time" }
         : f.category === "SAILPLANE"
           ? { off: "Flight start", on: "Flight end", total: "Total flight time" }
           : { off: "Block off", on: "Block on", total: "Total block time" };
