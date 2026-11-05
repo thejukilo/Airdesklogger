@@ -223,6 +223,9 @@ export function App() {
       <Routes>
         {/* Public, no account: external signers reach the signing page by token. */}
         <Route path="/sign/:token" element={<Sign />} />
+        {/* Registration is a standalone full-screen page (its own logo + layout),
+            so it is not wrapped in the authenticated app shell. */}
+        <Route path="/register" element={<Register />} />
         <Route path="/*" element={<MaybeLandingOrShell />} />
       </Routes>
       {locked && <LockScreen />}
