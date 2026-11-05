@@ -1291,7 +1291,7 @@ export function NewEntry() {
         {/* ── Left column: aircraft identity + crew station ── */}
         <div className="space-y-5 p-4">
           <div>
-            <SubHead right={!simulator && !categoryMismatch && aircraftMsg && !aircraftNotFound ? <Pill tone="green">Matched in fleet</Pill> : undefined}>
+            <SubHead right={!simulator && !categoryMismatch && aircraftMsg && !aircraftNotFound ? <Pill tone="green">Aircraft found</Pill> : undefined}>
               Aircraft &amp; date
             </SubHead>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
