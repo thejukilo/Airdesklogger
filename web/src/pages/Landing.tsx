@@ -74,7 +74,7 @@ function Hero() {
             Your pilot logbook, <span className="text-brand-600">online.</span>
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
-            Airdesk Logger is an electronic logbook for pilots flying under EASA Part-FCL.
+            Airdeck Log is an electronic logbook for pilots flying under EASA Part-FCL.
             It keeps your flights in the official layout, adds up your totals, lets an
             instructor sign off, and produces the FOCA PDF whenever you need it.
           </p>
@@ -128,7 +128,7 @@ function Compliance() {
           <span className="text-xs font-semibold uppercase tracking-wider text-brand-700">Compliance</span>
           <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Built to the rules, from the start</h2>
           <p className="mt-3 text-base text-slate-600">
-            Airdesk Logger follows the EASA Part-FCL layout and the FOCA requirements for an
+            Airdeck Log follows the EASA Part-FCL layout and the FOCA requirements for an
             electronic logbook. We built it to those rules, not around them.
           </p>
         </div>
@@ -156,13 +156,13 @@ function Compliance() {
               <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
                 {FOCA_APPROVED ? (
                   <>
-                    Airdesk Logger is an electronic logbook approved by the <strong>Federal Office of
+                    Airdeck Log is an electronic logbook approved by the <strong>Federal Office of
                     Civil Aviation (FOCA)</strong>, Switzerland&rsquo;s civil aviation authority and an EASA
                     member state.{FOCA_REFERENCE ? <> {FOCA_REFERENCE}.</> : null}
                   </>
                 ) : (
                   <>
-                    Airdesk Logger meets the EASA Part-FCL layout (AMC1 FCL.050) and Switzerland&rsquo;s
+                    Airdeck Log meets the EASA Part-FCL layout (AMC1 FCL.050) and Switzerland&rsquo;s
                     FOCA requirements for an electronic logbook, and has been submitted to the{" "}
                     <strong>Federal Office of Civil Aviation (FOCA)</strong> for acceptance. FOCA is the
                     Swiss civil aviation authority and an EASA member state.
@@ -379,7 +379,7 @@ function Faq() {
     {
       q: "Is this approved by FOCA?",
       a: FOCA_APPROVED
-        ? `Yes. Airdesk Logger is approved as an electronic logbook by FOCA, the Swiss civil aviation authority and an EASA member state${FOCA_REFERENCE ? ` (${FOCA_REFERENCE})` : ""}. It is built to the EASA Part-FCL layout and the FOCA logbook rules.`
+        ? `Yes. Airdeck Log is approved as an electronic logbook by FOCA, the Swiss civil aviation authority and an EASA member state${FOCA_REFERENCE ? ` (${FOCA_REFERENCE})` : ""}. It is built to the EASA Part-FCL layout and the FOCA logbook rules.`
         : "It is built to the EASA Part-FCL layout (AMC1 FCL.050) and the FOCA rules for an electronic logbook, and we have submitted it to FOCA, the Swiss authority and an EASA member state, for acceptance. We will update this page when acceptance is granted.",
     },
     {

@@ -8,7 +8,7 @@
  *
  * Environment:
  *   SMTP_HOST, SMTP_PORT (default 587), SMTP_SECURE ("true" for implicit TLS on
- *   465), SMTP_USER, SMTP_PASS, SMTP_FROM (e.g. "Airdeck Logger <no-reply@...>").
+ *   465), SMTP_USER, SMTP_PASS, SMTP_FROM (e.g. "Airdeck Log <no-reply@...>").
  */
 
 import nodemailer from "nodemailer";
@@ -58,7 +58,7 @@ export async function sendSignoffEmail(m: SignoffEmail): Promise<boolean> {
     `  Total:    ${m.flight.total}\n\n` +
     `To review the entry and add your signature, open this link:\n${m.link}\n\n` +
     `The link works once and will expire. If you were not expecting this, you can ignore the message.\n\n` +
-    `Sent by Airdeck Logger on behalf of ${m.holderName}.`;
+    `Sent by Airdeck Log on behalf of ${m.holderName}.`;
 
   const html =
     `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
@@ -72,7 +72,7 @@ export async function sendSignoffEmail(m: SignoffEmail): Promise<boolean> {
     `</table>` +
     `<p><a href="${m.link}" style="color:#1a1a1a">Review the entry and add your signature</a></p>` +
     `<p style="color:#666;font-size:13px">The link works once and will expire. If you were not expecting this, you can ignore the message.</p>` +
-    `<p style="color:#666;font-size:13px">Sent by Airdeck Logger on behalf of ${escapeHtml(m.holderName)}.</p>` +
+    `<p style="color:#666;font-size:13px">Sent by Airdeck Log on behalf of ${escapeHtml(m.holderName)}.</p>` +
     `</div>`;
 
   try {
@@ -114,18 +114,18 @@ export async function sendVerificationEmail(m: { to: string; name: string; link:
 
   const text =
     `Hello ${greetingName},\n\n` +
-    `Welcome to Airdeck Logger. Please confirm this email address to activate your account.\n\n` +
+    `Welcome to Airdeck Log. Please confirm this email address to activate your account.\n\n` +
     `Open this link to confirm:\n${m.link}\n\n` +
     `If you did not create an account, you can ignore this message.\n\n` +
-    `Sent by Airdeck Logger.`;
+    `Sent by Airdeck Log.`;
 
   const html =
     `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
     `<p>Hello ${escapeHtml(greetingName)},</p>` +
-    `<p>Welcome to Airdeck Logger. Please confirm this email address to activate your account.</p>` +
+    `<p>Welcome to Airdeck Log. Please confirm this email address to activate your account.</p>` +
     `<p><a href="${m.link}" style="color:#1a1a1a">Confirm my email address</a></p>` +
     `<p style="color:#666;font-size:13px">If you did not create an account, you can ignore this message.</p>` +
-    `<p style="color:#666;font-size:13px">Sent by Airdeck Logger.</p>` +
+    `<p style="color:#666;font-size:13px">Sent by Airdeck Log.</p>` +
     `</div>`;
 
   try {
@@ -140,7 +140,7 @@ export async function sendVerificationEmail(m: { to: string; name: string; link:
     await transport.sendMail({
       from: process.env.SMTP_FROM,
       to: m.to,
-      subject: "Confirm your Airdeck Logger email address",
+      subject: "Confirm your Airdeck Log email address",
       text,
       html,
     });
@@ -161,18 +161,18 @@ export async function sendPasswordResetEmail(m: { to: string; name: string; link
 
   const text =
     `Hello ${greetingName},\n\n` +
-    `We received a request to reset the password on your Airdeck Logger account.\n\n` +
+    `We received a request to reset the password on your Airdeck Log account.\n\n` +
     `Open this link to choose a new password:\n${m.link}\n\n` +
     `The link works once and expires in an hour. If you did not ask for this, you can ignore the message and your password stays unchanged.\n\n` +
-    `Sent by Airdeck Logger.`;
+    `Sent by Airdeck Log.`;
 
   const html =
     `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
     `<p>Hello ${escapeHtml(greetingName)},</p>` +
-    `<p>We received a request to reset the password on your Airdeck Logger account.</p>` +
+    `<p>We received a request to reset the password on your Airdeck Log account.</p>` +
     `<p><a href="${m.link}" style="color:#1a1a1a">Choose a new password</a></p>` +
     `<p style="color:#666;font-size:13px">The link works once and expires in an hour. If you did not ask for this, you can ignore the message and your password stays unchanged.</p>` +
-    `<p style="color:#666;font-size:13px">Sent by Airdeck Logger.</p>` +
+    `<p style="color:#666;font-size:13px">Sent by Airdeck Log.</p>` +
     `</div>`;
 
   try {
@@ -187,7 +187,7 @@ export async function sendPasswordResetEmail(m: { to: string; name: string; link
     await transport.sendMail({
       from: process.env.SMTP_FROM,
       to: m.to,
-      subject: "Reset your Airdeck Logger password",
+      subject: "Reset your Airdeck Log password",
       text,
       html,
     });
@@ -225,7 +225,7 @@ export async function sendEntryReopenedEmail(m: {
     changeLines.map((c) => `  - ${c}`).join("\n") +
     `\n\n` +
     `To review the updated entry and add your signature, open this single-use link:\n${m.link}\n\n` +
-    `The link works once and will expire. Sent by Airdeck Logger on behalf of ${m.holderName}.`;
+    `The link works once and will expire. Sent by Airdeck Log on behalf of ${m.holderName}.`;
 
   const html =
     `<div style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">` +
@@ -241,7 +241,7 @@ export async function sendEntryReopenedEmail(m: {
     changeLines.map((c) => `<li>${escapeHtml(c)}</li>`).join("") +
     `</ul>` +
     `<p><a href="${m.link}" style="display:inline-block;background:#2563eb;color:#fff;padding:9px 16px;border-radius:8px;text-decoration:none">Review and sign the entry</a></p>` +
-    `<p style="color:#666;font-size:13px">The link works once and will expire. Sent by Airdeck Logger on behalf of ${escapeHtml(m.holderName)}.</p>` +
+    `<p style="color:#666;font-size:13px">The link works once and will expire. Sent by Airdeck Log on behalf of ${escapeHtml(m.holderName)}.</p>` +
     `</div>`;
 
   try {

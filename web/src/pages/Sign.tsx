@@ -91,7 +91,7 @@ export function Sign() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-ink">
       <div className="mx-auto max-w-lg space-y-4">
-        <h1 className="text-lg font-semibold">Airdeck Logger sign-off</h1>
+        <h1 className="text-lg font-semibold">Airdeck Log sign-off</h1>
 
         {loading && <p className="text-sm text-slate-500">Loading...</p>}
         {error && <Alert>{error}</Alert>}
