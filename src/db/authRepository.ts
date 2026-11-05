@@ -105,8 +105,8 @@ export interface NewUser {
 export async function createUser(u: NewUser): Promise<UserRow> {
   const verificationToken = u.emailVerificationToken ?? randomBytes(24).toString("base64url");
   const address = composeAddress(u.addressStreet, u.addressZip, u.addressCountry);
-  // 3-day trial starts now. State is 'trialing' until the cron expires it.
-  const TRIAL_DAYS = 3;
+  // 30-day trial starts now. State is 'trialing' until the cron expires it.
+  const TRIAL_DAYS = 30;
   const trialStart = new Date();
   const trialEnd = new Date(trialStart.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
   const { rows } = await getPool().query(

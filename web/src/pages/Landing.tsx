@@ -80,7 +80,7 @@ function Hero() {
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link to="/register" className="rounded-md bg-brand-600 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-700">
-              Start 3-day free trial
+              Start 30-day free trial
             </Link>
             <Link to="/register?plan=paid" className="rounded-md border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
               Subscribe, CHF 5.99 / mo
@@ -324,7 +324,7 @@ function Pricing() {
             </div>
             <div className="border-t border-slate-100 px-8 py-6">
               <Link to="/register" className="block w-full rounded-xl bg-brand-600 py-3 text-center text-base font-semibold text-white shadow-sm hover:bg-brand-700">
-                Start 3-day free trial
+                Start 30-day free trial
               </Link>
               <p className="mt-3 text-center text-xs text-slate-500">
                 No card to start. We ask for it when your trial ends.
@@ -369,7 +369,7 @@ function PaymentBadge({ label, bg, text, weight }: { label: string; bg: string; 
 function Faq() {
   const items = [
     {
-      q: "What happens after the 3-day trial?",
+      q: "What happens after the 30-day trial?",
       a: "We ask for a payment method. If you don't add one, your logbook goes read-only: you can still see your entries and the PDF you made, but you can't log new flights. Subscribe any time to switch it back on.",
     },
     {

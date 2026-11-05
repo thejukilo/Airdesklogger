@@ -1,13 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode, type ButtonHTMLAttributes } from "react";
 import { Link } from "react-router-dom";
 import * as api from "../api";
-import { Alert, Button, Field } from "../components/ui";
+import { Alert, Field } from "../components/ui";
 import { AddressAutocomplete } from "../components/AddressAutocomplete";
 
-/** The brand mark (gradient square + diamond), matching the app header logo. */
+/** The brand mark (gradient square + diamond). Sky accent for the auth pages. */
 function BrandMark() {
   return (
-    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
+    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-sky-700 text-white shadow-sm">
       <svg viewBox="0 0 22 22" className="h-4 w-4" fill="none" aria-hidden="true">
         <path d="M3 11L11 3L19 11L11 19L3 11Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
         <path d="M7 11L11 7L15 11L11 15L7 11Z" fill="currentColor" />
@@ -24,6 +24,19 @@ function Wordmark() {
         Airdeck <span className="font-normal text-slate-500">Log</span>
       </span>
     </span>
+  );
+}
+
+/** Sky-accented primary button, local to the auth pages (the shared app Button
+ * is brand blue; the registration design uses sky). */
+function SkyButton({ children, className = "", ...props }: { children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      className={`inline-flex items-center justify-center rounded-md bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -114,9 +127,9 @@ export function Register() {
                 <p className="text-xs text-slate-500">
                   Didn't get it? Check your spam folder. The link expires after 24 hours.
                 </p>
-                <Button className="w-full" onClick={resend} disabled={resendBusy}>
+                <SkyButton className="w-full" onClick={resend} disabled={resendBusy}>
                   {resendBusy ? "Resending..." : "Resend verification email"}
-                </Button>
+                </SkyButton>
                 {resendNote && <p className="text-xs text-slate-600">{resendNote}</p>}
               </>
             ) : verifyToken ? (
@@ -130,7 +143,7 @@ export function Register() {
                   delivered. In production it is never shown.
                 </p>
                 <Link to={`/verify?token=${encodeURIComponent(verifyToken)}`}>
-                  <Button className="w-full">Verify (developer link)</Button>
+                  <SkyButton className="w-full">Verify (developer link)</SkyButton>
                 </Link>
               </>
             ) : (
@@ -141,7 +154,7 @@ export function Register() {
             )}
           </div>
           <p className="mt-5 text-center text-sm text-slate-600">
-            <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700 hover:underline">Back to sign in</Link>
+            <Link to="/login" className="font-semibold text-sky-600 hover:text-sky-700 hover:underline">Back to sign in</Link>
           </p>
         </div>
       </div>
@@ -159,7 +172,7 @@ export function Register() {
 
         <div className="mx-auto mt-12 w-full max-w-sm sm:mt-0">
           <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-900">Create your account</h1>
-          <p className="mb-8 text-sm text-slate-500">Start your 3-day free trial. No credit card required.</p>
+          <p className="mb-8 text-sm text-slate-500">Start your 30-day free trial. No credit card required.</p>
 
           {error && <div className="mb-5"><Alert>{error}</Alert></div>}
 
@@ -209,15 +222,15 @@ export function Register() {
             <Field label="Licence number (optional)" mono value={form.licenseNumber} onChange={set("licenseNumber")} />
 
             <div className="pt-2">
-              <Button type="submit" disabled={busy} className="w-full py-2.5">
+              <SkyButton type="submit" disabled={busy} className="w-full">
                 {busy ? "Creating account..." : "Start your free trial"}
-              </Button>
+              </SkyButton>
             </div>
           </form>
 
           <p className="mt-8 text-center text-sm text-slate-600">
             Already have an account?{" "}
-            <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700 hover:underline">Sign in</Link>
+            <Link to="/login" className="font-semibold text-sky-600 hover:text-sky-700 hover:underline">Sign in</Link>
           </p>
         </div>
       </div>
@@ -235,7 +248,7 @@ export function Register() {
             <ul className="space-y-4 text-sm font-medium text-slate-300 lg:text-base">
               {["EASA AMC1 FCL.050 compliant", "Seamless CSV imports", "Remote digital signatures"].map((t) => (
                 <li key={t} className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-500/10 text-brand-400">
+                  <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-sky-500/10 text-sky-400">
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                     </svg>

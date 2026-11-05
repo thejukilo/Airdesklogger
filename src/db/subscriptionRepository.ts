@@ -1,7 +1,7 @@
 /**
  * Subscription / trial state.
  *
- * Single plan: CHF 5.99/month. New accounts start in `trialing` for 3 days,
+ * Single plan: CHF 5.99/month. New accounts start in `trialing` for 30 days,
  * after which a daily cron flips them to `read_only` unless they have
  * subscribed. Payment integration (Stripe / Datatrans) lands later; for now
  * the state machine only covers the free-trial side, which is enough to gate
@@ -156,7 +156,7 @@ export function stripeStatusToState(
   stripeStatus: string,
   cancelAtPeriodEnd: boolean,
 ): SubscriptionState {
-  // 'trialing' on Stripe means "in their trial"; we keep our own 3-day trial
+  // 'trialing' on Stripe means "in their trial"; we keep our own 30-day trial
   // separate from Stripe's, so a Stripe 'trialing' coming back should never
   // happen in our flow. Treat it as 'active' just in case.
   if (stripeStatus === "active" || stripeStatus === "trialing") {
