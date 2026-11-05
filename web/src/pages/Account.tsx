@@ -195,7 +195,6 @@ export function Account() {
             label="Street / no."
             value={profile.addressStreet}
             onChange={setP("addressStreet")}
-            countryHint="ch"
             onResolved={(a) =>
               setProfile((p) => ({
                 ...p,

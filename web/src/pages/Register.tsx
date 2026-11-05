@@ -206,7 +206,6 @@ export function Register() {
               label="Street / no."
               value={form.addressStreet}
               onChange={set("addressStreet")}
-              countryHint="ch"
               required
               onResolved={(a) =>
                 setForm((f) => ({

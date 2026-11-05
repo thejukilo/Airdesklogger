@@ -95,14 +95,12 @@ export function StreetAutocomplete({
   value,
   onChange,
   onResolved,
-  countryHint,
   required,
 }: {
   label: string;
   value: string;
   onChange: (e: { target: { value: string } }) => void;
   onResolved: (address: ParsedAddress) => void;
-  countryHint?: string;
   required?: boolean;
 }) {
   const libRef = useRef<PlacesLib | null>(null);
@@ -138,10 +136,12 @@ export function StreetAutocomplete({
       if (!lib) return;
       try {
         if (!tokenRef.current) tokenRef.current = new lib.AutocompleteSessionToken();
+        // No region restriction: pilots may live in any country. Google ranks
+        // by the request's location (the user's IP), so local addresses still
+        // come first without excluding foreign ones.
         const { suggestions } = await lib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input,
           sessionToken: tokenRef.current,
-          ...(countryHint ? { includedRegionCodes: [countryHint.toLowerCase()] } : {}),
         });
         const items = (suggestions ?? [])
           .map((s) => s.placePrediction)
