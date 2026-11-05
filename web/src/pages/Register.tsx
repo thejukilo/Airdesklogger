@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode, type ButtonHTMLAttributes } f
 import { Link } from "react-router-dom";
 import * as api from "../api";
 import { Alert, Field } from "../components/ui";
-import { AddressAutocomplete } from "../components/AddressAutocomplete";
+import { StreetAutocomplete } from "../components/AddressAutocomplete";
 
 /** The brand mark (gradient square + diamond). Sky accent for the auth pages. */
 function BrandMark() {
@@ -202,9 +202,13 @@ export function Register() {
             <Field label="Password" type="password" value={form.password} onChange={set("password")} hint="At least 12 characters." required />
             <Field label="Date of birth" type="date" max={today} value={form.dateOfBirth} onChange={set("dateOfBirth")} required />
 
-            <AddressAutocomplete
+            <StreetAutocomplete
+              label="Street / no."
+              value={form.addressStreet}
+              onChange={set("addressStreet")}
               countryHint="ch"
-              onSelect={(a) =>
+              required
+              onResolved={(a) =>
                 setForm((f) => ({
                   ...f,
                   addressStreet: a.street || f.addressStreet,
@@ -213,7 +217,6 @@ export function Register() {
                 }))
               }
             />
-            <Field label="Street / no." value={form.addressStreet} onChange={set("addressStreet")} required />
             <div className="grid grid-cols-2 gap-4">
               <Field label="ZIP / place" value={form.addressZip} onChange={set("addressZip")} required />
               <Field label="Country" value={form.addressCountry} onChange={set("addressCountry")} required />

@@ -73,3 +73,69 @@ export function AddressAutocomplete({
     </label>
   );
 }
+
+/**
+ * Street input WITH Google Places autocomplete attached directly to it: typing
+ * in the field itself shows suggestions, and picking one fills ZIP, place and
+ * country via onResolved (it also overwrites the street with the parsed value).
+ * If Places cannot load it stays a plain, fully usable text field. Styled to
+ * match the shared Field primitive.
+ */
+export function StreetAutocomplete({
+  label,
+  value,
+  onChange,
+  onResolved,
+  countryHint,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: { target: { value: string } }) => void;
+  onResolved: (address: ParsedAddress) => void;
+  countryHint?: string;
+  required?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resolvedRef = useRef(onResolved);
+  resolvedRef.current = onResolved;
+
+  useEffect(() => {
+    let cancelled = false;
+    let listener: { remove(): void } | null = null;
+    let ac: PlacesAutocomplete | null = null;
+    loadPlaces().then((places) => {
+      if (cancelled || !places || !inputRef.current) return;
+      ac = new places.Autocomplete(inputRef.current, {
+        types: ["address"],
+        fields: ["address_components", "formatted_address"],
+        ...(countryHint ? { componentRestrictions: { country: countryHint.toLowerCase() } } : {}),
+      });
+      listener = ac.addListener("place_changed", () => {
+        if (ac) resolvedRef.current(parseAddress(ac.getPlace()));
+      });
+    });
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
+    // Bind once: Places attaches to a stable input, and onResolved is read via a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={onChange}
+        required={required}
+        autoComplete="off"
+        placeholder="Start typing your address..."
+        className="block min-h-[2.25rem] w-full appearance-none rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+      />
+    </label>
+  );
+}
