@@ -165,12 +165,30 @@ export interface PlacesLib {
 }
 
 /** Load the modern Places library classes, or null if unavailable. Reuses the
- * same script/importLibrary bootstrap as loadPlaces. */
+ * same script/importLibrary bootstrap as loadPlaces, but resolves the classes
+ * through importLibrary('places') rather than the google.maps.places namespace.
+ *
+ * Why: with `libraries=places&loading=async`, google.maps.places becomes
+ * truthy a tick BEFORE AutocompleteSuggestion/AutocompleteSessionToken are
+ * attached to it. Reading the namespace directly can therefore catch a
+ * half-initialized object and return null, which — because the caller loads
+ * this once on mount — permanently disables the field. importLibrary('places')
+ * is idempotent and its promise only settles once the library is fully ready,
+ * so its result always carries the modern classes. */
 export async function loadPlacesLib(): Promise<PlacesLib | null> {
   const places = await loadPlaces();
-  if (!places) return null;
-  const lib = places as unknown as Partial<PlacesLib>;
-  return lib.AutocompleteSuggestion && lib.AutocompleteSessionToken ? (lib as PlacesLib) : null;
+  if (typeof window === "undefined") return null;
+  const maps = window.google?.maps;
+  if (maps?.importLibrary) {
+    try {
+      const lib = (await maps.importLibrary("places")) as unknown as Partial<PlacesLib>;
+      if (lib.AutocompleteSuggestion && lib.AutocompleteSessionToken) return lib as PlacesLib;
+    } catch {
+      /* fall through to the namespace check below */
+    }
+  }
+  const ns = places as unknown as Partial<PlacesLib> | null;
+  return ns && ns.AutocompleteSuggestion && ns.AutocompleteSessionToken ? (ns as PlacesLib) : null;
 }
 
 /** Map a fetched new-API Place to our ParsedAddress (components use longText/shortText). */

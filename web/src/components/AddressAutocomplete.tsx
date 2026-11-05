@@ -174,6 +174,8 @@ export function StreetAutocomplete({
       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
       <input
         type="text"
+        id="address-street"
+        name="address-street"
         value={value}
         onChange={handleInput}
         onFocus={() => {
