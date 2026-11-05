@@ -128,7 +128,7 @@ export function parseAddress(place: PlacesPlace): ParsedAddress {
     street,
     zip: postalCode,
     place: locality,
-    country: country?.long_name ?? "",
+    country: canonicalCountryName(cc, country?.long_name ?? ""),
     countryCode: cc,
   };
 }
@@ -199,6 +199,22 @@ export async function loadPlacesLib(): Promise<PlacesLib | null> {
   }
 }
 
+/** Canonical, language-independent country name from an ISO-3166 alpha-2 code
+ * (e.g. "CH" -> "Switzerland"). Google returns country names localized to the
+ * browser language ("Zwitserland", "Suisse", "Schweiz"), which makes the stored
+ * value vary per user; deriving it from the code instead keeps it consistent.
+ * Falls back to the supplied (localized) name if the code is missing/unknown. */
+export function canonicalCountryName(countryCode: string, fallback: string): string {
+  const cc = countryCode?.trim().toUpperCase();
+  if (!cc) return fallback;
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "region" }).of(cc);
+    return name && name !== cc ? name : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Map a fetched new-API Place to our ParsedAddress (components use longText/shortText). */
 export function parseNewPlace(place: NewPlace): ParsedAddress {
   const comps = place.addressComponents ?? [];
@@ -214,5 +230,11 @@ export function parseNewPlace(place: NewPlace): ParsedAddress {
   const street = numberFirstLocales.has(cc)
     ? [streetNumber, route].filter(Boolean).join(" ")
     : [route, streetNumber].filter(Boolean).join(" ");
-  return { street, zip: postalCode, place: locality, country: country?.longText ?? "", countryCode: cc };
+  return {
+    street,
+    zip: postalCode,
+    place: locality,
+    country: canonicalCountryName(cc, country?.longText ?? ""),
+    countryCode: cc,
+  };
 }

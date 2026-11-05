@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { useAuth } from "../auth";
 import * as api from "../api";
 import { Alert, Button, Card, Field, Select } from "../components/ui";
-import { AddressAutocomplete } from "../components/AddressAutocomplete";
+import { StreetAutocomplete } from "../components/AddressAutocomplete";
 import { getBiometry, runBiometric } from "../lib/biometric";
 
 const emptyProfile = {
@@ -191,9 +191,12 @@ export function Account() {
             </div>
             <Field label="Pilot licence number" value={profile.licenseNumber} onChange={setP("licenseNumber")} />
           </div>
-          <AddressAutocomplete
+          <StreetAutocomplete
+            label="Street / no."
+            value={profile.addressStreet}
+            onChange={setP("addressStreet")}
             countryHint="ch"
-            onSelect={(a) =>
+            onResolved={(a) =>
               setProfile((p) => ({
                 ...p,
                 addressStreet: a.street || p.addressStreet,
@@ -202,7 +205,6 @@ export function Account() {
               }))
             }
           />
-          <Field label="Street / no." value={profile.addressStreet} onChange={setP("addressStreet")} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="ZIP / place" value={profile.addressZip} onChange={setP("addressZip")} />
             <Field label="Country" value={profile.addressCountry} onChange={setP("addressCountry")} />

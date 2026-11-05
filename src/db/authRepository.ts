@@ -200,10 +200,22 @@ export async function updateProfile(userId: string, p: ProfileUpdate): Promise<U
   if (p.dateOfBirth !== undefined) add("date_of_birth", blank(p.dateOfBirth), "::date");
   // Address parts are edited together; keep the composed one-line address in step.
   if (p.addressStreet !== undefined || p.addressZip !== undefined || p.addressCountry !== undefined) {
-    add("address_street", blank(p.addressStreet));
-    add("address_zip", blank(p.addressZip));
-    add("address_country", blank(p.addressCountry));
-    add("address", composeAddress(p.addressStreet, p.addressZip, p.addressCountry));
+    const street = blank(p.addressStreet);
+    const zip = blank(p.addressZip);
+    const country = blank(p.addressCountry);
+    // Guard against wiping a stored address when the form submits all three
+    // parts empty. Accounts created before the structured address columns were
+    // added only have the composed `address` string (their address_street/zip/
+    // country are null), so the Account form loads blank address fields and a
+    // plain "Save profile" would otherwise clear the address entirely. Only
+    // write when at least one part is present; clearing a single part while the
+    // others are set still works as before.
+    if (street || zip || country) {
+      add("address_street", street);
+      add("address_zip", zip);
+      add("address_country", country);
+      add("address", composeAddress(street, zip, country));
+    }
   }
   if (p.licenseNumber !== undefined) add("license_number", blank(p.licenseNumber));
   if (p.instructorCertificate !== undefined) add("instructor_certificate", blank(p.instructorCertificate));
