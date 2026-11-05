@@ -260,7 +260,7 @@ function LockScreen() {
     <div className="safe-top safe-bottom fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-brand-600 px-6 text-white">
       <BrandMark />
       <div className="text-center">
-        <div className="text-lg font-semibold">Airdeck Logger</div>
+        <div className="text-lg font-semibold">Airdeck Log</div>
         <div className="text-sm text-white/80">Locked</div>
       </div>
       <button

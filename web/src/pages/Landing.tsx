@@ -19,7 +19,7 @@ const FOCA_REFERENCE = ""; // e.g. "FOCA ref. 31-00-0000" once granted
 export function Landing() {
   useEffect(() => {
     const prev = document.title;
-    document.title = "Airdesk Logger · pilot logbook for EASA licences";
+    document.title = "Airdeck Log · pilot logbook for EASA licences";
     return () => { document.title = prev; };
   }, []);
 
@@ -414,7 +414,7 @@ function Footer() {
       <div className="mx-auto flex max-w-screen-xl flex-col items-start justify-between gap-6 px-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2.5">
           <BrandMark />
-          <span className="text-sm font-medium tracking-tight">Airdeck Logger</span>
+          <span className="text-sm font-medium tracking-tight">Airdeck Log</span>
         </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500">
           <a href="mailto:lode@jukilo.com" className="hover:text-slate-700">Contact</a>

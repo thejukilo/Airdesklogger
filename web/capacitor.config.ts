@@ -13,7 +13,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const config: CapacitorConfig = {
   appId: "ch.airdeck.logger",
-  appName: "Airdesk Logger",
+  appName: "Airdeck Log",
   webDir: "dist",
   plugins: {
     CapacitorHttp: { enabled: true },
