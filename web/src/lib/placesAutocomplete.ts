@@ -36,7 +36,13 @@ interface PlacesNamespace {
 
 declare global {
   interface Window {
-    google?: { maps?: { places?: PlacesNamespace } };
+    google?: {
+      maps?: {
+        places?: PlacesNamespace;
+        // Present with the modern (loading=async) bootstrap; loads a library on demand.
+        importLibrary?: (name: string) => Promise<unknown>;
+      };
+    };
   }
 }
 
@@ -51,10 +57,29 @@ export function loadPlaces(): Promise<PlacesNamespace | null> {
   if (!key) return Promise.resolve(null);
 
   inflight = new Promise<PlacesNamespace | null>((resolve) => {
+    // With loading=async the bootstrap defers library loading, so
+    // window.google.maps.places is NOT ready when the script's onload fires.
+    // We must call importLibrary('places') (idempotent) to actually load it.
+    function ready() {
+      const maps = window.google?.maps;
+      if (!maps) return resolve(null);
+      if (maps.places) return resolve(maps.places);
+      if (maps.importLibrary) {
+        maps
+          .importLibrary("places")
+          .then(() => resolve(window.google?.maps?.places ?? null))
+          .catch(() => resolve(null));
+        return;
+      }
+      resolve(null);
+    }
     const existing = document.querySelector(`script[${SCRIPT_ATTR}]`);
     if (existing) {
-      existing.addEventListener("load", () => resolve(window.google?.maps?.places ?? null));
-      existing.addEventListener("error", () => resolve(null));
+      if (window.google?.maps) ready();
+      else {
+        existing.addEventListener("load", ready);
+        existing.addEventListener("error", () => resolve(null));
+      }
       return;
     }
     const s = document.createElement("script");
@@ -62,7 +87,7 @@ export function loadPlaces(): Promise<PlacesNamespace | null> {
     s.async = true;
     s.defer = true;
     s.setAttribute(SCRIPT_ATTR, "true");
-    s.onload = () => resolve(window.google?.maps?.places ?? null);
+    s.onload = ready;
     s.onerror = () => resolve(null);
     document.head.appendChild(s);
   });
