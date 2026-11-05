@@ -1,5 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { loadPlaces, parseAddress, type ParsedAddress, type PlacesAutocomplete } from "../lib/placesAutocomplete";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import {
+  loadPlaces,
+  loadPlacesLib,
+  parseAddress,
+  parseNewPlace,
+  type ParsedAddress,
+  type PlacesAutocomplete,
+  type PlacesLib,
+  type NewPlacePrediction,
+} from "../lib/placesAutocomplete";
 
 /**
  * Single search box that fills the street, ZIP, place and country fields
@@ -75,11 +84,11 @@ export function AddressAutocomplete({
 }
 
 /**
- * Street input WITH Google Places autocomplete attached directly to it: typing
- * in the field itself shows suggestions, and picking one fills ZIP, place and
- * country via onResolved (it also overwrites the street with the parsed value).
- * If Places cannot load it stays a plain, fully usable text field. Styled to
- * match the shared Field primitive.
+ * Street input with address autocomplete, using Google's current Places API
+ * (AutocompleteSuggestion) and our own dropdown — the legacy Autocomplete widget
+ * was deprecated/disabled for newer projects in 2025. Typing shows suggestions;
+ * picking one fills ZIP, place and country via onResolved. If Places can't load
+ * it stays a plain, fully usable text field.
  */
 export function StreetAutocomplete({
   label,
@@ -96,46 +105,102 @@ export function StreetAutocomplete({
   countryHint?: string;
   required?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const libRef = useRef<PlacesLib | null>(null);
+  const tokenRef = useRef<unknown>(null);
   const resolvedRef = useRef(onResolved);
   resolvedRef.current = onResolved;
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [preds, setPreds] = useState<Array<{ id: string; text: string; prediction: NewPlacePrediction }>>([]);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    let listener: { remove(): void } | null = null;
-    let ac: PlacesAutocomplete | null = null;
-    loadPlaces().then((places) => {
-      if (cancelled || !places || !inputRef.current) return;
-      ac = new places.Autocomplete(inputRef.current, {
-        types: ["address"],
-        fields: ["address_components", "formatted_address"],
-        ...(countryHint ? { componentRestrictions: { country: countryHint.toLowerCase() } } : {}),
-      });
-      listener = ac.addListener("place_changed", () => {
-        if (ac) resolvedRef.current(parseAddress(ac.getPlace()));
-      });
+    loadPlacesLib().then((lib) => {
+      if (!cancelled) libRef.current = lib;
     });
     return () => {
       cancelled = true;
-      listener?.remove();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-    // Bind once: Places attaches to a stable input, and onResolved is read via a ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function handleInput(e: ChangeEvent<HTMLInputElement>) {
+    onChange(e);
+    const input = e.target.value;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (input.trim().length < 3 || !libRef.current) {
+      setPreds([]);
+      setOpen(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      const lib = libRef.current;
+      if (!lib) return;
+      try {
+        if (!tokenRef.current) tokenRef.current = new lib.AutocompleteSessionToken();
+        const { suggestions } = await lib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input,
+          sessionToken: tokenRef.current,
+          ...(countryHint ? { includedRegionCodes: [countryHint.toLowerCase()] } : {}),
+        });
+        const items = (suggestions ?? [])
+          .map((s) => s.placePrediction)
+          .filter((p): p is NewPlacePrediction => Boolean(p))
+          .map((p) => ({ id: p.placeId, text: p.text?.text ?? "", prediction: p }));
+        setPreds(items);
+        setOpen(items.length > 0);
+      } catch {
+        setPreds([]);
+        setOpen(false);
+      }
+    }, 250);
+  }
+
+  async function choose(prediction: NewPlacePrediction) {
+    setOpen(false);
+    setPreds([]);
+    try {
+      const place = prediction.toPlace();
+      await place.fetchFields({ fields: ["addressComponents", "formattedAddress"] });
+      resolvedRef.current(parseNewPlace(place));
+    } catch {
+      /* keep whatever the pilot typed */
+    }
+    tokenRef.current = null; // a selection ends the billing session
+  }
+
   return (
-    <label className="block">
+    <label className="relative block">
       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
       <input
-        ref={inputRef}
         type="text"
         value={value}
-        onChange={onChange}
+        onChange={handleInput}
+        onFocus={() => {
+          if (preds.length > 0) setOpen(true);
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
         required={required}
         autoComplete="off"
         placeholder="Start typing your address..."
         className="block min-h-[2.25rem] w-full appearance-none rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
       />
+      {open && preds.length > 0 && (
+        <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg">
+          {preds.map((p) => (
+            <li key={p.id}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => choose(p.prediction)}
+                className="block w-full px-3 py-1.5 text-left text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+              >
+                {p.text}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </label>
   );
 }

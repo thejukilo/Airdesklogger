@@ -132,3 +132,61 @@ export function parseAddress(place: PlacesPlace): ParsedAddress {
     countryCode: cc,
   };
 }
+
+/* ───────────────────────── New Places API (2025+) ─────────────────────────
+ * google.maps.places.Autocomplete (the old widget) was deprecated and cut off
+ * for newer projects in March 2025, so we use the current AutocompleteSuggestion
+ * data API and render our own dropdown. These are loosely typed (no @types). */
+
+export interface NewAddressComponent {
+  types: string[];
+  longText?: string | null;
+  shortText?: string | null;
+}
+export interface NewPlace {
+  fetchFields(options: { fields: string[] }): Promise<unknown>;
+  addressComponents?: NewAddressComponent[];
+  formattedAddress?: string | null;
+}
+export interface NewPlacePrediction {
+  placeId: string;
+  text?: { text?: string } | null;
+  toPlace(): NewPlace;
+}
+export interface PlacesLib {
+  AutocompleteSuggestion: {
+    fetchAutocompleteSuggestions(request: {
+      input: string;
+      sessionToken?: unknown;
+      includedRegionCodes?: string[];
+    }): Promise<{ suggestions?: Array<{ placePrediction?: NewPlacePrediction | null }> }>;
+  };
+  AutocompleteSessionToken: new () => unknown;
+}
+
+/** Load the modern Places library classes, or null if unavailable. Reuses the
+ * same script/importLibrary bootstrap as loadPlaces. */
+export async function loadPlacesLib(): Promise<PlacesLib | null> {
+  const places = await loadPlaces();
+  if (!places) return null;
+  const lib = places as unknown as Partial<PlacesLib>;
+  return lib.AutocompleteSuggestion && lib.AutocompleteSessionToken ? (lib as PlacesLib) : null;
+}
+
+/** Map a fetched new-API Place to our ParsedAddress (components use longText/shortText). */
+export function parseNewPlace(place: NewPlace): ParsedAddress {
+  const comps = place.addressComponents ?? [];
+  const get = (type: string) => comps.find((c) => c.types.includes(type));
+  const streetNumber = get("street_number")?.longText ?? "";
+  const route = get("route")?.longText ?? "";
+  const postalCode = get("postal_code")?.longText ?? "";
+  const locality =
+    get("locality")?.longText ?? get("postal_town")?.longText ?? get("sublocality")?.longText ?? "";
+  const country = get("country");
+  const cc = country?.shortText?.toUpperCase() ?? "";
+  const numberFirstLocales = new Set(["US", "GB", "IE", "CA", "AU", "NZ", "IN"]);
+  const street = numberFirstLocales.has(cc)
+    ? [streetNumber, route].filter(Boolean).join(" ")
+    : [route, streetNumber].filter(Boolean).join(" ");
+  return { street, zip: postalCode, place: locality, country: country?.longText ?? "", countryCode: cc };
+}
