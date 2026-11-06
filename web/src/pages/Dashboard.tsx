@@ -118,60 +118,103 @@ export function Dashboard() {
             No flights yet. <Link to="/new" className="not-italic text-brand-600 hover:underline">Log your first flight</Link>.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
-                  <th className="px-4 py-2 font-semibold">Date</th>
-                  <th className="px-3 py-2 font-semibold">Registration</th>
-                  <th className="px-3 py-2 font-semibold">Route</th>
-                  <th className="px-3 py-2 font-semibold">Status</th>
-                  <th className="px-4 py-2 text-right font-semibold">Duration</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recent.map((e) => {
-                  const c = e.content.columns;
-                  const isFstd = Boolean(c?.fstd);
-                  const sigMissing = !e.locked && c?.signatureRequired;
-                  const go = () => navigate(`/entry/${e.id}`);
-                  return (
-                    <tr
-                      key={e.id}
-                      onClick={go}
-                      onKeyDown={(ev) => { if (ev.key === "Enter") go(); }}
-                      tabIndex={0}
-                      role="link"
-                      className={`cursor-pointer outline-none focus-visible:bg-slate-50 ${sigMissing ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-slate-50"}`}
+          <>
+            {/* Mobile: compact list that always fits — no horizontal scroll. */}
+            <ul className="divide-y divide-slate-100 sm:hidden">
+              {recent.map((e) => {
+                const c = e.content.columns;
+                const isFstd = Boolean(c?.fstd);
+                const sigMissing = !e.locked && c?.signatureRequired;
+                const reg = isFstd ? `FSTD ${c?.fstd?.deviceType}` : e.content.aircraft?.registration;
+                const route = isFstd ? "Simulator" : `${c?.departurePlace} → ${c?.arrivalPlace}`;
+                return (
+                  <li key={e.id}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/entry/${e.id}`)}
+                      className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left outline-none focus-visible:bg-slate-50 ${sigMissing ? "bg-amber-50/60" : ""}`}
                     >
-                      <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500">{c?.date}</td>
-                      <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-700">
-                        {isFstd ? `FSTD ${c?.fstd?.deviceType}` : e.content.aircraft?.registration}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-500">
-                        {isFstd ? "Simulator" : `${c?.departurePlace} → ${c?.arrivalPlace}`}
-                      </td>
-                      <td className="px-3 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-mono text-[11px] text-slate-500">{c?.date}</span>
+                        <span className="block truncate font-mono text-sm font-semibold text-slate-700">
+                          {[reg, route].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
+                      <span className="flex flex-none flex-col items-end gap-1">
+                        <span className="font-mono text-sm font-semibold tabular-nums text-slate-700">
+                          {hhmm(isFstd ? c?.fstd?.totalMinutes : c?.total)}
+                        </span>
                         {e.locked ? (
                           <Pill tone="green">Signed</Pill>
                         ) : sigMissing ? (
-                          <span className="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
                             Sig missing
                           </span>
-                        ) : (
-                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-300" aria-hidden="true" title="OK" />
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-slate-700">
-                        {hhmm(isFstd ? c?.fstd?.totalMinutes : c?.total)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        ) : null}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Desktop: full table. */}
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+                    <th className="px-4 py-2 font-semibold">Date</th>
+                    <th className="px-3 py-2 font-semibold">Registration</th>
+                    <th className="px-3 py-2 font-semibold">Route</th>
+                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className="px-4 py-2 text-right font-semibold">Duration</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recent.map((e) => {
+                    const c = e.content.columns;
+                    const isFstd = Boolean(c?.fstd);
+                    const sigMissing = !e.locked && c?.signatureRequired;
+                    const go = () => navigate(`/entry/${e.id}`);
+                    return (
+                      <tr
+                        key={e.id}
+                        onClick={go}
+                        onKeyDown={(ev) => { if (ev.key === "Enter") go(); }}
+                        tabIndex={0}
+                        role="link"
+                        className={`cursor-pointer outline-none focus-visible:bg-slate-50 ${sigMissing ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-slate-50"}`}
+                      >
+                        <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500">{c?.date}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-700">
+                          {isFstd ? `FSTD ${c?.fstd?.deviceType}` : e.content.aircraft?.registration}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-500">
+                          {isFstd ? "Simulator" : `${c?.departurePlace} → ${c?.arrivalPlace}`}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {e.locked ? (
+                            <Pill tone="green">Signed</Pill>
+                          ) : sigMissing ? (
+                            <span className="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
+                              Sig missing
+                            </span>
+                          ) : (
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-300" aria-hidden="true" title="OK" />
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-slate-700">
+                          {hhmm(isFstd ? c?.fstd?.totalMinutes : c?.total)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </Panel>
     </div>

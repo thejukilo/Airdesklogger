@@ -170,7 +170,7 @@ export function EntryDetail() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Flight entry</h1>
         <div className="flex items-center gap-4 text-sm">
           {isOwner && !cols?.fstd && (
@@ -239,7 +239,7 @@ export function EntryDetail() {
           {cols?.isMultiFlight ? <Detail label="Flight type" value="Series of flights" /> : null}
         </dl>
         {c.remarks && (
-          <p className="mt-4 border-t pt-3 text-sm text-slate-600">
+          <p className="mt-4 break-words border-t pt-3 text-sm text-slate-600">
             <span className="font-medium text-slate-700">Remarks:</span> {c.remarks}
           </p>
         )}
@@ -323,7 +323,7 @@ export function EntryDetail() {
           <ul className="space-y-3">
             {entry.signatures.map((s, i) => (
               <li key={i} className="flex items-center justify-between gap-4 border-b pb-3 last:border-0">
-                <div className="text-sm">
+                <div className="min-w-0 break-words text-sm">
                   <div className="font-medium">{ROLE_LABELS[s.signerRole] ?? s.signerRole}</div>
                   <div className="text-slate-500">
                     {s.signerName}
@@ -333,7 +333,7 @@ export function EntryDetail() {
                     {s.signedAt}
                   </div>
                 </div>
-                {s.signatureImage && <img src={s.signatureImage} alt="signature" className="h-12 rounded border bg-white" />}
+                {s.signatureImage && <img src={s.signatureImage} alt="signature" className="h-12 max-w-full flex-none rounded border bg-white" />}
               </li>
             ))}
           </ul>
@@ -414,7 +414,7 @@ export function EntryDetail() {
                 className="w-full rounded-md border bg-slate-50 px-3 py-2 text-xs"
               />
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Signer name" value={req.signerName} onChange={(e) => setReq((r) => ({ ...r, signerName: e.target.value }))} />
               <Field label="Signer email" type="email" value={req.signerEmail} onChange={(e) => setReq((r) => ({ ...r, signerEmail: e.target.value }))} />
             </div>
@@ -434,7 +434,7 @@ export function EntryDetail() {
         <h2 className="mb-2 font-medium">Change history</h2>
         <ul className="space-y-1 text-sm text-slate-600">
           {entry.history.map((h) => (
-            <li key={h.version_no}>
+            <li key={h.version_no} className="break-words">
               v{h.version_no} &middot; {h.created_at}
               {h.change_reason ? `: ${h.change_reason}` : ""}
             </li>
@@ -448,9 +448,9 @@ export function EntryDetail() {
 function Detail({ label, value }: { label: string; value: ReactNode }) {
   if (value === null || value === undefined || value === "") return null;
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-sm text-slate-800">{value}</dd>
+      <dd className="mt-0.5 break-words text-sm text-slate-800">{value}</dd>
     </div>
   );
 }

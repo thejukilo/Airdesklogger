@@ -3,6 +3,20 @@
 @tailwind utilities;
 
 /*
+ * Never allow the page to scroll sideways on small screens. A single too-wide
+ * element (a long unbroken value, a data table) must not push the whole layout
+ * off-screen and force pinch-zoom. `clip` (not `hidden`) prevents horizontal
+ * scrolling without establishing a scroll container, so the sticky header and
+ * fixed bottom tab bar keep working. Wide content is made to fit or wrap at the
+ * component level; this is the backstop.
+ */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/*
  * Safe-area insets for the native app (notch / status bar / home indicator).
  * env(safe-area-inset-*) is 0 on the web, so these are harmless there and only
  * take effect inside the Capacitor WebView (viewport-fit=cover is set in the
