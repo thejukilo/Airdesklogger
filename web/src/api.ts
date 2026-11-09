@@ -708,6 +708,8 @@ export interface CapzlogTextItem {
   x: number;
   y: number;
   w?: number;
+  /** 1-based page number, so the server can tell report sections apart. */
+  page?: number;
 }
 export type CapzlogReport = "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator";
 
