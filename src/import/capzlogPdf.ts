@@ -5,22 +5,21 @@
  * export is paid-only), so importing from the PDF lets a pilot migrate their
  * whole logbook for free. The browser reads the PDF with pdf.js and sends the
  * raw positioned text items here; this module turns that flat list of words
- * into one row per flight, which `mapCapzlogPdfRows` (src/http/capzlog.ts) then
- * maps through the exact same validation/creation pipeline as the CSV import.
+ * into one tagged row per flight, which `mapCapzlogPdfRows` (src/http/capzlog
+ * .ts) maps through the exact same validation/creation pipeline as the CSV
+ * import, per aircraft category.
  *
  * A capzlog export can be a single report or a *combined* report with several
  * sections, each a different aircraft category ("Airplane Flights Report",
  * "Helicopter Flights Report", ...), each followed by a "References for ..."
- * signatures page, and each with its own column layout. v1 reads only the
- * Airplane section: pages are classified by their title and only Airplane data
- * pages are parsed; other categories are detected and reported, not imported.
+ * signatures page, and each with its own column layout. Pages are classified by
+ * their title; each flight category has its own fixed column model, and each
+ * word is assigned to a column by its x-coordinate. The "Airplane FSTD Sessions"
+ * (simulator) section is a different kind of record and is not yet imported.
  *
- * Within an Airplane page the grid is fixed-layout, so each word is assigned to
- * a column by its x-coordinate (robust to the wrapping "Info and Ref" column
- * and to empty cells). Pure and DB-free: unit tested against a real export.
- *
- * Coordinates are pdf.js-native (x,y in PDF points, y increasing upward), with
- * an explicit 1-based `page`.
+ * Pure and DB-free: unit tested against real single-category and combined
+ * exports. Coordinates are pdf.js-native (x,y in PDF points, y upward), with an
+ * explicit 1-based `page`.
  */
 
 /** One positioned word, as produced by pdf.js getTextContent. */
@@ -33,41 +32,20 @@ export interface CapzlogTextItem {
   page?: number;
 }
 
-export type CapzlogPdfReport =
-  | "airplane"
-  | "helicopter"
-  | "sailplane"
-  | "balloon"
-  | "simulator"
-  | "unknown";
+/** Flight categories this importer reads. */
+export type CapzlogCategory = "airplane" | "helicopter" | "sailplane" | "balloon";
 
-/** Raw per-column cell strings for one flight, as printed. Interpretation
- * (dates, durations, which function column is set) happens in the mapper. */
+/** One extracted flight: its category and the raw cell strings by column name.
+ * Interpretation (dates, durations, which function column is set) is done by
+ * the mapper. */
 export interface CapzlogPdfRow {
-  date: string;
-  depPlace: string;
-  depTime: string;
-  arrPlace: string;
-  arrTime: string;
-  reg: string;
-  type: string;
-  total: string;
-  se: string;
-  me: string;
-  multiPilot: string;
-  picName: string;
-  dayLandings: string;
-  nightLandings: string;
-  night: string;
-  ifr: string;
-  fnPIC: string;
-  fnCopi: string;
-  fnDual: string;
-  fnInstr: string;
+  category: CapzlogCategory;
+  cells: Record<string, string>;
 }
 
 export interface CapzlogPdfExtract {
-  report: CapzlogPdfReport;
+  /** A representative category for display; "unknown" when nothing was read. */
+  report: CapzlogCategory | "unknown";
   /** Logbook holder's name from the report header, for the SELF-name rewrite. */
   holder: string | null;
   rows: CapzlogPdfRow[];
@@ -75,46 +53,44 @@ export interface CapzlogPdfExtract {
 }
 
 /**
- * Column x-ranges [minX, maxX) for the Airplane report (A4 landscape template).
- * Derived from the report header; the Info/Ref column (x >= 732) is excluded so
- * its wrapping text never bleeds into the Instructor column.
+ * Column x-ranges [minX, maxX) per category (A4 landscape templates). Only the
+ * columns the mapper needs are listed; anything outside every range (the free-
+ * text Info/Ref column, the derived Day/VFR columns) is ignored. Values:
+ *  - acType: the ICAO designator (A210, GLID, BALL-H, G2CA)
+ *  - acModel: the human model text, when the report prints it separately
+ *    (sailplane "ASG 32"); absent otherwise.
  */
-const COLS = {
-  date: [10, 45],
-  depPlace: [45, 70],
-  depTime: [70, 100],
-  arrPlace: [100, 123],
-  arrTime: [123, 150],
-  reg: [150, 185],
-  type: [185, 220],
-  total: [220, 255],
-  se: [255, 285],
-  me: [285, 315],
-  multiPilot: [315, 350],
-  picName: [350, 405],
-  landDay: [405, 433],
-  landNight: [433, 460],
-  opDay: [460, 492],
-  opNight: [492, 527],
-  opVFR: [527, 560],
-  opIFR: [560, 592],
-  fnPIC: [592, 625],
-  fnCopi: [625, 658],
-  fnDual: [658, 692],
-  fnInstr: [692, 732],
-} as const;
-type Col = keyof typeof COLS;
-const CORE_MAX_X = 732; // anything to the right is the free-text Info/Ref column
+const MODELS: Record<CapzlogCategory, Record<string, readonly [number, number]>> = {
+  airplane: {
+    date: [10, 45], depPlace: [45, 70], depTime: [70, 100], arrPlace: [100, 123], arrTime: [123, 150],
+    reg: [150, 185], acType: [185, 220], total: [220, 255], se: [255, 285], me: [285, 315],
+    multiPilot: [315, 350], picName: [350, 405], landDay: [405, 433], landNight: [433, 460],
+    night: [492, 527], ifr: [560, 592],
+    fnPIC: [592, 625], fnCopi: [625, 658], fnDual: [658, 692], fnInstr: [692, 732],
+  },
+  // The helicopter grid is identical to the airplane grid.
+  helicopter: {
+    date: [10, 45], depPlace: [45, 70], depTime: [70, 100], arrPlace: [100, 123], arrTime: [123, 150],
+    reg: [150, 185], acType: [185, 220], total: [220, 255], se: [255, 285], me: [285, 315],
+    multiPilot: [315, 350], picName: [350, 405], landDay: [405, 433], landNight: [433, 460],
+    night: [492, 527], ifr: [560, 592],
+    fnPIC: [592, 625], fnCopi: [625, 658], fnDual: [658, 692], fnInstr: [692, 732],
+  },
+  sailplane: {
+    date: [10, 45], depPlace: [45, 75], depTime: [75, 105], arrPlace: [105, 128], arrTime: [128, 165],
+    reg: [165, 210], acModel: [210, 268], acType: [268, 310], total: [310, 368], picName: [368, 445],
+    launch: [445, 490], landDay: [490, 525],
+    fnPIC: [620, 662], fnDual: [662, 695], fnInstr: [695, 735],
+  },
+  balloon: {
+    date: [10, 45], depPlace: [45, 90], depTime: [90, 128], arrPlace: [128, 168], arrTime: [168, 200],
+    reg: [200, 235], acType: [235, 270], total: [270, 310], picName: [450, 520], landDay: [520, 548],
+    fnPIC: [635, 668], fnDual: [668, 698], fnInstr: [698, 735],
+  },
+};
 
 const DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
 const stripZ = (s: string): string => s.replace(/z$/i, "").trim();
-
-function colFor(x: number): Col | null {
-  for (const k of Object.keys(COLS) as Col[]) {
-    if (x >= COLS[k][0] && x < COLS[k][1]) return k;
-  }
-  return null;
-}
 
 function detectHolder(items: CapzlogTextItem[]): string | null {
   const email = items.find((i) => i.str.includes("@"));
@@ -128,8 +104,8 @@ function detectHolder(items: CapzlogTextItem[]): string | null {
   return name || null;
 }
 
-/** The top line of a page (pdf.js y increases upward, so the title has the
- * largest y), used to tell which report section a page belongs to. */
+/** The top line of a page (pdf.js y increases upward), used to tell which
+ * report section a page belongs to. */
 function pageTitle(pageItems: CapzlogTextItem[]): string {
   if (pageItems.length === 0) return "";
   const maxY = Math.max(...pageItems.map((i) => i.y));
@@ -142,55 +118,42 @@ function pageTitle(pageItems: CapzlogTextItem[]): string {
     .toLowerCase();
 }
 
-/** Extract one row per flight date-line from a single Airplane data page. */
-function extractPageFlights(pageItems: CapzlogTextItem[], out: CapzlogPdfRow[]): void {
+/** Extract one row per flight date-line from a single category data page. */
+function extractPageRows(pageItems: CapzlogTextItem[], category: CapzlogCategory, out: CapzlogPdfRow[]): void {
+  const model = MODELS[category];
+  // The date is in the leftmost column for every category.
   const dateItems = pageItems.filter(
-    (i) => i.x >= COLS.date[0] && i.x < COLS.date[1] && DATE_RE.test(i.str.trim()),
+    (i) => i.x >= 10 && i.x < 45 && DATE_RE.test(i.str.trim()),
   );
   for (const d of dateItems) {
-    const buckets: Partial<Record<Col, CapzlogTextItem[]>> = {};
-    for (const it of pageItems) {
-      if (Math.abs(it.y - d.y) >= 4 || it.x >= CORE_MAX_X) continue;
-      const k = colFor(it.x);
-      if (!k) continue;
-      (buckets[k] ??= []).push(it);
+    const line = pageItems.filter((i) => Math.abs(i.y - d.y) < 4);
+    const cells: Record<string, string> = {};
+    for (const field of Object.keys(model)) {
+      const [min, max] = model[field]!;
+      const ws = line.filter((i) => i.x >= min && i.x < max).sort((a, b) => a.x - b.x);
+      if (ws.length) cells[field] = ws.map((w) => w.str).join(" ").trim();
     }
-    const val = (k: Col): string =>
-      (buckets[k] ?? [])
-        .sort((a, b) => a.x - b.x)
-        .map((w) => w.str)
-        .join(" ")
-        .trim();
-    out.push({
-      date: val("date"),
-      depPlace: val("depPlace"),
-      depTime: stripZ(val("depTime")),
-      arrPlace: val("arrPlace"),
-      arrTime: stripZ(val("arrTime")),
-      reg: val("reg"),
-      type: val("type"),
-      total: val("total"),
-      se: val("se"),
-      me: val("me"),
-      multiPilot: val("multiPilot"),
-      picName: val("picName"),
-      dayLandings: val("landDay"),
-      nightLandings: val("landNight"),
-      night: val("opNight"),
-      ifr: val("opIFR"),
-      fnPIC: val("fnPIC"),
-      fnCopi: val("fnCopi"),
-      fnDual: val("fnDual"),
-      fnInstr: val("fnInstr"),
-    });
+    if (cells.depTime) cells.depTime = stripZ(cells.depTime);
+    if (cells.arrTime) cells.arrTime = stripZ(cells.arrTime);
+    out.push({ category, cells });
   }
+}
+
+/** Classify a page title into a report section. */
+function sectionOf(title: string): CapzlogCategory | "references" | "simulator" | "unknown" {
+  if (title.includes("references for") || title.startsWith("markers")) return "references";
+  if (title.includes("airplane flights report")) return "airplane";
+  if (title.includes("helicopter flights report")) return "helicopter";
+  if (title.includes("sailplane flights report") || title.includes("glider flights report")) return "sailplane";
+  if (title.includes("balloon flights report")) return "balloon";
+  if (title.includes("fstd") || title.includes("simulator") || title.includes("sessions")) return "simulator";
+  return "unknown";
 }
 
 export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
   const warnings: string[] = [];
   const holder = detectHolder(items);
 
-  // Group items by page, in page order.
   const byPage = new Map<number, CapzlogTextItem[]>();
   for (const it of items) {
     const p = it.page ?? 1;
@@ -201,54 +164,32 @@ export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
   const pages = [...byPage.entries()].sort((a, b) => a[0] - b[0]);
 
   const rows: CapzlogPdfRow[] = [];
-  const otherCategories = new Set<string>();
-  let sawAirplane = false;
+  const seen = new Set<CapzlogCategory>();
+  let sawSimulator = false;
   // A continuation page without its own title inherits the current section.
-  let section: "airplane" | "other" | "references" | "unknown" | null = null;
+  let section: ReturnType<typeof sectionOf> | null = null;
 
   for (const [, pageItems] of pages) {
     const title = pageTitle(pageItems);
-    if (title) {
-      if (title.startsWith("references for") || title.includes("references for")) {
-        section = "references";
-      } else if (title.includes("airplane flights report")) {
-        // The airplane *flights* data page — not "Airplane FSTD Sessions Report".
-        section = "airplane";
-        sawAirplane = true;
-      } else if (title.includes("helicopter")) {
-        section = "other";
-        otherCategories.add("helicopter");
-      } else if (title.includes("sailplane") || title.includes("glider")) {
-        section = "other";
-        otherCategories.add("glider/sailplane");
-      } else if (title.includes("balloon")) {
-        section = "other";
-        otherCategories.add("balloon");
-      } else if (title.includes("simulator") || title.includes("session")) {
-        section = "other";
-        otherCategories.add("simulator");
-      } else {
-        section = "unknown";
-      }
+    if (title) section = sectionOf(title);
+    if (section === "simulator") sawSimulator = true;
+    if (section === "airplane" || section === "helicopter" || section === "sailplane" || section === "balloon") {
+      seen.add(section);
+      extractPageRows(pageItems, section, rows);
     }
-    if (section === "airplane") extractPageFlights(pageItems, rows);
   }
 
-  const report: CapzlogPdfReport = sawAirplane ? "airplane" : "unknown";
+  const report: CapzlogPdfExtract["report"] = rows[0]?.category ?? "unknown";
 
-  if (!sawAirplane) {
-    const others = [...otherCategories];
+  if (rows.length === 0) {
     warnings.push(
-      others.length > 0
-        ? `This export has ${others.join(", ")} flights but no Airplane Flights Report — only Airplane flights can be imported for now.`
-        : "This does not look like a capzlog Airplane Flights Report. Please upload one (or a combined export that includes it).",
+      sawSimulator
+        ? "This export only has simulator (FSTD) sessions, which aren’t supported yet. Export a flights report (Airplane, Helicopter, Sailplane or Balloon)."
+        : "This does not look like a capzlog flights report. Please upload one (Airplane, Helicopter, Sailplane or Balloon — or a combined export).",
     );
-  } else if (rows.length === 0) {
-    warnings.push("No flight rows were found in the Airplane section of this PDF.");
-  }
-  if (otherCategories.size > 0 && sawAirplane) {
+  } else if (sawSimulator) {
     warnings.push(
-      `This export also contains ${[...otherCategories].join(", ")} flights — only the Airplane flights were read; other categories aren’t supported yet.`,
+      "This export also contains simulator (FSTD) sessions — those aren’t supported yet; only the flights were read.",
     );
   }
 

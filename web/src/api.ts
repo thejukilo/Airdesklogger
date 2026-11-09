@@ -760,17 +760,16 @@ export function importLogbookCsv(
   });
 }
 
-/** Raw per-column cell strings for one flight from a capzlog PDF (mirrors the
- * server CapzlogPdfRow). */
+/** One extracted flight from a capzlog PDF: its category and raw cell strings
+ * by column name (mirrors the server CapzlogPdfRow). Opaque to the client — it
+ * is extracted by the server and sent back for import. */
 export interface CapzlogPdfRow {
-  date: string; depPlace: string; depTime: string; arrPlace: string; arrTime: string;
-  reg: string; type: string; total: string; se: string; me: string; multiPilot: string;
-  picName: string; dayLandings: string; nightLandings: string; night: string; ifr: string;
-  fnPIC: string; fnCopi: string; fnDual: string; fnInstr: string;
+  category: "airplane" | "helicopter" | "sailplane" | "balloon";
+  cells: Record<string, string>;
 }
 
 export interface CapzlogPdfExtract {
-  report: "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator" | "unknown";
+  report: "airplane" | "helicopter" | "sailplane" | "balloon" | "unknown";
   holder: string | null;
   rows: CapzlogPdfRow[];
   warnings: string[];

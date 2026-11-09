@@ -394,7 +394,7 @@ export function ImportLogbook() {
           setProgress({ label: "Reading PDF", done: page, total }),
         );
         const ex = await api.extractCapzlogPdf(items);
-        if (ex.report !== "airplane" || ex.rows.length === 0) {
+        if (ex.rows.length === 0) {
           setError(ex.warnings[0] ?? "No importable flights were found in this PDF.");
           return;
         }
@@ -730,7 +730,7 @@ export function ImportLogbook() {
                 {result.summary.errors > 0 && (<>{" · "}<span className="text-rose-700">{result.summary.errors} with problems</span></>)}.
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Read from a capzlog <strong>Airplane</strong> PDF (times as UTC). Check the totals below;
+                Read from a capzlog PDF (times as UTC). Check the totals below;
                 any row with a problem is skipped, not imported.
               </p>
             </div>

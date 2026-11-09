@@ -59,11 +59,11 @@ describe("capzlog Airplane PDF import", () => {
     expect(e.landings.day).toBe(1);
   });
 
-  it("rejects a report with no Airplane section", () => {
-    const sim = extractCapzlogPdf([{ str: "Simulator Sessions Report", x: 22, y: 75, w: 120 }]);
+  it("rejects a report with only unsupported (FSTD) sessions", () => {
+    const sim = extractCapzlogPdf([{ str: "Airplane FSTD Sessions Report", x: 22, y: 75, w: 120 }]);
     expect(sim.report).toBe("unknown");
     expect(sim.rows).toHaveLength(0);
-    expect(sim.warnings[0]).toMatch(/only Airplane/i);
+    expect(sim.warnings[0]).toMatch(/simulator|FSTD/i);
   });
 });
 
@@ -73,22 +73,27 @@ describe("capzlog combined (multi-category) PDF import", () => {
   ) as CapzlogTextItem[];
   const ex = extractCapzlogPdf(combined);
 
-  it("extracts ONLY the Airplane Flights section from a 13-page combined report", () => {
-    // The export also has Airplane FSTD, Helicopter, Sailplane and Balloon
-    // sections plus References/Markers pages — none of which must leak in.
-    expect(ex.report).toBe("airplane");
-    expect(ex.rows).toHaveLength(3);
-    const w = ex.warnings.join(" ");
-    expect(w).toMatch(/only the Airplane flights were read/i);
-    expect(w).toMatch(/helicopter/i);
-    expect(w).toMatch(/balloon/i);
+  it("extracts every flight category from a 13-page combined report, skipping FSTD and references", () => {
+    expect(ex.rows).toHaveLength(6);
+    const byCat = ex.rows.reduce<Record<string, number>>((m, r) => {
+      m[r.category] = (m[r.category] ?? 0) + 1;
+      return m;
+    }, {});
+    expect(byCat).toEqual({ airplane: 3, helicopter: 1, sailplane: 1, balloon: 1 });
+    expect(ex.warnings.join(" ")).toMatch(/simulator|FSTD/i);
   });
 
-  it("maps the 3 airplane flights cleanly, none from other sections", () => {
+  it("maps each category to the right aircraft category, none mangled", () => {
     const mapped = mapCapzlogPdfRows(ex.rows, {});
-    expect(mapped).toHaveLength(3);
+    expect(mapped).toHaveLength(6);
     expect(mapped.every((r) => r.ok)).toBe(true);
-    expect(mapped.every((r) => r.entry!.aircraft.registration === "HB-SGZ")).toBe(true);
-    expect(mapped.every((r) => r.entry!.function.primary === "PIC")).toBe(true);
+    const cats = mapped.map((r) => r.entry!.aircraft.category).sort();
+    expect(cats).toEqual(["AEROPLANE", "AEROPLANE", "AEROPLANE", "BALLOON", "HELICOPTER", "SAILPLANE"]);
+    // Balloon places are free-text names, not ICAO codes.
+    const balloon = mapped.find((r) => r.entry!.aircraft.category === "BALLOON")!;
+    expect(balloon.entry!.legs[0].departurePlace).toBe("Hausen");
+    // Sailplane carries its human model text and the GLID designator.
+    const glider = mapped.find((r) => r.entry!.aircraft.category === "SAILPLANE")!;
+    expect(glider.entry!.aircraft.makeModelVariant).toBe("ASG 32");
   });
 });

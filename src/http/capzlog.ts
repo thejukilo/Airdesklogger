@@ -352,10 +352,12 @@ export interface ParsedCapzlog {
  * chosen report comes back as `fatal`.
  */
 /**
- * Map rows extracted from a capzlog Airplane PDF report (see src/import/
- * capzlogPdf.ts) into the same MappedRow[] the CSV import produces, by feeding
- * each row to the shared mapFlightRow through a field getter. Reuses all the
- * flight mapping (dates, function, aircraft seed, validation) unchanged.
+ * Map rows extracted from a capzlog PDF report (see src/import/capzlogPdf.ts)
+ * into the same MappedRow[] the CSV import produces, by feeding each row's cells
+ * to the shared mapFlightRow through a field getter, tagged with its aircraft
+ * category. Reuses all the flight mapping (dates, function, aircraft seed,
+ * category-specific rules, validation) unchanged across Airplane, Helicopter,
+ * Sailplane and Balloon.
  *
  * The pilot-function column of the PDF is positional: whichever of PIC / Copi /
  * Dual / Instructor carries a time sets the function (instructor time is also
@@ -366,39 +368,41 @@ export function mapCapzlogPdfRows(
   opts: { selfName?: string | null } = {},
 ): MappedRow[] {
   return rows.map((row, i) => {
+    const c = row.cells;
+    const g = (k: string) => c[k] ?? "";
     const hasTime = (s: string) => (parseHhmm(s) ?? 0) > 0;
-    const fn = hasTime(row.fnDual)
+    const fn = hasTime(g("fnDual"))
       ? "dual"
-      : hasTime(row.fnPIC)
+      : hasTime(g("fnPIC"))
         ? "pic"
-        : hasTime(row.fnCopi)
+        : hasTime(g("fnCopi"))
           ? "copi"
-          : hasTime(row.fnInstr)
+          : hasTime(g("fnInstr"))
             ? "instructor"
             : "";
     const fields: Record<string, string> = {
-      departure: row.depPlace,
-      arrival: row.arrPlace,
-      "off block": `${row.date} ${row.depTime}`,
-      "on block": `${row.date} ${row.arrTime}`,
-      aircraft: row.reg,
-      model: row.type,
-      type: "",
+      departure: g("depPlace"),
+      arrival: g("arrPlace"),
+      "off block": `${g("date")} ${g("depTime")}`,
+      "on block": `${g("date")} ${g("arrTime")}`,
+      aircraft: g("reg"),
+      model: g("acType"), // ICAO designator (A210, GLID, BALL-H, G2CA)
+      type: g("acModel"), // human model text where the report prints it (sailplane)
       "pilot function": fn,
-      instructor: row.fnInstr,
-      "multi engine": row.me,
-      "multi pilot": row.multiPilot,
-      "day landings": row.dayLandings,
-      "night landings": row.nightLandings,
-      landings: "",
-      night: row.night,
-      ifr: row.ifr,
-      "pic name": row.picName,
-      "launch method": "",
+      instructor: g("fnInstr"),
+      "multi engine": g("me"),
+      "multi pilot": g("multiPilot"),
+      "day landings": g("landDay"),
+      "night landings": g("landNight"),
+      landings: g("landDay"),
+      night: g("night"),
+      ifr: g("ifr"),
+      "pic name": g("picName"),
+      "launch method": g("launch"),
       remark: "",
     };
     const get: Getter = (name) => fields[name] ?? "";
-    return mapFlightRow(get, i + 1, "airplane", opts.selfName);
+    return mapFlightRow(get, i + 1, row.category, opts.selfName);
   });
 }
 
