@@ -27,6 +27,7 @@ import type {
   MappedFstd,
   AircraftSeed,
 } from "./importCsv.js";
+import type { CapzlogPdfRow } from "../import/capzlogPdf.js";
 
 export type CapzlogReport = "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator";
 
@@ -350,6 +351,57 @@ export interface ParsedCapzlog {
  * omitted it is detected from the header. A layout that does not match the
  * chosen report comes back as `fatal`.
  */
+/**
+ * Map rows extracted from a capzlog Airplane PDF report (see src/import/
+ * capzlogPdf.ts) into the same MappedRow[] the CSV import produces, by feeding
+ * each row to the shared mapFlightRow through a field getter. Reuses all the
+ * flight mapping (dates, function, aircraft seed, validation) unchanged.
+ *
+ * The pilot-function column of the PDF is positional: whichever of PIC / Copi /
+ * Dual / Instructor carries a time sets the function (instructor time is also
+ * logged separately). An instructor-flown flight logs PIC + instructor time.
+ */
+export function mapCapzlogPdfRows(
+  rows: CapzlogPdfRow[],
+  opts: { selfName?: string | null } = {},
+): MappedRow[] {
+  return rows.map((row, i) => {
+    const hasTime = (s: string) => (parseHhmm(s) ?? 0) > 0;
+    const fn = hasTime(row.fnDual)
+      ? "dual"
+      : hasTime(row.fnPIC)
+        ? "pic"
+        : hasTime(row.fnCopi)
+          ? "copi"
+          : hasTime(row.fnInstr)
+            ? "instructor"
+            : "";
+    const fields: Record<string, string> = {
+      departure: row.depPlace,
+      arrival: row.arrPlace,
+      "off block": `${row.date} ${row.depTime}`,
+      "on block": `${row.date} ${row.arrTime}`,
+      aircraft: row.reg,
+      model: row.type,
+      type: "",
+      "pilot function": fn,
+      instructor: row.fnInstr,
+      "multi engine": row.me,
+      "multi pilot": row.multiPilot,
+      "day landings": row.dayLandings,
+      "night landings": row.nightLandings,
+      landings: "",
+      night: row.night,
+      ifr: row.ifr,
+      "pic name": row.picName,
+      "launch method": "",
+      remark: "",
+    };
+    const get: Getter = (name) => fields[name] ?? "";
+    return mapFlightRow(get, i + 1, "airplane", opts.selfName);
+  });
+}
+
 export function parseCapzlogCsv(
   text: string,
   opts: { reportType?: CapzlogReport; selfName?: string | null } = {},

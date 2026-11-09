@@ -7,7 +7,8 @@ import { RequestError } from "../../src/http/parseEntry.js";
 import { createEntry, createFstdEntry } from "../../src/db/repository.js";
 import { getAircraftForFlight, upsertAircraft, fstdDeviceExists, upsertFstdDevice } from "../../src/db/referenceRepository.js";
 import { parseImportCsv, type DateFormat, type MappedRow } from "../../src/http/importCsv.js";
-import { parseCapzlogCsv, type CapzlogReport } from "../../src/http/capzlog.js";
+import { parseCapzlogCsv, mapCapzlogPdfRows, type CapzlogReport } from "../../src/http/capzlog.js";
+import { extractCapzlogPdf, type CapzlogTextItem } from "../../src/import/capzlogPdf.js";
 
 /**
  * Self-service CSV logbook import for the signed-in holder.
@@ -56,6 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const claims = await requireUser(req);
     const body = (typeof req.body === "string" ? safeJson(req.body) : req.body) as {
       csv?: unknown;
+      items?: unknown;
       source?: unknown;
       reportType?: unknown;
       timeZone?: unknown;
@@ -64,12 +66,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       commit?: unknown;
     };
 
+    const source =
+      body.source === "capzlog" ? "capzlog" : body.source === "capzlog-pdf" ? "capzlog-pdf" : "default";
+
     const csv = typeof body.csv === "string" ? body.csv : "";
-    if (!csv.trim()) {
+    const items = (Array.isArray(body.items) ? body.items : []) as CapzlogTextItem[];
+    if (source === "capzlog-pdf") {
+      if (items.length === 0) {
+        res.status(400).json({ error: "No PDF text content was provided." });
+        return;
+      }
+    } else if (!csv.trim()) {
       res.status(400).json({ error: "No CSV content was provided." });
       return;
     }
-    const source = body.source === "capzlog" ? "capzlog" : "default";
     const timeZone: "UTC" | "LOCAL" = body.timeZone === "LOCAL" ? "LOCAL" : "UTC";
     const dateFormat: DateFormat = ["YMD", "DMY", "MDY", "auto"].includes(body.dateFormat as string)
       ? (body.dateFormat as DateFormat)
@@ -87,7 +97,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let fatal: string | null;
     let dateUsed: string | undefined;
     let reportUsed: CapzlogReport | undefined;
-    if (source === "capzlog") {
+    if (source === "capzlog-pdf") {
+      const extract = extractCapzlogPdf(items);
+      if (extract.report !== "airplane" || extract.rows.length === 0) {
+        rows = [];
+        fatal = extract.warnings[0] ?? "No importable flights were found in this PDF.";
+      } else {
+        rows = mapCapzlogPdfRows(extract.rows, { selfName: selfName ?? extract.holder });
+        fatal = null;
+        reportUsed = "airplane";
+      }
+    } else if (source === "capzlog") {
       const parsed = parseCapzlogCsv(csv, { ...(reportType ? { reportType } : {}), selfName });
       rows = parsed.rows;
       fatal = parsed.fatal;
