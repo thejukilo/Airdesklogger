@@ -8,22 +8,29 @@
  * into one row per flight, which `mapCapzlogPdfRows` (src/http/capzlog.ts) then
  * maps through the exact same validation/creation pipeline as the CSV import.
  *
- * The report is a fixed-layout grid, so we assign each word to a column by its
- * x-coordinate (robust to the wrapping "Info and Ref" column and to empty
- * cells, which plain text extraction mangles). Pure and DB-free: unit tested
- * against a real exported report (test/fixtures/capzlog-airplane-items.json).
+ * A capzlog export can be a single report or a *combined* report with several
+ * sections, each a different aircraft category ("Airplane Flights Report",
+ * "Helicopter Flights Report", ...), each followed by a "References for ..."
+ * signatures page, and each with its own column layout. v1 reads only the
+ * Airplane section: pages are classified by their title and only Airplane data
+ * pages are parsed; other categories are detected and reported, not imported.
  *
- * v1 supports the Airplane report. Other categories (helicopter, sailplane,
- * balloon, simulator) have different column layouts and are detected but not
- * yet extracted.
+ * Within an Airplane page the grid is fixed-layout, so each word is assigned to
+ * a column by its x-coordinate (robust to the wrapping "Info and Ref" column
+ * and to empty cells). Pure and DB-free: unit tested against a real export.
+ *
+ * Coordinates are pdf.js-native (x,y in PDF points, y increasing upward), with
+ * an explicit 1-based `page`.
  */
 
-/** One positioned word, as produced by pdf.js getTextContent (x,y in PDF points). */
+/** One positioned word, as produced by pdf.js getTextContent. */
 export interface CapzlogTextItem {
   str: string;
   x: number;
   y: number;
   w?: number;
+  /** 1-based page number; defaults to 1 when absent (single-page input). */
+  page?: number;
 }
 
 export type CapzlogPdfReport =
@@ -109,27 +116,11 @@ function colFor(x: number): Col | null {
   return null;
 }
 
-function detectReport(items: CapzlogTextItem[]): CapzlogPdfReport {
-  // The category appears only in the report title ("<Category> Flights Report"),
-  // which an extractor may keep as one item (pdf.js) or split into words
-  // (pdftotext) — so match the whole word anywhere, with no assumptions about
-  // item order or y-direction.
-  const text = " " + items.map((i) => i.str.toLowerCase()).join(" ") + " ";
-  if (/\b(airplane|aeroplane)\b/.test(text)) return "airplane";
-  if (/\bhelicopter\b/.test(text)) return "helicopter";
-  if (/\b(sailplane|glider)\b/.test(text)) return "sailplane";
-  if (/\bballoon\b/.test(text)) return "balloon";
-  if (/\b(simulator|fstd)\b/.test(text)) return "simulator";
-  return "unknown";
-}
-
 function detectHolder(items: CapzlogTextItem[]): string | null {
-  // The holder line reads "First Last (email)". Find the word carrying the
-  // email and join the words to its left on the same line.
   const email = items.find((i) => i.str.includes("@"));
   if (!email) return null;
   const name = items
-    .filter((i) => Math.abs(i.y - email.y) < 4 && i.x < email.x)
+    .filter((i) => (i.page ?? 1) === (email.page ?? 1) && Math.abs(i.y - email.y) < 4 && i.x < email.x)
     .sort((a, b) => a.x - b.x)
     .map((i) => i.str)
     .join(" ")
@@ -137,28 +128,28 @@ function detectHolder(items: CapzlogTextItem[]): string | null {
   return name || null;
 }
 
-export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
-  const warnings: string[] = [];
-  const report = detectReport(items);
-  const holder = detectHolder(items);
+/** The top line of a page (pdf.js y increases upward, so the title has the
+ * largest y), used to tell which report section a page belongs to. */
+function pageTitle(pageItems: CapzlogTextItem[]): string {
+  if (pageItems.length === 0) return "";
+  const maxY = Math.max(...pageItems.map((i) => i.y));
+  return pageItems
+    .filter((i) => maxY - i.y < 5)
+    .sort((a, b) => a.x - b.x)
+    .map((i) => i.str)
+    .join(" ")
+    .trim()
+    .toLowerCase();
+}
 
-  if (report !== "airplane") {
-    warnings.push(
-      report === "unknown"
-        ? "This does not look like a capzlog report. Please upload a capzlog Airplane Flights Report PDF."
-        : `The ${report} report is not supported yet — only the capzlog Airplane Flights Report can be imported.`,
-    );
-    return { report, holder, rows: [], warnings };
-  }
-
-  // Each flight is one "date line": a line whose Date column holds a M/D/YYYY.
-  const dateItems = items.filter(
+/** Extract one row per flight date-line from a single Airplane data page. */
+function extractPageFlights(pageItems: CapzlogTextItem[], out: CapzlogPdfRow[]): void {
+  const dateItems = pageItems.filter(
     (i) => i.x >= COLS.date[0] && i.x < COLS.date[1] && DATE_RE.test(i.str.trim()),
   );
-
-  const rows: CapzlogPdfRow[] = dateItems.map((d) => {
+  for (const d of dateItems) {
     const buckets: Partial<Record<Col, CapzlogTextItem[]>> = {};
-    for (const it of items) {
+    for (const it of pageItems) {
       if (Math.abs(it.y - d.y) >= 4 || it.x >= CORE_MAX_X) continue;
       const k = colFor(it.x);
       if (!k) continue;
@@ -170,7 +161,7 @@ export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
         .map((w) => w.str)
         .join(" ")
         .trim();
-    return {
+    out.push({
       date: val("date"),
       depPlace: val("depPlace"),
       depTime: stripZ(val("depTime")),
@@ -191,11 +182,74 @@ export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
       fnCopi: val("fnCopi"),
       fnDual: val("fnDual"),
       fnInstr: val("fnInstr"),
-    };
-  });
+    });
+  }
+}
 
-  if (rows.length === 0) {
-    warnings.push("No flight rows were found. Make sure this is a capzlog Airplane Flights Report PDF.");
+export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
+  const warnings: string[] = [];
+  const holder = detectHolder(items);
+
+  // Group items by page, in page order.
+  const byPage = new Map<number, CapzlogTextItem[]>();
+  for (const it of items) {
+    const p = it.page ?? 1;
+    const arr = byPage.get(p);
+    if (arr) arr.push(it);
+    else byPage.set(p, [it]);
+  }
+  const pages = [...byPage.entries()].sort((a, b) => a[0] - b[0]);
+
+  const rows: CapzlogPdfRow[] = [];
+  const otherCategories = new Set<string>();
+  let sawAirplane = false;
+  // A continuation page without its own title inherits the current section.
+  let section: "airplane" | "other" | "references" | "unknown" | null = null;
+
+  for (const [, pageItems] of pages) {
+    const title = pageTitle(pageItems);
+    if (title) {
+      if (title.startsWith("references for") || title.includes("references for")) {
+        section = "references";
+      } else if (title.includes("airplane flights report")) {
+        // The airplane *flights* data page — not "Airplane FSTD Sessions Report".
+        section = "airplane";
+        sawAirplane = true;
+      } else if (title.includes("helicopter")) {
+        section = "other";
+        otherCategories.add("helicopter");
+      } else if (title.includes("sailplane") || title.includes("glider")) {
+        section = "other";
+        otherCategories.add("glider/sailplane");
+      } else if (title.includes("balloon")) {
+        section = "other";
+        otherCategories.add("balloon");
+      } else if (title.includes("simulator") || title.includes("session")) {
+        section = "other";
+        otherCategories.add("simulator");
+      } else {
+        section = "unknown";
+      }
+    }
+    if (section === "airplane") extractPageFlights(pageItems, rows);
+  }
+
+  const report: CapzlogPdfReport = sawAirplane ? "airplane" : "unknown";
+
+  if (!sawAirplane) {
+    const others = [...otherCategories];
+    warnings.push(
+      others.length > 0
+        ? `This export has ${others.join(", ")} flights but no Airplane Flights Report — only Airplane flights can be imported for now.`
+        : "This does not look like a capzlog Airplane Flights Report. Please upload one (or a combined export that includes it).",
+    );
+  } else if (rows.length === 0) {
+    warnings.push("No flight rows were found in the Airplane section of this PDF.");
+  }
+  if (otherCategories.size > 0 && sawAirplane) {
+    warnings.push(
+      `This export also contains ${[...otherCategories].join(", ")} flights — only the Airplane flights were read; other categories aren’t supported yet.`,
+    );
   }
 
   return { report, holder, rows, warnings };

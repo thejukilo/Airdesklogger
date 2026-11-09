@@ -59,13 +59,36 @@ describe("capzlog Airplane PDF import", () => {
     expect(e.landings.day).toBe(1);
   });
 
-  it("rejects a non-airplane report with a clear warning", () => {
-    const sim = extractCapzlogPdf([
-      { str: "Simulator", x: 22, y: 75, w: 40 },
-      { str: "Sessions", x: 64, y: 75, w: 40 },
-    ]);
-    expect(sim.report).toBe("simulator");
+  it("rejects a report with no Airplane section", () => {
+    const sim = extractCapzlogPdf([{ str: "Simulator Sessions Report", x: 22, y: 75, w: 120 }]);
+    expect(sim.report).toBe("unknown");
     expect(sim.rows).toHaveLength(0);
-    expect(sim.warnings[0]).toMatch(/not supported/i);
+    expect(sim.warnings[0]).toMatch(/only Airplane/i);
+  });
+});
+
+describe("capzlog combined (multi-category) PDF import", () => {
+  const combined = JSON.parse(
+    readFileSync(join(here, "fixtures/capzlog-combined-items.json"), "utf8"),
+  ) as CapzlogTextItem[];
+  const ex = extractCapzlogPdf(combined);
+
+  it("extracts ONLY the Airplane Flights section from a 13-page combined report", () => {
+    // The export also has Airplane FSTD, Helicopter, Sailplane and Balloon
+    // sections plus References/Markers pages — none of which must leak in.
+    expect(ex.report).toBe("airplane");
+    expect(ex.rows).toHaveLength(3);
+    const w = ex.warnings.join(" ");
+    expect(w).toMatch(/only the Airplane flights were read/i);
+    expect(w).toMatch(/helicopter/i);
+    expect(w).toMatch(/balloon/i);
+  });
+
+  it("maps the 3 airplane flights cleanly, none from other sections", () => {
+    const mapped = mapCapzlogPdfRows(ex.rows, {});
+    expect(mapped).toHaveLength(3);
+    expect(mapped.every((r) => r.ok)).toBe(true);
+    expect(mapped.every((r) => r.entry!.aircraft.registration === "HB-SGZ")).toBe(true);
+    expect(mapped.every((r) => r.entry!.function.primary === "PIC")).toBe(true);
   });
 });

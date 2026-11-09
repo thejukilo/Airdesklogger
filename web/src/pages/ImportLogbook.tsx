@@ -340,6 +340,7 @@ export function ImportLogbook() {
   const [result, setResult] = useState<api.CsvImportResult | null>(null);
   const [pdfRows, setPdfRows] = useState<api.CapzlogPdfRow[] | null>(null);
   const [pdfHolder, setPdfHolder] = useState<string | null>(null);
+  const [pdfWarnings, setPdfWarnings] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
 
   const readyCount = result?.summary.ready ?? 0;
@@ -399,6 +400,7 @@ export function ImportLogbook() {
         }
         setPdfRows(ex.rows);
         setPdfHolder(ex.holder);
+        setPdfWarnings(ex.warnings);
         const combined = await runPdfBatches(ex.rows, false, "Checking flights");
         setResult(combined);
         setStep("review");
@@ -531,7 +533,7 @@ export function ImportLogbook() {
 
   function resetAll() {
     setStep("upload"); setCsv(""); setGrid(null); setFileName(null); setResult(null); setDirty(false);
-    setPdfRows(null); setPdfHolder(null); setProgress(null);
+    setPdfRows(null); setPdfHolder(null); setProgress(null); setPdfWarnings([]);
   }
 
   return (
@@ -732,6 +734,13 @@ export function ImportLogbook() {
                 any row with a problem is skipped, not imported.
               </p>
             </div>
+            {pdfWarnings.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {pdfWarnings.map((w, i) => (
+                  <p key={i}>{w}</p>
+                ))}
+              </div>
+            )}
             <ResultTable rows={result.rows.slice(0, 50)} />
             {result.rows.length > 50 && (
               <p className="text-center text-xs text-slate-500">Showing the first 50 of {result.rows.length} flights.</p>
@@ -750,7 +759,7 @@ export function ImportLogbook() {
               </div>
             )}
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-              <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); setPdfRows(null); setFileName(null); }} disabled={busy}>Back</Button>
+              <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); setPdfRows(null); setFileName(null); setPdfWarnings([]); }} disabled={busy}>Back</Button>
               <Button onClick={commitPdf} disabled={busy || readyCount === 0}>
                 {busy ? "Importing..." : `Import ${readyCount} ${readyCount === 1 ? "flight" : "flights"}`}
               </Button>

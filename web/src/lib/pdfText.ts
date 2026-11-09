@@ -2,9 +2,9 @@ import type { CapzlogTextItem } from "../api";
 
 /**
  * Extract positioned text items from a PDF file in the browser with pdf.js
- * (lazy-loaded so it never weighs down the main bundle). x/y are PDF points;
- * y is offset per page so that rows on different pages can never collide when
- * the server groups words into table rows.
+ * (lazy-loaded so it never weighs down the main bundle). x/y are PDF points
+ * (y increases upward), with an explicit 1-based page so the server can tell
+ * which report section each page belongs to in a combined export.
  */
 export async function extractPdfTextItems(
   file: File,
@@ -23,12 +23,11 @@ export async function extractPdfTextItems(
       onProgress?.(p, pdf.numPages);
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
-      const yOffset = p * 100000; // separate pages so their rows never merge
       for (const it of content.items) {
         if (!("str" in it)) continue; // skip marked-content items
         const str = it.str;
         if (!str || !str.trim()) continue;
-        items.push({ str, x: it.transform[4], y: it.transform[5] + yOffset, w: it.width });
+        items.push({ str, x: it.transform[4], y: it.transform[5], w: it.width, page: p });
       }
     }
   } finally {
