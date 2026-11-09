@@ -764,12 +764,12 @@ export function importLogbookCsv(
  * by column name (mirrors the server CapzlogPdfRow). Opaque to the client — it
  * is extracted by the server and sent back for import. */
 export interface CapzlogPdfRow {
-  category: "airplane" | "helicopter" | "sailplane" | "balloon";
+  category: "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator";
   cells: Record<string, string>;
 }
 
 export interface CapzlogPdfExtract {
-  report: "airplane" | "helicopter" | "sailplane" | "balloon" | "unknown";
+  report: "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator" | "unknown";
   holder: string | null;
   rows: CapzlogPdfRow[];
   warnings: string[];

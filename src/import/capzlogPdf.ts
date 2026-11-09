@@ -13,9 +13,11 @@
  * sections, each a different aircraft category ("Airplane Flights Report",
  * "Helicopter Flights Report", ...), each followed by a "References for ..."
  * signatures page, and each with its own column layout. Pages are classified by
- * their title; each flight category has its own fixed column model, and each
- * word is assigned to a column by its x-coordinate. The "Airplane FSTD Sessions"
- * (simulator) section is a different kind of record and is not yet imported.
+ * their title; each category has its own fixed column model, and each word is
+ * assigned to a column by its x-coordinate. The "Airplane FSTD Sessions"
+ * (simulator) section is a different kind of record — a device and a session
+ * duration rather than a flight — and is read into FSTD rows the mapper turns
+ * into simulator sessions, not flights.
  *
  * Pure and DB-free: unit tested against real single-category and combined
  * exports. Coordinates are pdf.js-native (x,y in PDF points, y upward), with an
@@ -32,10 +34,11 @@ export interface CapzlogTextItem {
   page?: number;
 }
 
-/** Flight categories this importer reads. */
-export type CapzlogCategory = "airplane" | "helicopter" | "sailplane" | "balloon";
+/** Report categories this importer reads (flight categories plus simulator). */
+export type CapzlogCategory = "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator";
 
-/** One extracted flight: its category and the raw cell strings by column name.
+/** One extracted row: its category and the raw cell strings by column name
+ * (a flight for the flight categories, an FSTD session for "simulator").
  * Interpretation (dates, durations, which function column is set) is done by
  * the mapper. */
 export interface CapzlogPdfRow {
@@ -86,6 +89,15 @@ const MODELS: Record<CapzlogCategory, Record<string, readonly [number, number]>>
     date: [10, 45], depPlace: [45, 90], depTime: [90, 128], arrPlace: [128, 168], arrTime: [168, 200],
     reg: [200, 235], acType: [235, 270], total: [270, 310], picName: [450, 520], landDay: [520, 548],
     fnPIC: [635, 668], fnDual: [668, 698], fnInstr: [698, 735],
+  },
+  // Simulator (FSTD) sessions are a different record: a device and a session
+  // duration, not a flight. devType is the device type (e.g. B738), qual the
+  // qualification/author number, total the session time. The pilot function is
+  // positional — whichever of the Trainee / SFI-SFE columns carries a time sets
+  // it. (Level and the derived columns sit outside every listed range.)
+  simulator: {
+    date: [10, 70], devType: [70, 120], qual: [120, 165], total: [195, 240],
+    fnTrainee: [240, 278], fnSfi: [278, 315], remark: [315, 520],
   },
 };
 
@@ -140,7 +152,7 @@ function extractPageRows(pageItems: CapzlogTextItem[], category: CapzlogCategory
 }
 
 /** Classify a page title into a report section. */
-function sectionOf(title: string): CapzlogCategory | "references" | "simulator" | "unknown" {
+function sectionOf(title: string): CapzlogCategory | "references" | "unknown" {
   if (title.includes("references for") || title.startsWith("markers")) return "references";
   if (title.includes("airplane flights report")) return "airplane";
   if (title.includes("helicopter flights report")) return "helicopter";
@@ -149,6 +161,8 @@ function sectionOf(title: string): CapzlogCategory | "references" | "simulator" 
   if (title.includes("fstd") || title.includes("simulator") || title.includes("sessions")) return "simulator";
   return "unknown";
 }
+
+const FLIGHT_OR_SIM: readonly CapzlogCategory[] = ["airplane", "helicopter", "sailplane", "balloon", "simulator"];
 
 export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
   const warnings: string[] = [];
@@ -164,18 +178,14 @@ export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
   const pages = [...byPage.entries()].sort((a, b) => a[0] - b[0]);
 
   const rows: CapzlogPdfRow[] = [];
-  const seen = new Set<CapzlogCategory>();
-  let sawSimulator = false;
   // A continuation page without its own title inherits the current section.
   let section: ReturnType<typeof sectionOf> | null = null;
 
   for (const [, pageItems] of pages) {
     const title = pageTitle(pageItems);
     if (title) section = sectionOf(title);
-    if (section === "simulator") sawSimulator = true;
-    if (section === "airplane" || section === "helicopter" || section === "sailplane" || section === "balloon") {
-      seen.add(section);
-      extractPageRows(pageItems, section, rows);
+    if (section && FLIGHT_OR_SIM.includes(section as CapzlogCategory)) {
+      extractPageRows(pageItems, section as CapzlogCategory, rows);
     }
   }
 
@@ -183,13 +193,7 @@ export function extractCapzlogPdf(items: CapzlogTextItem[]): CapzlogPdfExtract {
 
   if (rows.length === 0) {
     warnings.push(
-      sawSimulator
-        ? "This export only has simulator (FSTD) sessions, which aren’t supported yet. Export a flights report (Airplane, Helicopter, Sailplane or Balloon)."
-        : "This does not look like a capzlog flights report. Please upload one (Airplane, Helicopter, Sailplane or Balloon — or a combined export).",
-    );
-  } else if (sawSimulator) {
-    warnings.push(
-      "This export also contains simulator (FSTD) sessions — those aren’t supported yet; only the flights were read.",
+      "This does not look like a capzlog report, or it has no entries. Please upload an Airplane, Helicopter, Sailplane, Balloon or Simulator report — or a combined export.",
     );
   }
 

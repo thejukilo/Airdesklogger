@@ -357,7 +357,8 @@ export interface ParsedCapzlog {
  * to the shared mapFlightRow through a field getter, tagged with its aircraft
  * category. Reuses all the flight mapping (dates, function, aircraft seed,
  * category-specific rules, validation) unchanged across Airplane, Helicopter,
- * Sailplane and Balloon.
+ * Sailplane and Balloon, and routes Simulator rows through mapSimulatorRow to
+ * the identical FSTD-session pipeline the CSV simulator import uses.
  *
  * The pilot-function column of the PDF is positional: whichever of PIC / Copi /
  * Dual / Instructor carries a time sets the function (instructor time is also
@@ -370,6 +371,23 @@ export function mapCapzlogPdfRows(
   return rows.map((row, i) => {
     const c = row.cells;
     const g = (k: string) => c[k] ?? "";
+
+    // Simulator pages are FSTD sessions, not flights: a device and a session
+    // duration. The pilot function is positional — whichever of the Trainee /
+    // SFI-SFE columns carries a time names it.
+    if (row.category === "simulator") {
+      const simFields: Record<string, string> = {
+        date: g("date"),
+        model: g("devType"), // device type, e.g. B738
+        aircraft: g("qual"), // qualification / author number
+        "session time": g("total"),
+        "pilot function": g("fnTrainee").trim() ? "trainee" : g("fnSfi").trim() ? "sfi" : "",
+        remark: g("remark"),
+      };
+      const simGet: Getter = (name) => simFields[name] ?? "";
+      return mapSimulatorRow(simGet, i + 1);
+    }
+
     const hasTime = (s: string) => (parseHhmm(s) ?? 0) > 0;
     const fn = hasTime(g("fnDual"))
       ? "dual"

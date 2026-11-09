@@ -408,7 +408,7 @@ export function ImportLogbook() {
         setError(
           e instanceof api.ApiError
             ? e.message
-            : "Could not read that PDF. Make sure it is a capzlog Airplane Flights Report.",
+            : "Could not read that PDF. Make sure it is a capzlog flights or simulator report exported as a PDF.",
         );
       } finally {
         setProgress(null);
@@ -601,9 +601,9 @@ export function ImportLogbook() {
               )}
               {source === "capzlog-pdf" && (
                 <span className="mt-1 block text-xs text-slate-500">
-                  Lets you migrate without a capzlog subscription (the CSV export is paid-only). Export the
-                  <strong> Airplane Flights Report</strong> as a PDF and upload it here — times are read as UTC.
-                  Only the Airplane report is supported for now.
+                  Lets you migrate without a capzlog subscription (the CSV export is paid-only). Export your
+                  logbook as a PDF — any report (Airplane, Helicopter, Sailplane, Balloon or Simulator, or a
+                  combined export) — and upload it here. Times are read as UTC.
                 </span>
               )}
             </label>
@@ -725,13 +725,13 @@ export function ImportLogbook() {
           <div className="space-y-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
               <p className="text-slate-700">
-                <strong>{result.summary.total}</strong> flights in the PDF.{" "}
+                <strong>{result.summary.total}</strong> entries in the PDF.{" "}
                 <span className="text-sky-700">{result.summary.ready} ready to import</span>
                 {result.summary.errors > 0 && (<>{" · "}<span className="text-rose-700">{result.summary.errors} with problems</span></>)}.
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Read from a capzlog PDF (times as UTC). Check the totals below;
-                any row with a problem is skipped, not imported.
+                Read from a capzlog PDF (times as UTC). Flights and simulator (FSTD) sessions are both read.
+                Check the totals below; any row with a problem is skipped, not imported.
               </p>
             </div>
             {pdfWarnings.length > 0 && (
@@ -761,7 +761,7 @@ export function ImportLogbook() {
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
               <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); setPdfRows(null); setFileName(null); setPdfWarnings([]); }} disabled={busy}>Back</Button>
               <Button onClick={commitPdf} disabled={busy || readyCount === 0}>
-                {busy ? "Importing..." : `Import ${readyCount} ${readyCount === 1 ? "flight" : "flights"}`}
+                {busy ? "Importing..." : `Import ${readyCount} ${readyCount === 1 ? "entry" : "entries"}`}
               </Button>
             </div>
           </div>

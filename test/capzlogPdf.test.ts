@@ -59,11 +59,11 @@ describe("capzlog Airplane PDF import", () => {
     expect(e.landings.day).toBe(1);
   });
 
-  it("rejects a report with only unsupported (FSTD) sessions", () => {
-    const sim = extractCapzlogPdf([{ str: "Airplane FSTD Sessions Report", x: 22, y: 75, w: 120 }]);
-    expect(sim.report).toBe("unknown");
-    expect(sim.rows).toHaveLength(0);
-    expect(sim.warnings[0]).toMatch(/simulator|FSTD/i);
+  it("warns when a report has a section title but no readable entries", () => {
+    const empty = extractCapzlogPdf([{ str: "Airplane FSTD Sessions Report", x: 22, y: 75, w: 120 }]);
+    expect(empty.report).toBe("unknown");
+    expect(empty.rows).toHaveLength(0);
+    expect(empty.warnings[0]).toMatch(/does not look like|no entries/i);
   });
 });
 
@@ -73,27 +73,45 @@ describe("capzlog combined (multi-category) PDF import", () => {
   ) as CapzlogTextItem[];
   const ex = extractCapzlogPdf(combined);
 
-  it("extracts every flight category from a 13-page combined report, skipping FSTD and references", () => {
-    expect(ex.rows).toHaveLength(6);
+  it("extracts every category — flights and FSTD — from a 13-page combined report, skipping references", () => {
+    expect(ex.rows).toHaveLength(7);
     const byCat = ex.rows.reduce<Record<string, number>>((m, r) => {
       m[r.category] = (m[r.category] ?? 0) + 1;
       return m;
     }, {});
-    expect(byCat).toEqual({ airplane: 3, helicopter: 1, sailplane: 1, balloon: 1 });
-    expect(ex.warnings.join(" ")).toMatch(/simulator|FSTD/i);
+    expect(byCat).toEqual({ airplane: 3, helicopter: 1, sailplane: 1, balloon: 1, simulator: 1 });
+    // Everything in the export is now imported, so there is nothing to warn about.
+    expect(ex.warnings).toHaveLength(0);
   });
 
-  it("maps each category to the right aircraft category, none mangled", () => {
+  it("maps each flight to the right aircraft category, none mangled", () => {
     const mapped = mapCapzlogPdfRows(ex.rows, {});
-    expect(mapped).toHaveLength(6);
+    expect(mapped).toHaveLength(7);
     expect(mapped.every((r) => r.ok)).toBe(true);
-    const cats = mapped.map((r) => r.entry!.aircraft.category).sort();
+    const flights = mapped.filter((r) => r.kind === "FLIGHT");
+    expect(flights).toHaveLength(6);
+    const cats = flights.map((r) => r.entry!.aircraft.category).sort();
     expect(cats).toEqual(["AEROPLANE", "AEROPLANE", "AEROPLANE", "BALLOON", "HELICOPTER", "SAILPLANE"]);
     // Balloon places are free-text names, not ICAO codes.
-    const balloon = mapped.find((r) => r.entry!.aircraft.category === "BALLOON")!;
+    const balloon = flights.find((r) => r.entry!.aircraft.category === "BALLOON")!;
     expect(balloon.entry!.legs[0].departurePlace).toBe("Hausen");
     // Sailplane carries its human model text and the GLID designator.
-    const glider = mapped.find((r) => r.entry!.aircraft.category === "SAILPLANE")!;
+    const glider = flights.find((r) => r.entry!.aircraft.category === "SAILPLANE")!;
     expect(glider.entry!.aircraft.makeModelVariant).toBe("ASG 32");
+  });
+
+  it("maps the simulator section to an FSTD session, not a flight", () => {
+    const mapped = mapCapzlogPdfRows(ex.rows, {});
+    const sims = mapped.filter((r) => r.kind === "FSTD");
+    expect(sims).toHaveLength(1);
+    const sim = sims[0]!;
+    expect(sim.ok).toBe(true);
+    expect(sim.entry).toBeUndefined();
+    expect(sim.fstd).toMatchObject({
+      deviceType: "B738",
+      qualificationNumber: "1168",
+      totalMinutes: 150, // 2:30
+      pilotFunction: "TRAINEE",
+    });
   });
 });
