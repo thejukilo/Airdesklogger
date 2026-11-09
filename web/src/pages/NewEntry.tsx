@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api";
-import { Button, Field, NumberStepperField, Panel, Pill, Select, SubHead } from "../components/ui";
+import { Button, Field, NumberStepperField, Pill, Select } from "../components/ui";
 import { SEVERE_SKEW_MS, useClockSkew } from "../lib/clockSkew";
 import { spansTwilight, zonedWallClockToUtc } from "../lib/twilight";
 import { CATEGORY_LABELS } from "../labels";
@@ -12,15 +12,17 @@ import { SimulatorSession } from "./SimulatorSession";
 // session, which has its own form.
 const ENTRY_CATEGORIES = ["AEROPLANE", "HELICOPTER", "SAILPLANE", "BALLOON"] as const;
 
-/** A titled card that groups related fields, so the form reads as sections.
- * A light header bar carries the section name; the body holds the fields. */
-function Section({ title, children }: { title: string; children: ReactNode }) {
+/** A clean, spaced card that groups related fields. The whole form is a short
+ * stack of these, so it reads well on a phone: a title bar (with an optional
+ * right-aligned badge) above a padded body. */
+function FormCard({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <section>
-      <div className="flex h-9 items-center border-b border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-        {title}
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+        {right}
       </div>
-      <div className="space-y-3 p-3">{children}</div>
+      {children}
     </section>
   );
 }
@@ -180,8 +182,19 @@ interface AttributesSectionProps {
   onSetSeries: (v: string) => void;
   onSetLaunch: (v: string) => void;
   onSetBalloonType: (v: string) => void;
+  /** The tag picker is collapsed by default; this opens the accordion. */
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
 }
 
+/**
+ * Endorsements & tags as a compact, collapsible card. By default it shows only
+ * the tags already on the flight (as removable chips) plus, for any active tag
+ * that carries a value (landing counts, hoist cycles, a comment), its input —
+ * so nothing has to be reopened to edit it. "Add endorsement / tag" reveals the
+ * full category picker in an accordion; it is closed again with "Done". No tag
+ * or its data is lost — the picker still offers every tag the category allows.
+ */
 function AttributesSection(p: AttributesSectionProps) {
   const groups = specForCategory(p.category);
   if (groups.length === 0) return null;
@@ -208,15 +221,15 @@ function AttributesSection(p: AttributesSectionProps) {
     g.subs ? g.subs.map((s) => ({ label: s.title, items: s.items })) : [{ label: g.title, items: g.items ?? [] }],
   );
   const active = rows.flatMap((r) => r.items).filter(isOn);
+  const activeWithInput = active.filter((it) => it.input);
 
   return (
-    <Panel
-      title="Attributes & endorsements"
-      badge={<Pill tone={active.length > 0 ? "blue" : "slate"}>{active.length} active</Pill>}
-      right="Click to tag"
+    <FormCard
+      title="Endorsements & tags"
+      right={<Pill tone={active.length > 0 ? "blue" : "slate"}>{active.length} active</Pill>}
     >
-      <div className="space-y-3 p-4">
-        {active.length > 0 && (
+      <div className="space-y-3">
+        {active.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             {active.map((item) => (
               <button
@@ -231,83 +244,67 @@ function AttributesSection(p: AttributesSectionProps) {
               </button>
             ))}
           </div>
+        ) : (
+          <p className="text-sm text-slate-400">No endorsements or training tags on this flight.</p>
         )}
-        <div className="divide-y divide-slate-100 rounded-md border border-slate-200">
-          {rows.map((row) => (
-            <div key={row.label} className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-start sm:gap-3">
-              <div className="shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:w-40">{row.label}</div>
-              <div className="min-w-0 flex-1">
-                <ChipRow
-                  items={row.items}
-                  isOn={isOn}
-                  toggle={toggle}
-                  details={p.details}
-                  ctx={ctx}
-                  computedBlockMinutes={p.computedBlockMinutes}
-                  seriesExceeds={p.seriesExceeds}
-                  onSetDetail={p.onSetDetail}
-                  onSetSeries={p.onSetSeries}
-                  onSetLaunch={p.onSetLaunch}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Panel>
-  );
-}
 
-function ChipRow({
-  items, isOn, toggle, details, ctx, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch,
-}: {
-  items: AttrItem[];
-  isOn: (it: AttrItem) => boolean;
-  toggle: (it: AttrItem) => void;
-  details: api.AttributeDetails;
-  ctx: { launchMethod: string; balloonFlightType: string; seriesTimeHHMM: string };
-  computedBlockMinutes: number;
-  seriesExceeds: boolean;
-  onSetDetail: <K extends keyof api.AttributeDetails>(field: K, value: api.AttributeDetails[K]) => void;
-  onSetSeries: (v: string) => void;
-  onSetLaunch: (v: string) => void;
-}) {
-  const activeWithInput = items.filter((it) => isOn(it) && it.input);
-  return (
-    <div>
-      <div className="flex flex-wrap gap-1.5">
-        {items.map((item) => {
-          const on = isOn(item);
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => toggle(item)}
-              aria-pressed={on}
-              title={item.note}
-              className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                on
-                  ? "border-brand-600 bg-brand-600 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50"
-              }`}
-            >
-              <span aria-hidden="true" className={on ? "text-white/70" : "text-slate-400"}>{on ? "✓" : "+"}</span>
-              {item.label}
-            </button>
-          );
-        })}
+        {/* Values for any active tag that needs one, always editable. */}
+        {activeWithInput.length > 0 && (
+          <div className="space-y-1.5 border-l-2 border-brand-200 pl-3">
+            {activeWithInput.map((item) => (
+              <div key={item.key} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-xs font-medium text-slate-500">{item.label}:</span>
+                {renderInput(item, p.details, ctx, p.computedBlockMinutes, p.seriesExceeds, p.onSetDetail, p.onSetSeries, p.onSetLaunch)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => p.onOpenChange(!p.open)}
+          aria-expanded={p.open}
+          className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 bg-white px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+        >
+          <span aria-hidden="true" className="text-base leading-none">{p.open ? "×" : "+"}</span>
+          {p.open ? "Done" : "Add endorsement / tag"}
+        </button>
+
+        {/* Accordion: the full category picker. Toggling a chip here reflects
+            straight into the active chips and value inputs above. */}
+        {p.open && (
+          <div className="divide-y divide-slate-100 rounded-md border border-slate-200">
+            {rows.map((row) => (
+              <div key={row.label} className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-start sm:gap-3">
+                <div className="shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:w-40">{row.label}</div>
+                <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                  {row.items.map((item) => {
+                    const on = isOn(item);
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => toggle(item)}
+                        aria-pressed={on}
+                        title={item.note}
+                        className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          on
+                            ? "border-brand-600 bg-brand-600 text-white"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50"
+                        }`}
+                      >
+                        <span aria-hidden="true" className={on ? "text-white/70" : "text-slate-400"}>{on ? "✓" : "+"}</span>
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      {activeWithInput.length > 0 && (
-        <div className="mt-2 space-y-1.5 border-l-2 border-brand-200 pl-3">
-          {activeWithInput.map((item) => (
-            <div key={item.key} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-xs font-medium text-slate-500">{item.label}:</span>
-              {renderInput(item, details, ctx, computedBlockMinutes, seriesExceeds, onSetDetail, onSetSeries, onSetLaunch)}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </FormCard>
   );
 }
 
@@ -626,79 +623,6 @@ function migrateLegacyDetails(attrs: string[], d?: api.AttributeDetails): api.At
   return out;
 }
 
-/** A compact ledger of the pilot's most recent entries, shown under the form. */
-function RecentEntries({ entries }: { entries: api.EntryRow[] }) {
-  const usable = entries.filter((e) => !e.voided && e.content.columns);
-  const rows = usable
-    .map((e) => {
-      const c = e.content.columns!;
-      const landings = (c.dayLandings ?? 0) + (c.nightLandings ?? 0);
-      const fn =
-        c.pic > 0 ? "PIC"
-        : c.dual > 0 ? "DUAL"
-        : c.coPilot > 0 ? "CO-PILOT"
-        : c.instructor > 0 ? "INSTRUCTOR"
-        : "—";
-      const rules = c.ifr > 0 ? (c.ifr >= c.total ? "IFR" : "Y/Z") : "VFR";
-      return {
-        id: e.id,
-        date: c.date,
-        reg: e.content.aircraft?.registration ?? "—",
-        model: e.content.aircraft?.makeModelVariant ?? "—",
-        route: `${c.departurePlace || "—"} → ${c.arrivalPlace || "—"}`,
-        rules,
-        fn,
-        landings,
-        block: fmtHHMM(c.total) || "00:00",
-        dec: (c.total / 60).toFixed(2),
-      };
-    })
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .slice(0, 5);
-  if (rows.length === 0) return null;
-  const totalMin = usable.reduce((s, e) => s + (e.content.columns!.total ?? 0), 0);
-  return (
-    <Panel
-      title="Recent logbook entries"
-      badge={<Pill>{rows.length} {rows.length === 1 ? "record" : "records"}</Pill>}
-      right={<span>Total logged: <span className="font-mono font-semibold text-brand-700">{(totalMin / 60).toFixed(2)} hrs</span></span>}
-    >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
-              <th className="px-4 py-2 font-semibold">Date</th>
-              <th className="px-3 py-2 font-semibold">Reg</th>
-              <th className="px-3 py-2 font-semibold">Model</th>
-              <th className="px-3 py-2 font-semibold">Route</th>
-              <th className="px-3 py-2 font-semibold">Rules</th>
-              <th className="px-3 py-2 font-semibold">Function</th>
-              <th className="px-3 py-2 text-right font-semibold">Landings</th>
-              <th className="px-3 py-2 text-right font-semibold">Block time</th>
-              <th className="px-4 py-2 text-right font-semibold">Dec. hrs</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => (
-              <tr key={r.id} className="text-slate-700">
-                <td className="whitespace-nowrap px-4 py-2 font-mono text-xs">{r.date}</td>
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs font-semibold text-brand-700">{r.reg}</td>
-                <td className="whitespace-nowrap px-3 py-2">{r.model}</td>
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{r.route}</td>
-                <td className="px-3 py-2"><span className="inline-flex rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">{r.rules}</span></td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs">{r.fn}</td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">{r.landings}</td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">{r.block}</td>
-                <td className="px-4 py-2 text-right font-mono font-semibold tabular-nums text-brand-700">{r.dec}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
-  );
-}
-
 export function NewEntry() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -725,20 +649,13 @@ export function NewEntry() {
   const [regAllowed, setRegAllowed] = useState<string[]>([]);
   const [depName, setDepName] = useState<string | null>(null);
   const [arrName, setArrName] = useState<string | null>(null);
-  // The pilot's most recent entries, shown as a ledger strip under the form.
-  const [recent, setRecent] = useState<api.EntryRow[]>([]);
+  // The endorsements/tags picker is collapsed by default; only active tags and
+  // their value inputs show until the pilot opens it to add one.
+  const [tagsOpen, setTagsOpen] = useState(false);
   // Set true by the "Save & Next" button just before submit, so a successful
   // save re-opens a fresh form (carrying the aircraft and pilot) instead of
   // navigating away.
   const saveNext = useRef(false);
-
-  function loadRecent() {
-    api.listEntries().then((r) => setRecent(r.entries ?? [])).catch(() => {});
-  }
-  useEffect(() => {
-    if (editing || simulator) return;
-    loadRecent();
-  }, [editing, simulator]);
 
   useEffect(() => {
     if (!editId) return;
@@ -1150,7 +1067,6 @@ export function NewEntry() {
             pilotFunction: prev.pilotFunction,
             departurePlace: prev.arrivalPlace,
           }));
-          loadRecent();
           window.scrollTo({ top: 0, behavior: "smooth" });
         } else {
           navigate("/");
@@ -1168,7 +1084,7 @@ export function NewEntry() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h1 className="text-xl font-semibold">
           {editing ? "Edit flight entry" : simulator ? "New simulator session" : "New entry"}
@@ -1271,52 +1187,43 @@ export function NewEntry() {
       ) : (
       <form id="entry-form" onSubmit={onSubmit} className="space-y-4">
         {editing && (
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-            <Section title="Change">
-              <Field
-                label="Reason for change (optional)"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                hint="Changes more than 48 hours after the entry are recorded in the change history."
-              />
-            </Section>
-          </div>
+          <FormCard title="Change">
+            <Field
+              label="Reason for change (optional)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              hint="Changes more than 48 hours after the entry are recorded in the change history."
+            />
+          </FormCard>
         )}
 
-        <Panel
-          title="Operational flight record"
-          right={<span className="font-mono tracking-wide">All timestamps recorded in {timeMode === "local" ? "LOCAL" : "UTC"}</span>}
+        {/* ── Card 1: aircraft identity + route + times ── */}
+        <FormCard
+          title="Aircraft &amp; route"
+          right={!simulator && !categoryMismatch && aircraftMsg && !aircraftNotFound ? <Pill tone="green">Aircraft found</Pill> : undefined}
         >
-        <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-200">
-        {/* ── Left column: aircraft identity + crew station ── */}
-        <div className="space-y-5 p-4">
-          <div>
-            <SubHead right={!simulator && !categoryMismatch && aircraftMsg && !aircraftNotFound ? <Pill tone="green">Aircraft found</Pill> : undefined}>
-              Aircraft &amp; date
-            </SubHead>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} mono required />
-              <div>
-                <Field label="Aircraft registration" mono value={f.registration} onChange={(e) => set("registration", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                {!simulator && !categoryMismatch && aircraftNotFound && (
-                  <p className="mt-1 text-xs text-amber-600">{aircraftMsg}</p>
-                )}
-              </div>
+          <div className="space-y-4">
+            <div>
+              <Field label="Aircraft registration" mono value={f.registration} onChange={(e) => set("registration", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="e.g. HB-SGZ" required />
+              {!simulator && !categoryMismatch && aircraftNotFound && (
+                <p className="mt-1 text-xs text-amber-600">{aircraftMsg}</p>
+              )}
             </div>
-            <div className="mt-3">
+            <div>
               <div className="mb-1 flex items-baseline justify-between gap-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Make / model / variant</span>
-                {f.makeModelVariant && <span className="truncate text-xs font-medium text-brand-700">{f.makeModelVariant} ({CATEGORY_LABELS[f.category]})</span>}
+                {f.makeModelVariant && <span className="truncate text-xs font-medium text-brand-700">{CATEGORY_LABELS[f.category]}</span>}
               </div>
               <input
                 aria-label="Make / model / variant"
                 value={f.makeModelVariant}
                 onChange={(e) => set("makeModelVariant", e.target.value)}
                 required
+                placeholder="Auto-filled from the registration"
                 className="block min-h-[2.25rem] w-full appearance-none rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
               />
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {isPowered && (
                 <Select label="Engine class" value={f.engineClass} onChange={(e) => set("engineClass", e.target.value)}>
                   <option value="SE">Single-engine</option>
@@ -1369,11 +1276,118 @@ export function NewEntry() {
                 </Select>
               )}
             </div>
-          </div>
 
-          <div>
-            <SubHead>Crew station &amp; flight rules</SubHead>
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route &amp; times</span>
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Format
+                <select value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-xs normal-case tracking-normal">
+                  <option value="utc">UTC</option>
+                  {!isBalloon && <option value="local">Local</option>}
+                </select>
+              </span>
+            </div>
+
+            <div className="flex items-start gap-1.5">
+              <div className="min-w-0 flex-1">
+                {isBalloon ? (
+                  <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
+                ) : (
+                  <>
+                    <Field label="Departure (ICAO)" mono maxLength={4} placeholder="e.g. LSZH or ZZZZ" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                    {depName && <p className="mt-1 text-xs font-medium text-brand-700">{depName}</p>}
+                    {dep === "ZZZZ" && (
+                      <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
+                    )}
+                  </>
+                )}
+              </div>
+              {!isBalloon && (
+                <div className="shrink-0">
+                  {/* Invisible label-height spacer keeps the button top level with the
+                      input boxes, so the icon centres on the route pair. */}
+                  <span aria-hidden="true" className="mb-1 block text-[11px] opacity-0">{" "}</span>
+                  <button
+                    type="button"
+                    onClick={swapPlaces}
+                    aria-label="Swap departure and arrival"
+                    title="Swap departure and arrival"
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                  >
+                    ⇄
+                  </button>
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                {isBalloon ? (
+                  <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
+                ) : (
+                  <>
+                    <Field label="Arrival (ICAO)" mono maxLength={4} placeholder="e.g. LSZH or ZZZZ" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
+                    {arrName && <p className="mt-1 text-xs font-medium text-brand-700">{arrName}</p>}
+                    {arr === "ZZZZ" && (
+                      <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-4">
+              <div className="w-32">
+                <TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} />
+              </div>
+              <div className="w-32">
+                <TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} />
+              </div>
+            </div>
+
+            {isPowered && f.crewSize > 2 && !isSeries && (
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">Logged flight time</span>
+                  <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
+                </div>
+                <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
+                  {seriesExceeds
+                    ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
+                    : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
+                </p>
+              </div>
+            )}
+
+            {timeMode === "local" && (
+              <p className="mt-1 text-xs text-slate-500">
+                Local times are read at the aerodromes and converted to UTC for storage; the export notes the entry was made in local time.
+              </p>
+            )}
+
+            {/* Total block time: the highlighted result badge. */}
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-500">{timeLabels.total}</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-2xl font-bold tabular-nums text-brand-800">
+                    {computedBlock > 0
+                      ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
+                      : "--:--"}
+                  </span>
+                  {computedBlock > 0 && <span className="text-sm text-brand-600">({(computedBlock / 60).toFixed(2)} hrs)</span>}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-right">
+                {has("cross_country") && <Pill tone="green">Cross-country (XC)</Pill>}
+                {!isBalloon && (dep || arr) && <span className="font-mono text-[11px] text-slate-400">{dep || "—"} → {arr || "—"}</span>}
+              </div>
+            </div>
+          </div>
+        </FormCard>
+
+        {/* ── Card 2: crew, rules, landings ── */}
+        <FormCard title="Crew &amp; rules">
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Date of flight" type="date" max={today} value={f.date} onChange={(e) => set("date", e.target.value)} mono required />
               <Field
                 label={isDual ? "Name of PIC (flight instructor)" : "Name of PIC"}
                 mono
@@ -1382,6 +1396,9 @@ export function NewEntry() {
                 hint={isDual ? "On a dual flight enter the instructor's name, not SELF." : undefined}
                 required
               />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Select label="Pilot function" value={f.pilotFunction} onChange={(e) => set("pilotFunction", e.target.value)}>
                 {functionOptions.map((o) => (
                   <option key={o.key} value={o.key}>
@@ -1389,16 +1406,6 @@ export function NewEntry() {
                   </option>
                 ))}
               </Select>
-            </div>
-
-            {isSafety && (
-              <label className="mt-3 flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={f.tookControl} onChange={(e) => set("tookControl", e.target.checked)} />
-                I took control (a safety pilot logs time only if they took control)
-              </label>
-            )}
-
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               {isPowered && (
                 <Select label="Operating role" value={f.operatingRole} onChange={(e) => set("operatingRole", e.target.value)}>
                   <option value="">Not recorded (single pilot)</option>
@@ -1406,6 +1413,16 @@ export function NewEntry() {
                   <option value="PILOT_MONITORING">Pilot monitoring</option>
                 </Select>
               )}
+            </div>
+
+            {isSafety && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={f.tookControl} onChange={(e) => set("tookControl", e.target.checked)} />
+                I took control (a safety pilot logs time only if they took control)
+              </label>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {isPowered && (
                 <Select
                   label="Flight rules"
@@ -1430,19 +1447,6 @@ export function NewEntry() {
                   <option value="IFR">IFR</option>
                   <option value="MIXED">Part IFR, part VFR (changed in flight)</option>
                 </Select>
-              )}
-              {isPowered && f.flightRules === "MIXED" && (
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-700">Time flown under IFR</span>
-                    <AttrTimeInput value={f.ifrTime} onChange={(v) => set("ifrTime", v)} />
-                  </div>
-                  <p className={`mt-1 text-xs ${parseHHMM(f.ifrTime) > computedBlock ? "text-rose-600" : "text-slate-500"}`}>
-                    {parseHHMM(f.ifrTime) > computedBlock
-                      ? `Cannot exceed the flight time ${fmtHHMM(computedBlock)}.`
-                      : `The part of the flight flown under IFR; the rest counts as VFR (max ${fmtHHMM(computedBlock) || "—"}).`}
-                  </p>
-                </div>
               )}
               {isSailplane && (
                 <Select label="Launch method" value={f.launchMethod} onChange={(e) => set("launchMethod", e.target.value)}>
@@ -1475,94 +1479,22 @@ export function NewEntry() {
                 </Select>
               )}
             </div>
-          </div>
-        </div>
-        {/* ── Right column: route + times ── */}
-        <div className="space-y-5 p-4">
-          <div>
-            <SubHead
-              right={
-                <span className="flex items-center gap-1.5 normal-case tracking-normal">
-                  <span className="uppercase tracking-wide">Format</span>
-                  <select value={timeMode} onChange={(e) => setTimeMode(e.target.value as TimeMode)} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-xs">
-                    <option value="utc">UTC</option>
-                    {!isBalloon && <option value="local">Local</option>}
-                  </select>
-                </span>
-              }
-            >
-              Route &amp; times
-            </SubHead>
 
-            <div className="flex items-start gap-1.5">
-              <div className="min-w-0 flex-1">
-                {isBalloon ? (
-                  <Field label="Departure (place)" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} required />
-                ) : (
-                  <>
-                    <Field label="Departure (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.departurePlace} onChange={(e) => set("departurePlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                    <p className={`mt-1 text-xs ${depName ? "font-medium text-brand-700" : "text-slate-400"}`}>{depName || "Use ZZZZ for no ICAO code."}</p>
-                    {dep === "ZZZZ" && (
-                      <Field label="Departure place name" value={f.departurePlaceName} onChange={(e) => set("departurePlaceName", e.target.value)} required />
-                    )}
-                  </>
-                )}
-              </div>
-              {!isBalloon && (
-                <div className="shrink-0">
-                  {/* Invisible label-height spacer keeps the button top level with the
-                      input boxes, so the icon centres on the route pair. */}
-                  <span aria-hidden="true" className="mb-1 block text-[11px] opacity-0">{" "}</span>
-                  <button
-                    type="button"
-                    onClick={swapPlaces}
-                    aria-label="Swap departure and arrival"
-                    title="Swap departure and arrival"
-                    className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                  >
-                    ⇄
-                  </button>
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                {isBalloon ? (
-                  <Field label="Arrival (place)" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} required />
-                ) : (
-                  <>
-                    <Field label="Arrival (ICAO)" mono maxLength={4} placeholder="ICAO" value={f.arrivalPlace} onChange={(e) => set("arrivalPlace", e.target.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} required />
-                    <p className={`mt-1 text-xs ${arrName ? "font-medium text-brand-700" : "text-slate-400"}`}>{arrName || "Use ZZZZ for no ICAO code."}</p>
-                    {arr === "ZZZZ" && (
-                      <Field label="Arrival place name" value={f.arrivalPlaceName} onChange={(e) => set("arrivalPlaceName", e.target.value)} required />
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-4">
-              <div className="w-32">
-                <TimeField label={timeLabels.off} value={f.blockStart} onChange={(v) => set("blockStart", v)} />
-              </div>
-              <div className="w-32">
-                <TimeField label={timeLabels.on} value={f.blockEnd} onChange={(v) => set("blockEnd", v)} />
-              </div>
-            </div>
-
-            {isPowered && f.crewSize > 2 && !isSeries && (
-              <div className="mt-3">
+            {isPowered && f.flightRules === "MIXED" && (
+              <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700">Logged flight time</span>
-                  <AttrTimeInput value={f.seriesTime} onChange={(v) => set("seriesTime", v)} />
+                  <span className="text-sm font-medium text-slate-700">Time flown under IFR</span>
+                  <AttrTimeInput value={f.ifrTime} onChange={(v) => set("ifrTime", v)} />
                 </div>
-                <p className={`mt-1 text-xs ${seriesExceeds ? "text-rose-600" : "text-slate-500"}`}>
-                  {seriesExceeds
-                    ? `Cannot exceed the calculated ${fmtHHMM(crewShareLogged)}.`
-                    : `Calculated ${fmtHHMM(crewShareLogged) || "—"} for a ${f.crewSize}-pilot crew. Reduce it if you logged less — e.g. a relief pilot who rested.`}
+                <p className={`mt-1 text-xs ${parseHHMM(f.ifrTime) > computedBlock ? "text-rose-600" : "text-slate-500"}`}>
+                  {parseHHMM(f.ifrTime) > computedBlock
+                    ? `Cannot exceed the flight time ${fmtHHMM(computedBlock)}.`
+                    : `The part of the flight flown under IFR; the rest counts as VFR (max ${fmtHHMM(computedBlock) || "—"}).`}
                 </p>
               </div>
             )}
 
-            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{isBalloon ? "Landings & inflations" : "Total landings"}</div>
                 <div className="mt-0.5 text-xs text-slate-400">
@@ -1583,35 +1515,8 @@ export function NewEntry() {
                 )}
               </div>
             </div>
-
-            {timeMode === "local" && (
-              <p className="mt-2 text-xs text-slate-500">
-                Local times are read at the aerodromes and converted to UTC for storage; the export notes the entry was made in local time.
-              </p>
-            )}
-
-            {/* Total block time: a flat light summary card. */}
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{timeLabels.total}</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="font-mono text-2xl font-bold tabular-nums text-slate-800">
-                    {computedBlock > 0
-                      ? `${String(Math.floor(computedBlock / 60)).padStart(2, "0")}:${String(computedBlock % 60).padStart(2, "0")}`
-                      : "--:--"}
-                  </span>
-                  {computedBlock > 0 && <span className="text-sm text-slate-500">({(computedBlock / 60).toFixed(2)} hrs)</span>}
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1 text-right">
-                {has("cross_country") && <Pill tone="green">Cross-country (XC)</Pill>}
-                {!isBalloon && (dep || arr) && <span className="font-mono text-[11px] text-slate-400">{dep || "—"} → {arr || "—"}</span>}
-              </div>
-            </div>
           </div>
-        </div>
-        </div>
-        </Panel>
+        </FormCard>
 
         <AttributesSection
           category={f.category}
@@ -1627,33 +1532,32 @@ export function NewEntry() {
           onSetSeries={(v) => set("seriesTime", v)}
           onSetLaunch={(v) => set("launchMethod", v)}
           onSetBalloonType={(v) => set("balloonFlightType", v)}
+          open={tagsOpen}
+          onOpenChange={setTagsOpen}
         />
 
-        <Panel title="Remarks & navigation notes">
-          <div className="p-4">
-            <input
-              value={f.remarks}
-              onChange={(e) => set("remarks", e.target.value)}
-              placeholder="Any note for this entry — it appears in the logbook export."
-              className="block min-h-[2.25rem] w-full appearance-none rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-            />
-          </div>
-        </Panel>
+        <FormCard title="Remarks">
+          <textarea
+            value={f.remarks}
+            onChange={(e) => set("remarks", e.target.value)}
+            rows={3}
+            placeholder="Any note for this entry — it appears in the logbook export."
+            className="block w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+          />
+        </FormCard>
 
-        {!editing && <RecentEntries entries={recent} />}
-
-        {/* Sticky action bar on mobile so Save is always within reach. The extra
-            bottom padding clears the iOS home indicator / browser bar. */}
-        <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">
+        {/* Sticky action bar so Save and Cancel are always within reach on a
+            phone. The extra bottom padding clears the iOS home indicator. */}
+        <div className="sticky bottom-0 z-10 -mx-4 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur sm:hidden">
+          <Button type="button" variant="ghost" onClick={() => navigate(editing && editId ? `/entry/${editId}` : "/")} className="py-2.5">Cancel</Button>
           <Button
             type="submit"
             disabled={busy || clockBlocked}
             title={clockBlocked ? "Your computer's clock is off by more than 30 minutes. Fix it before saving." : undefined}
-            className="flex-1 py-2.5 md:flex-none md:py-2"
+            className="flex-1 py-2.5"
           >
             {busy ? "Saving..." : editing ? "Save changes" : "Save entry"}
           </Button>
-          <Button type="button" variant="ghost" onClick={() => navigate(editing && editId ? `/entry/${editId}` : "/")} className="py-2.5 md:py-2">Cancel</Button>
         </div>
       </form>
       )}
