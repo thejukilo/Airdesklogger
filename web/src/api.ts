@@ -700,7 +700,15 @@ export interface CsvImportRow {
 }
 
 export type CsvDateFormat = "auto" | "YMD" | "DMY" | "MDY";
-export type ImportSource = "default" | "capzlog";
+export type ImportSource = "default" | "capzlog" | "capzlog-pdf";
+
+/** One positioned word from a PDF (pdf.js), sent to the capzlog-pdf importer. */
+export interface CapzlogTextItem {
+  str: string;
+  x: number;
+  y: number;
+  w?: number;
+}
 export type CapzlogReport = "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator";
 
 export interface CsvImportResult {
@@ -744,6 +752,28 @@ export function importLogbookCsv(
       ...(opts.reportType ? { reportType: opts.reportType } : {}),
       timeZone: opts.timeZone,
       dateFormat: opts.dateFormat,
+      selfName: opts.selfName,
+      commit: opts.commit,
+    }),
+  });
+}
+
+/**
+ * Import a capzlog Airplane PDF report. The browser extracts the positioned
+ * text items with pdf.js and posts them here; the server turns them into
+ * flights and runs the same validate/commit pipeline as the CSV import.
+ * capzlog PDF times are Zulu (UTC), so the server reads them as UTC.
+ */
+export function importLogbookPdf(
+  items: CapzlogTextItem[],
+  opts: { selfName: string | null; commit: boolean },
+): Promise<CsvImportResult> {
+  return request("/import/csv", {
+    method: "POST",
+    body: JSON.stringify({
+      source: "capzlog-pdf",
+      items,
+      timeZone: "UTC",
       selfName: opts.selfName,
       commit: opts.commit,
     }),

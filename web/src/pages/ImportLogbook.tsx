@@ -338,6 +338,7 @@ export function ImportLogbook() {
   const [dirty, setDirty] = useState(false); // edits made since the last check
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<api.CsvImportResult | null>(null);
+  const [pdfItems, setPdfItems] = useState<api.CapzlogTextItem[] | null>(null);
 
   const readyCount = result?.summary.ready ?? 0;
   const errorRows = useMemo(
@@ -349,12 +350,54 @@ export function ImportLogbook() {
     [result],
   );
 
-  function onFile(file: File) {
+  async function onFile(file: File) {
     setError(null);
+    if (source === "capzlog-pdf") {
+      setBusy(true);
+      setFileName(file.name);
+      try {
+        const { extractPdfTextItems } = await import("../lib/pdfText");
+        const items = await extractPdfTextItems(file);
+        setPdfItems(items);
+        const r = await api.importLogbookPdf(items, {
+          selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
+          commit: false,
+        });
+        setResult(r);
+        setStep("review");
+      } catch (e) {
+        setError(
+          e instanceof api.ApiError
+            ? e.message
+            : "Could not read that PDF. Make sure it is a capzlog Airplane Flights Report.",
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => { setCsv(String(reader.result ?? "")); setFileName(file.name); setGrid(null); };
     reader.onerror = () => setError("Could not read that file.");
     reader.readAsText(file);
+  }
+
+  async function commitPdf() {
+    if (!pdfItems) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.importLogbookPdf(pdfItems, {
+        selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
+        commit: true,
+      });
+      setResult(r);
+      setStep("done");
+    } catch (e) {
+      setError(e instanceof api.ApiError ? e.message : "Could not import that PDF.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   // When a capzlog file is present, pre-select the report type from its header
@@ -451,7 +494,7 @@ export function ImportLogbook() {
   }
 
   function resetAll() {
-    setStep("upload"); setCsv(""); setGrid(null); setFileName(null); setResult(null); setDirty(false);
+    setStep("upload"); setCsv(""); setGrid(null); setFileName(null); setResult(null); setDirty(false); setPdfItems(null);
   }
 
   return (
@@ -488,12 +531,20 @@ export function ImportLogbook() {
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 sm:max-w-xs"
               >
                 <option value="default">Airdesk template</option>
-                <option value="capzlog">capzlog.aero export</option>
+                <option value="capzlog">capzlog.aero export (CSV)</option>
+                <option value="capzlog-pdf">capzlog.aero export (PDF)</option>
               </select>
               {source === "capzlog" && (
                 <span className="mt-1 block text-xs text-slate-500">
                   Export each report from capzlog and import them one at a time. capzlog times are usually
                   local — set the time option below to match.
+                </span>
+              )}
+              {source === "capzlog-pdf" && (
+                <span className="mt-1 block text-xs text-slate-500">
+                  Lets you migrate without a capzlog subscription (the CSV export is paid-only). Export the
+                  <strong> Airplane Flights Report</strong> as a PDF and upload it here — times are read as UTC.
+                  Only the Airplane report is supported for now.
                 </span>
               )}
             </label>
@@ -505,25 +556,30 @@ export function ImportLogbook() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept={source === "capzlog-pdf" ? ".pdf,application/pdf" : ".csv,text/csv"}
                 className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); e.target.value = ""; }}
               />
-              <Button onClick={() => fileRef.current?.click()}>Choose CSV file</Button>
+              <Button onClick={() => fileRef.current?.click()} disabled={busy}>
+                {source === "capzlog-pdf" ? (busy ? "Reading PDF…" : "Choose PDF file") : "Choose CSV file"}
+              </Button>
               {fileName && <span className="text-sm text-slate-500">{fileName}</span>}
             </div>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-700">Or paste the CSV</span>
-              <textarea
-                value={csv}
-                onChange={(e) => { setCsv(e.target.value); setFileName(null); setGrid(null); }}
-                rows={6}
-                placeholder="date,off_block_utc,on_block_utc,departure_icao,arrival_icao,registration,function,..."
-                className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
-              />
-            </label>
+            {source !== "capzlog-pdf" && (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Or paste the CSV</span>
+                <textarea
+                  value={csv}
+                  onChange={(e) => { setCsv(e.target.value); setFileName(null); setGrid(null); }}
+                  rows={6}
+                  placeholder="date,off_block_utc,on_block_utc,departure_icao,arrival_icao,registration,function,..."
+                  className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+                />
+              </label>
+            )}
 
+            {source !== "capzlog-pdf" && (
             <div className="grid gap-5 sm:grid-cols-2">
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium text-slate-700">The times in my file are</legend>
@@ -573,6 +629,7 @@ export function ImportLogbook() {
                 </label>
               )}
             </div>
+            )}
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <label className="flex items-start gap-2 text-sm text-slate-700">
@@ -595,8 +652,35 @@ export function ImportLogbook() {
               )}
             </div>
 
-            <div className="flex justify-end">
-              <Button onClick={check} disabled={busy || !csv.trim()}>{busy ? "Checking..." : "Check file"}</Button>
+            {source !== "capzlog-pdf" && (
+              <div className="flex justify-end">
+                <Button onClick={check} disabled={busy || !csv.trim()}>{busy ? "Checking..." : "Check file"}</Button>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {step === "review" && result && source === "capzlog-pdf" && (
+        <Card>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <p className="text-slate-700">
+                <strong>{result.summary.total}</strong> flights in the PDF.{" "}
+                <span className="text-sky-700">{result.summary.ready} ready to import</span>
+                {result.summary.errors > 0 && (<>{" · "}<span className="text-rose-700">{result.summary.errors} with problems</span></>)}.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Read from a capzlog <strong>Airplane</strong> PDF (times as UTC). Check the totals below;
+                any row with a problem is skipped, not imported.
+              </p>
+            </div>
+            <ResultTable rows={result.rows} />
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+              <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); setPdfItems(null); setFileName(null); }} disabled={busy}>Back</Button>
+              <Button onClick={commitPdf} disabled={busy || readyCount === 0}>
+                {busy ? "Importing..." : `Import ${readyCount} ${readyCount === 1 ? "flight" : "flights"}`}
+              </Button>
             </div>
           </div>
         </Card>

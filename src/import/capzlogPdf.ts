@@ -110,15 +110,16 @@ function colFor(x: number): Col | null {
 }
 
 function detectReport(items: CapzlogTextItem[]): CapzlogPdfReport {
-  // The report title ("<Category> Flights Report") sits at the top; match the
-  // category word among the first handful of words, case-insensitively.
-  const head = items.slice(0, 12).map((i) => i.str.toLowerCase());
-  const has = (w: string) => head.includes(w);
-  if (has("airplane") || has("aeroplane")) return "airplane";
-  if (has("helicopter")) return "helicopter";
-  if (has("sailplane") || has("glider")) return "sailplane";
-  if (has("balloon")) return "balloon";
-  if (has("simulator") || has("fstd")) return "simulator";
+  // The category appears only in the report title ("<Category> Flights Report"),
+  // which an extractor may keep as one item (pdf.js) or split into words
+  // (pdftotext) — so match the whole word anywhere, with no assumptions about
+  // item order or y-direction.
+  const text = " " + items.map((i) => i.str.toLowerCase()).join(" ") + " ";
+  if (/\b(airplane|aeroplane)\b/.test(text)) return "airplane";
+  if (/\bhelicopter\b/.test(text)) return "helicopter";
+  if (/\b(sailplane|glider)\b/.test(text)) return "sailplane";
+  if (/\bballoon\b/.test(text)) return "balloon";
+  if (/\b(simulator|fstd)\b/.test(text)) return "simulator";
   return "unknown";
 }
 
