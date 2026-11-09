@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { useAuth } from "./auth";
 import { ClockSkewBanner } from "./components/ClockSkewBanner";
 import { SubscriptionBanner } from "./components/SubscriptionBanner";
+import { EnvBanner } from "./components/EnvBanner";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Landing } from "./pages/Landing";
@@ -229,6 +230,7 @@ export function App() {
         <Route path="/*" element={<MaybeLandingOrShell />} />
       </Routes>
       {locked && <LockScreen />}
+      <EnvBanner />
     </>
   );
 }

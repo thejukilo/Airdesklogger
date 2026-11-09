@@ -9,6 +9,12 @@ export default defineConfig(() => {
   const proxyTarget = process.env.VITE_API_PROXY;
   return {
     plugins: [react()],
+    // VERCEL_ENV ("production" | "preview") is set during the Vercel build; it is
+    // baked into the bundle so the app can tell which deployment it is, correctly,
+    // regardless of which URL opens it. Falls back to "development" for local builds.
+    define: {
+      __DEPLOY_ENV__: JSON.stringify(process.env.VERCEL_ENV || "development"),
+    },
     server: proxyTarget
       ? { proxy: { "/api": { target: proxyTarget, changeOrigin: true, secure: true } } }
       : {},
