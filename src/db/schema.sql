@@ -283,6 +283,8 @@ CREATE INDEX IF NOT EXISTS idx_aircraft_registration ON aircraft (registration);
 -- Bring an aircraft table created before these columns existed up to date
 -- (CREATE TABLE IF NOT EXISTS does not alter an existing table). The unique
 -- index backs the ON CONFLICT (registration, valid_from) upsert used by imports.
+ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'AEROPLANE'
+  CHECK (category IN ('AEROPLANE','HELICOPTER','SAILPLANE','BALLOON'));
 ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS icao_type text;
 ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS variant text;
 ALTER TABLE aircraft ADD COLUMN IF NOT EXISTS engine_type text;
