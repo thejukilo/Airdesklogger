@@ -758,21 +758,46 @@ export function importLogbookCsv(
   });
 }
 
+/** Raw per-column cell strings for one flight from a capzlog PDF (mirrors the
+ * server CapzlogPdfRow). */
+export interface CapzlogPdfRow {
+  date: string; depPlace: string; depTime: string; arrPlace: string; arrTime: string;
+  reg: string; type: string; total: string; se: string; me: string; multiPilot: string;
+  picName: string; dayLandings: string; nightLandings: string; night: string; ifr: string;
+  fnPIC: string; fnCopi: string; fnDual: string; fnInstr: string;
+}
+
+export interface CapzlogPdfExtract {
+  report: "airplane" | "helicopter" | "sailplane" | "balloon" | "simulator" | "unknown";
+  holder: string | null;
+  rows: CapzlogPdfRow[];
+  warnings: string[];
+}
+
 /**
- * Import a capzlog Airplane PDF report. The browser extracts the positioned
- * text items with pdf.js and posts them here; the server turns them into
- * flights and runs the same validate/commit pipeline as the CSV import.
- * capzlog PDF times are Zulu (UTC), so the server reads them as UTC.
+ * Phase 1 of the capzlog PDF import: send the pdf.js text items; the server
+ * extracts one flight row per flight (pure, no database writes). The browser
+ * then imports those rows in batches so a large multi-page PDF stays within the
+ * per-request row cap and the function time limit.
  */
-export function importLogbookPdf(
-  items: CapzlogTextItem[],
+export function extractCapzlogPdf(items: CapzlogTextItem[]): Promise<CapzlogPdfExtract> {
+  return request("/import/csv", {
+    method: "POST",
+    body: JSON.stringify({ source: "capzlog-pdf", extractOnly: true, items }),
+  });
+}
+
+/** Phase 2: import one batch of extracted flight rows (keep batches <= 200).
+ * capzlog PDF times are Zulu (UTC), so the server reads them as UTC. */
+export function importLogbookPdfRows(
+  rows: CapzlogPdfRow[],
   opts: { selfName: string | null; commit: boolean },
 ): Promise<CsvImportResult> {
   return request("/import/csv", {
     method: "POST",
     body: JSON.stringify({
       source: "capzlog-pdf",
-      items,
+      rows,
       timeZone: "UTC",
       selfName: opts.selfName,
       commit: opts.commit,

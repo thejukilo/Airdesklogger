@@ -6,7 +6,10 @@ import type { CapzlogTextItem } from "../api";
  * y is offset per page so that rows on different pages can never collide when
  * the server groups words into table rows.
  */
-export async function extractPdfTextItems(file: File): Promise<CapzlogTextItem[]> {
+export async function extractPdfTextItems(
+  file: File,
+  onProgress?: (page: number, totalPages: number) => void,
+): Promise<CapzlogTextItem[]> {
   const pdfjs = await import("pdfjs-dist");
   // Vite rewrites this to a hashed worker URL at build time.
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
@@ -17,6 +20,7 @@ export async function extractPdfTextItems(file: File): Promise<CapzlogTextItem[]
   const items: CapzlogTextItem[] = [];
   try {
     for (let p = 1; p <= pdf.numPages; p++) {
+      onProgress?.(p, pdf.numPages);
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
       const yOffset = p * 100000; // separate pages so their rows never merge

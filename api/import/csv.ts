@@ -8,7 +8,11 @@ import { createEntry, createFstdEntry } from "../../src/db/repository.js";
 import { getAircraftForFlight, upsertAircraft, fstdDeviceExists, upsertFstdDevice } from "../../src/db/referenceRepository.js";
 import { parseImportCsv, type DateFormat, type MappedRow } from "../../src/http/importCsv.js";
 import { parseCapzlogCsv, mapCapzlogPdfRows, type CapzlogReport } from "../../src/http/capzlog.js";
-import { extractCapzlogPdf, type CapzlogTextItem } from "../../src/import/capzlogPdf.js";
+import { extractCapzlogPdf, type CapzlogTextItem, type CapzlogPdfRow } from "../../src/import/capzlogPdf.js";
+
+// A batch of up to MAX_ROWS rows with DB work per row can take a while; give it
+// headroom (the browser sends large PDFs in batches, so each call stays bounded).
+export const maxDuration = 60;
 
 /**
  * Self-service CSV logbook import for the signed-in holder.
@@ -58,6 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const body = (typeof req.body === "string" ? safeJson(req.body) : req.body) as {
       csv?: unknown;
       items?: unknown;
+      rows?: unknown;
+      extractOnly?: unknown;
       source?: unknown;
       reportType?: unknown;
       timeZone?: unknown;
@@ -69,11 +75,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const source =
       body.source === "capzlog" ? "capzlog" : body.source === "capzlog-pdf" ? "capzlog-pdf" : "default";
 
-    const csv = typeof body.csv === "string" ? body.csv : "";
-    const items = (Array.isArray(body.items) ? body.items : []) as CapzlogTextItem[];
-    if (source === "capzlog-pdf") {
+    // capzlog PDF import is a two-phase, batched flow so a large multi-page PDF
+    // (hundreds of flights) neither exceeds the per-request row cap nor times
+    // out: (1) extractOnly turns the pdf.js text items into flight rows (pure,
+    // no DB), then (2) the browser sends those rows back in batches to import.
+    if (source === "capzlog-pdf" && body.extractOnly === true) {
+      const items = (Array.isArray(body.items) ? body.items : []) as CapzlogTextItem[];
       if (items.length === 0) {
         res.status(400).json({ error: "No PDF text content was provided." });
+        return;
+      }
+      const ex = extractCapzlogPdf(items);
+      res.status(200).json({ report: ex.report, holder: ex.holder, rows: ex.rows, warnings: ex.warnings });
+      return;
+    }
+
+    const csv = typeof body.csv === "string" ? body.csv : "";
+    const pdfRows = (Array.isArray(body.rows) ? body.rows : []) as CapzlogPdfRow[];
+    if (source === "capzlog-pdf") {
+      if (pdfRows.length === 0) {
+        res.status(400).json({ error: "No flights to import." });
         return;
       }
     } else if (!csv.trim()) {
@@ -98,15 +119,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let dateUsed: string | undefined;
     let reportUsed: CapzlogReport | undefined;
     if (source === "capzlog-pdf") {
-      const extract = extractCapzlogPdf(items);
-      if (extract.report !== "airplane" || extract.rows.length === 0) {
-        rows = [];
-        fatal = extract.warnings[0] ?? "No importable flights were found in this PDF.";
-      } else {
-        rows = mapCapzlogPdfRows(extract.rows, { selfName: selfName ?? extract.holder });
-        fatal = null;
-        reportUsed = "airplane";
-      }
+      rows = mapCapzlogPdfRows(pdfRows, { selfName });
+      fatal = null;
+      reportUsed = "airplane";
     } else if (source === "capzlog") {
       const parsed = parseCapzlogCsv(csv, { ...(reportType ? { reportType } : {}), selfName });
       rows = parsed.rows;

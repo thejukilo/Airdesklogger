@@ -338,7 +338,9 @@ export function ImportLogbook() {
   const [dirty, setDirty] = useState(false); // edits made since the last check
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<api.CsvImportResult | null>(null);
-  const [pdfItems, setPdfItems] = useState<api.CapzlogTextItem[] | null>(null);
+  const [pdfRows, setPdfRows] = useState<api.CapzlogPdfRow[] | null>(null);
+  const [pdfHolder, setPdfHolder] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
 
   const readyCount = result?.summary.ready ?? 0;
   const errorRows = useMemo(
@@ -350,20 +352,55 @@ export function ImportLogbook() {
     [result],
   );
 
+  // capzlog PDFs can run to hundreds of flights across many pages; import them
+  // in bounded batches so a big file never exceeds the per-request row cap or
+  // the function time limit, and show progress at every stage.
+  const PDF_BATCH = 150;
+
+  function combinePdf(parts: api.CsvImportResult[], committed: boolean): api.CsvImportResult {
+    const sum = (k: "total" | "ready" | "created" | "errors") =>
+      parts.reduce((s, p) => s + p.summary[k], 0);
+    return {
+      committed,
+      report: "airplane",
+      summary: { total: sum("total"), ready: sum("ready"), created: sum("created"), errors: sum("errors") },
+      rows: parts.flatMap((p) => p.rows),
+    };
+  }
+
+  async function runPdfBatches(rows: api.CapzlogPdfRow[], commitRows: boolean, label: string): Promise<api.CsvImportResult> {
+    const selfArg = selfEnabled && selfName.trim() ? selfName.trim() : pdfHolder;
+    const parts: api.CsvImportResult[] = [];
+    for (let i = 0; i < rows.length; i += PDF_BATCH) {
+      const batch = rows.slice(i, i + PDF_BATCH);
+      setProgress({ label, done: Math.min(i + batch.length, rows.length), total: rows.length });
+      parts.push(await api.importLogbookPdfRows(batch, { selfName: selfArg, commit: commitRows }));
+    }
+    return combinePdf(parts, commitRows);
+  }
+
   async function onFile(file: File) {
     setError(null);
     if (source === "capzlog-pdf") {
       setBusy(true);
       setFileName(file.name);
+      setResult(null);
+      setPdfRows(null);
       try {
         const { extractPdfTextItems } = await import("../lib/pdfText");
-        const items = await extractPdfTextItems(file);
-        setPdfItems(items);
-        const r = await api.importLogbookPdf(items, {
-          selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
-          commit: false,
-        });
-        setResult(r);
+        setProgress({ label: "Reading PDF", done: 0, total: 0 });
+        const items = await extractPdfTextItems(file, (page, total) =>
+          setProgress({ label: "Reading PDF", done: page, total }),
+        );
+        const ex = await api.extractCapzlogPdf(items);
+        if (ex.report !== "airplane" || ex.rows.length === 0) {
+          setError(ex.warnings[0] ?? "No importable flights were found in this PDF.");
+          return;
+        }
+        setPdfRows(ex.rows);
+        setPdfHolder(ex.holder);
+        const combined = await runPdfBatches(ex.rows, false, "Checking flights");
+        setResult(combined);
         setStep("review");
       } catch (e) {
         setError(
@@ -372,6 +409,7 @@ export function ImportLogbook() {
             : "Could not read that PDF. Make sure it is a capzlog Airplane Flights Report.",
         );
       } finally {
+        setProgress(null);
         setBusy(false);
       }
       return;
@@ -383,19 +421,17 @@ export function ImportLogbook() {
   }
 
   async function commitPdf() {
-    if (!pdfItems) return;
+    if (!pdfRows) return;
     setBusy(true);
     setError(null);
     try {
-      const r = await api.importLogbookPdf(pdfItems, {
-        selfName: selfEnabled && selfName.trim() ? selfName.trim() : null,
-        commit: true,
-      });
-      setResult(r);
+      const combined = await runPdfBatches(pdfRows, true, "Importing flights");
+      setResult(combined);
       setStep("done");
     } catch (e) {
       setError(e instanceof api.ApiError ? e.message : "Could not import that PDF.");
     } finally {
+      setProgress(null);
       setBusy(false);
     }
   }
@@ -494,7 +530,8 @@ export function ImportLogbook() {
   }
 
   function resetAll() {
-    setStep("upload"); setCsv(""); setGrid(null); setFileName(null); setResult(null); setDirty(false); setPdfItems(null);
+    setStep("upload"); setCsv(""); setGrid(null); setFileName(null); setResult(null); setDirty(false);
+    setPdfRows(null); setPdfHolder(null); setProgress(null);
   }
 
   return (
@@ -506,7 +543,27 @@ export function ImportLogbook() {
 
       {error && <Alert>{error}</Alert>}
 
-      {step === "upload" && (
+      {progress && (
+        <Card>
+          <div className="space-y-3 py-2">
+            <p className="text-sm font-medium text-slate-700">
+              {progress.label}
+              {progress.total > 0
+                ? ` — ${progress.done} of ${progress.total} ${progress.label === "Reading PDF" ? "pages" : "flights"}`
+                : "…"}
+            </p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-brand-500 transition-all duration-200"
+                style={{ width: progress.total > 0 ? `${Math.round((progress.done / progress.total) * 100)}%` : "20%" }}
+              />
+            </div>
+            <p className="text-xs text-slate-500">Large PDFs are imported in batches — this can take a moment.</p>
+          </div>
+        </Card>
+      )}
+
+      {step === "upload" && !progress && (
         <Card>
           <div className="space-y-5">
             <div className="space-y-2 text-sm text-slate-600">
@@ -661,7 +718,7 @@ export function ImportLogbook() {
         </Card>
       )}
 
-      {step === "review" && result && source === "capzlog-pdf" && (
+      {step === "review" && result && source === "capzlog-pdf" && !progress && (
         <Card>
           <div className="space-y-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
@@ -675,7 +732,10 @@ export function ImportLogbook() {
                 any row with a problem is skipped, not imported.
               </p>
             </div>
-            <ResultTable rows={result.rows} />
+            <ResultTable rows={result.rows.slice(0, 50)} />
+            {result.rows.length > 50 && (
+              <p className="text-center text-xs text-slate-500">Showing the first 50 of {result.rows.length} flights.</p>
+            )}
             {result.summary.errors > 0 && (
               <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm">
                 <p className="font-medium text-rose-900">Why some rows can’t be imported yet:</p>
@@ -690,7 +750,7 @@ export function ImportLogbook() {
               </div>
             )}
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-              <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); setPdfItems(null); setFileName(null); }} disabled={busy}>Back</Button>
+              <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); setPdfRows(null); setFileName(null); }} disabled={busy}>Back</Button>
               <Button onClick={commitPdf} disabled={busy || readyCount === 0}>
                 {busy ? "Importing..." : `Import ${readyCount} ${readyCount === 1 ? "flight" : "flights"}`}
               </Button>
