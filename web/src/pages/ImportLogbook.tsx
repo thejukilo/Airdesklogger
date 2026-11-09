@@ -676,6 +676,19 @@ export function ImportLogbook() {
               </p>
             </div>
             <ResultTable rows={result.rows} />
+            {result.summary.errors > 0 && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm">
+                <p className="font-medium text-rose-900">Why some rows can’t be imported yet:</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-rose-800">
+                  {[...result.rows
+                    .flatMap((r) => r.issues ?? [])
+                    .reduce((m, iss) => m.set(iss.message, (m.get(iss.message) ?? 0) + 1), new Map<string, number>())
+                    .entries()].map(([msg, n]) => (
+                    <li key={msg}>{msg}{n > 1 && <span className="text-rose-500"> ({n} flights)</span>}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
               <Button variant="ghost" onClick={() => { setStep("upload"); setResult(null); setPdfItems(null); setFileName(null); }} disabled={busy}>Back</Button>
               <Button onClick={commitPdf} disabled={busy || readyCount === 0}>
